@@ -3,3 +3,9 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@octanejs/remix-router@0.1.36'
+  - octane@0.1.40
+  - '@octanejs/app-core@0.0.36'
+  - '@octanejs/vite-plugin@0.1.40'
