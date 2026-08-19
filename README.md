@@ -1,23 +1,53 @@
 # Flamefront
 
-Flamefront is the small, code-based framework layer being explored for the
-Octane playground.
+Flamefront is the small, compiler-oriented framework layer being explored for
+the Octane playground.
 
-The first slice deliberately owns only the behavioral route manifest contract:
+Routes are declared beside their Octane components:
 
 ```ts
-import { defineApp, route } from 'flamefront';
+import { defineRoute } from 'flamefront';
 
-export const app = defineApp({
-	routes: [
-		route('/home', '/src/Home.tsrx', { render: 'ssr' }),
-	],
+export function Home() @{
+	<main>Home</main>
+}
+
+defineRoute(Home, {
+	path: '/home',
+	render: 'ssr',
 });
 ```
 
-Keep app-specific display data, such as navigation labels, in app code rather
-than adding it to the framework route definition.
+The Vite plugin extracts and erases the declaration, then exposes the generated
+route graph through `virtual:flamefront/routes`. Only static behavioral options
+belong in `defineRoute()`; display data such as navigation labels stays in app
+code.
 
-Run `ff routes` from an app with `src/routes.ts` to inspect its route graph.
-Vite development, production rendering, and static output remain on the
-existing Octane adapter until the manifest contract is ready to own them.
+`flamefront.config.json` supplies the discovery boundary used by both the Vite
+plugin and CLI:
+
+```json
+{
+	"routes": {
+		"include": ["src/**/*.tsrx"]
+	}
+}
+```
+
+The JSON boundary is intentional: `ff routes` can discover the graph without
+executing application or Vite configuration. The include pattern selects source
+files only; paths still come exclusively from `defineRoute()`.
+
+Add Flamefront alongside Octane's compiler plugin:
+
+```ts
+import { octane } from '@octanejs/vite-plugin';
+import { flamefront } from 'flamefront/vite';
+
+export default {
+	plugins: [flamefront(), octane()],
+};
+```
+
+Run `ff routes` to inspect the compiled route graph. Production rendering and
+static output remain on the existing thin Octane adapters.

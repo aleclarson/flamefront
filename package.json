@@ -1,7 +1,7 @@
 {
   "name": "flamefront",
   "version": "0.0.0",
-  "description": "A small code-based route manifest and Octane framework seed.",
+  "description": "Compile-time component routing for Octane.",
   "type": "module",
   "private": true,
   "bin": {
@@ -11,12 +11,24 @@
     ".": {
       "types": "./src/index.d.ts",
       "import": "./src/index.js"
+    },
+    "./discovery": {
+      "types": "./src/discovery.d.ts",
+      "import": "./src/discovery.js"
+    },
+    "./vite": {
+      "types": "./src/vite.d.ts",
+      "import": "./src/vite.js"
     }
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@alloc/cmd-ts": "0.17.1"
+    "@alloc/cmd-ts": "0.17.1",
+    "@tsrx/core": "0.1.58"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
   }
 }

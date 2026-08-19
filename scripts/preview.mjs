@@ -2,11 +2,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { routes } from '../src/routes.ts';
+import { discoverRoutes } from 'flamefront/discovery';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientDir = resolve(root, 'dist/client');
 const port = Number(process.env.PORT ?? 4173);
+const routes = await discoverRoutes(root);
 const serverEntry = await import(`${pathToFileURL(resolve(root, 'dist/server/entry-server.js')).href}?preview=${Date.now()}`);
 const ssrRoute = routes.find((route) => route.render === 'ssr');
 const ssgRoute = routes.find((route) => route.render === 'ssg');
@@ -14,7 +15,7 @@ const spaRoutes = routes.filter((route) => route.render === 'spa');
 const defaultSpaRoute = spaRoutes[0];
 
 if (!ssrRoute || !ssgRoute || !defaultSpaRoute) {
-	throw new Error('routes.ts must define SSR, SSG, and SPA routes.');
+	throw new Error('Flamefront must discover SSR, SSG, and SPA routes.');
 }
 
 function matchesPath(url, route) {

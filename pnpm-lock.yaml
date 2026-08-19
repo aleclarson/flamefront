@@ -27,6 +27,12 @@ importers:
       '@alloc/cmd-ts':
         specifier: 0.17.1
         version: 0.17.1
+      '@tsrx/core':
+        specifier: 0.1.58
+        version: 0.1.58
+      vite:
+        specifier: ^8.0.0
+        version: 8.2.1(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 
