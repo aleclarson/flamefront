@@ -2,12 +2,11 @@ import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverRoutes } from 'flamefront/discovery';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4179;
 const base = `http://127.0.0.1:${port}`;
-const routes = await discoverRoutes(root);
 const ssrRoute = routes.find((route) => route.render === 'ssr');
 const ssgRoute = routes.find((route) => route.render === 'ssg');
 const spaRoutes = routes.filter((route) => route.render === 'spa');

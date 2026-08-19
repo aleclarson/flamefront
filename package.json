@@ -1,27 +1,21 @@
 {
   "name": "flamefront",
   "version": "0.0.0",
-  "description": "Compile-time component routing for Octane.",
+  "description": "Typed centralized route manifests for Octane.",
   "type": "module",
   "private": true,
   "bin": {
     "ff": "./src/cli.ts"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./discovery": "./src/discovery.ts",
-    "./vite": "./src/vite.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@alloc/cmd-ts": "0.17.1",
-    "@tsrx/core": "0.1.58"
-  },
-  "peerDependencies": {
-    "vite": "^8.0.0"
+    "@alloc/cmd-ts": "0.17.1"
   },
   "devDependencies": {
     "@types/node": "26.1.1",

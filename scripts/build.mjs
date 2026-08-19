@@ -1,12 +1,11 @@
 import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { discoverRoutes } from 'flamefront/discovery';
 import { build } from 'vite';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
-const routes = await discoverRoutes(root);
 const ssgRoute = routes.find((route) => route.render === 'ssg');
 
 if (!ssgRoute) throw new Error('Flamefront must discover an SSG route.');

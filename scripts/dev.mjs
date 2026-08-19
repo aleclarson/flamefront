@@ -2,12 +2,11 @@ import { createServer as createHttpServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverRoutes } from 'flamefront/discovery';
 import { createServer as createViteServer } from 'vite';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT ?? 5173);
-const routes = await discoverRoutes(root);
 const ssrRoute = routes.find((route) => route.render === 'ssr');
 const ssgRoute = routes.find((route) => route.render === 'ssg');
 
