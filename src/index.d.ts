@@ -4,8 +4,6 @@ export type HydrationMode = 'full' | 'deferred' | 'none';
 export interface RouteOptions {
 	render?: RenderMode;
 	hydration?: HydrationMode;
-	navLabel?: string;
-	label?: string;
 	[key: string]: unknown;
 }
 

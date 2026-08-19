@@ -39,8 +39,7 @@ const routes = command({
 		}
 
 		for (const route of app.routes) {
-			const label = route.navLabel ?? route.label ?? '';
-			console.log(`${route.path}\t${route.render}\t${label}`);
+			console.log(`${route.path}\t${route.render}\t${route.hydration ?? 'default'}`);
 		}
 	},
 });

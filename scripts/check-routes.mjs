@@ -15,6 +15,10 @@ if (!ssrRoute || !ssgRoute || spaRoutes.length !== 2) {
 	throw new Error('routes.ts must define one SSR, one SSG, and two SPA routes.');
 }
 
+if (routes.some((route) => 'label' in route || 'navLabel' in route)) {
+	throw new Error('routes.ts must keep display labels out of the route manifest.');
+}
+
 const preview = spawn(process.execPath, [resolve(root, 'scripts/preview.mjs')], {
 	cwd: root,
 	env: { ...process.env, PORT: String(port) },
