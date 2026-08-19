@@ -2,6 +2,7 @@
   "name": "flamefront",
   "version": "0.0.0",
   "description": "Typed centralized route manifests for Octane.",
+  "license": "FSL-1.1-MIT",
   "type": "module",
   "private": true,
   "bin": {
