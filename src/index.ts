@@ -90,11 +90,3 @@ export function defineApp<T extends AppDefinition>(options: T): T {
 		routes: Object.freeze(routes),
 	}) as T;
 }
-
-/** Select routes for one render mode. */
-export function routesFor(
-	app: AppDefinition,
-	render: RenderMode,
-): readonly RouteDefinition[] {
-	return app.routes.filter((routeDefinition) => routeDefinition.render === render);
-}

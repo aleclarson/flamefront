@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
-import { routes } from '../src/routes.ts';
+import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT ?? 5173);
-const ssrRoute = routes.find((route) => route.render === 'ssr');
-const ssgRoute = routes.find((route) => route.render === 'ssg');
+const ssrRoute = app.routes.find((route) => route.render === 'ssr');
+const ssgRoute = app.routes.find((route) => route.render === 'ssg');
 
-if (!ssrRoute || !ssgRoute) throw new Error('Flamefront must discover SSR and SSG routes.');
+if (!ssrRoute || !ssgRoute) throw new Error('The route manifest must define SSR and SSG routes.');
 
 function matchesPath(url, route) {
 	return url.pathname === route.path || url.pathname === `${route.path}/`;

@@ -2,20 +2,20 @@ import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { routes } from '../src/routes.ts';
+import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4179;
 const base = `http://127.0.0.1:${port}`;
-const ssrRoute = routes.find((route) => route.render === 'ssr');
-const ssgRoute = routes.find((route) => route.render === 'ssg');
-const spaRoutes = routes.filter((route) => route.render === 'spa');
+const ssrRoute = app.routes.find((route) => route.render === 'ssr');
+const ssgRoute = app.routes.find((route) => route.render === 'ssg');
+const spaRoutes = app.routes.filter((route) => route.render === 'spa');
 
 if (!ssrRoute || !ssgRoute || spaRoutes.length !== 2) {
-	throw new Error('Flamefront must discover one SSR, one SSG, and two SPA routes.');
+	throw new Error('The route manifest must define one SSR, one SSG, and two SPA routes.');
 }
 
-if (routes.some((route) => 'label' in route || 'navLabel' in route)) {
+if (app.routes.some((route) => 'label' in route || 'navLabel' in route)) {
 	throw new Error('Compiled route metadata must not contain display labels.');
 }
 

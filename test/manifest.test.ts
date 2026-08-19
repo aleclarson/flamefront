@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { defineApp, route, routesFor } from '../src/index.ts';
+import { defineApp, route } from '../src/index.ts';
 
-test('defines and selects explicit routes', () => {
+test('defines explicit routes', () => {
 	const app = defineApp({
 		routes: [
 			route('/ssr', '/src/SsrPage.tsrx', { render: 'ssr' }),
@@ -11,7 +11,9 @@ test('defines and selects explicit routes', () => {
 	});
 
 	assert.deepEqual(
-		routesFor(app, 'spa').map((routeDefinition) => routeDefinition.path),
+		app.routes
+			.filter((routeDefinition) => routeDefinition.render === 'spa')
+			.map((routeDefinition) => routeDefinition.path),
 		['/spa'],
 	);
 	assert.equal(Object.isFrozen(app.routes), true);
