@@ -7,7 +7,8 @@ import { app } from '../src/routes.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientDir = resolve(root, 'dist/client');
 const port = Number(process.env.PORT ?? 4173);
-const serverEntry = await import(`${pathToFileURL(resolve(root, 'dist/server/entry-server.js')).href}?preview=${Date.now()}`);
+const checkToken = process.env.FLAMEFRONT_CHECK_TOKEN;
+const serverEntry = await import(pathToFileURL(resolve(root, 'dist/server/entry-server.js')).href);
 const ssrRoute = app.routes.find((route) => route.render === 'ssr');
 const ssgRoute = app.routes.find((route) => route.render === 'ssg');
 const spaRoutes = app.routes.filter((route) => route.render === 'spa');
@@ -55,6 +56,7 @@ function withinClientDir(filePath) {
 }
 
 const server = createServer(async (request, response) => {
+	if (checkToken) response.setHeader('X-Flamefront-Check-Token', checkToken);
 	const url = new URL(request.url ?? '/', 'http://localhost');
 	const routeMatch = app.match(url);
 

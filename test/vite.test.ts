@@ -60,7 +60,7 @@ test('generates one lazy Remix graph with nested layouts and route metadata', ()
 	assert.match(source, /children: \[/);
 	assert.match(source, /path: "\/client"/);
 	assert.match(source, /path: "\/server"/);
-	assert.match(source, /virtual:flamefront\/deferred-route\?entry=%2Fsrc%2FServer\.tsrx/);
+	assert.match(source, /\/@flamefront\/deferred-route\.tsrx\?entry=%2Fsrc%2FServer\.tsrx/);
 	assert.match(source, /handle: \{ flamefront: \{"render":"ssr","hydration":"deferred"\} \}/);
 	assert.doesNotMatch(source, /deferred-route\?entry=%2Fsrc%2FClient/);
 });
@@ -76,12 +76,20 @@ test('resolves the public generated routes module and deferred TSRX modules', ()
 	const plugin = flamefront();
 	const generatedId = plugin.resolveId(remixRoutesId);
 	const deferredId = plugin.resolveId(
-		'virtual:flamefront/deferred-route?entry=%2Fsrc%2FServer.tsrx',
+		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx',
+	);
+	const hydrationId = plugin.resolveId(
+		'./deferred-route.tsrx?octane-hydrate=0',
+		deferredId as string,
 	);
 
 	assert.equal(generatedId, `\0${remixRoutesId}`);
 	assert.equal(
 		deferredId,
-		'\0virtual:flamefront/deferred-route?entry=%2Fsrc%2FServer.tsrx.tsrx',
+		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx',
+	);
+	assert.equal(
+		hydrationId,
+		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx&octane-hydrate=0',
 	);
 });

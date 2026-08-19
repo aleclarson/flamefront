@@ -35,7 +35,7 @@ await build({
 	},
 });
 
-const serverEntry = await import(`${pathToFileURL(resolve(dist, 'server/entry-server.js')).href}?build=${Date.now()}`);
+const serverEntry = await import(pathToFileURL(resolve(dist, 'server/entry-server.js')).href);
 const ssgHtml = await serverEntry.renderSsgDocument(
 	new Request(new URL(ssgRoute.path, 'http://flamefront.build')),
 );

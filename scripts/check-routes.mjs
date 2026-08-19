@@ -1,12 +1,13 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const port = 4179;
+const port = 40_000 + (process.pid % 10_000);
 const base = `http://127.0.0.1:${port}`;
+const previewToken = `route-check-${process.pid}-${Date.now()}`;
 const ssrRoute = app.routes.find((route) => route.render === 'ssr');
 const ssgRoute = app.routes.find((route) => route.render === 'ssg');
 const spaRoutes = app.routes.filter((route) => route.render === 'spa');
@@ -21,7 +22,7 @@ if (app.routes.some((route) => 'label' in route || 'navLabel' in route)) {
 
 const preview = spawn(process.execPath, [resolve(root, 'scripts/preview.mjs')], {
 	cwd: root,
-	env: { ...process.env, PORT: String(port) },
+	env: { ...process.env, PORT: String(port), FLAMEFRONT_CHECK_TOKEN: previewToken },
 	stdio: ['ignore', 'pipe', 'pipe'],
 });
 
@@ -37,7 +38,10 @@ async function waitForPreview() {
 	for (let attempt = 0; attempt < 50; attempt += 1) {
 		try {
 			const response = await fetch(`${base}${ssrRoute.path}`);
-			if (response.status === 200) return;
+			if (
+				response.status === 200 &&
+				response.headers.get('x-flamefront-check-token') === previewToken
+			) return;
 		} catch {
 			// The preview process is still starting.
 		}
@@ -54,8 +58,17 @@ try {
 	await waitForPreview();
 
 	const ssr = await fetch(`${base}${ssrRoute.path}`).then((response) => response.text());
+	assert(
+		!ssr.includes('Unexpected Application Error!'),
+		'SSR response contains Remix default error UI.',
+	);
 	assert(ssr.includes('SSR route with deferred hydration'), 'SSR label is missing from the initial response.');
+	assert(ssr.includes('aria-label="All routes"'), 'SSR response is missing the shared shell navigation.');
 	assert(ssr.includes('data-testid="deferred-panel"'), 'SSR response is missing the deferred boundary content.');
+	assert(
+		ssr.includes('window.__staticRouterHydrationData'),
+		'SSR response is missing serialized Remix hydration state.',
+	);
 	assert(
 		ssr.includes('Loader resolved /ssr before SSR.'),
 		'SSR loader data is missing from the initial response.',
@@ -89,10 +102,24 @@ try {
 	const ssgPath = ssgRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
 	const generatedSsg = await readFile(resolve(root, 'dist/client', ssgPath, 'index.html'), 'utf8');
 	assert(generatedSsg.includes('data-render-mode="ssg"'), 'Build output is missing the SSG mode marker.');
+	const clientManifest = JSON.parse(
+		await readFile(resolve(root, 'dist/client/.vite/manifest.json'), 'utf8'),
+	);
+	assert(
+		Object.values(clientManifest).some((asset) => asset.file.endsWith('.js')),
+		'Client build manifest is missing JavaScript output.',
+	);
+	const clientAssets = await readdir(resolve(root, 'dist/client/assets'));
+	assert(
+		clientAssets.filter((asset) => asset.endsWith('.js.map')).length >= 5,
+		'Client build is missing production JavaScript source maps.',
+	);
+	await readFile(resolve(root, 'dist/client', `${clientManifest['index.html'].file}.map`));
 
-	console.log('SSR response contains its loader data, label, and deferred HTML.');
+	console.log('SSR response contains the shared shell, loader hydration state, label, and deferred HTML.');
 	console.log('SSG output contains build-time loader data, its label, and no client module.');
 	console.log('Both SPA paths expose loader data and return a client-only Vite shell.');
+	console.log('Production client JavaScript source maps are present.');
 } finally {
 	preview.kill('SIGTERM');
 }

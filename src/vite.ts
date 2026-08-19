@@ -6,8 +6,8 @@ const loaderExport = /\bexport\s+(?:async\s+)?function\s+loader\s*\(/g;
 
 export const remixRoutesId = 'virtual:flamefront/remix-routes';
 const resolvedRemixRoutesId = `\0${remixRoutesId}`;
-const deferredRouteId = 'virtual:flamefront/deferred-route';
-const resolvedDeferredRoutePrefix = `\0${deferredRouteId}?entry=`;
+const deferredRouteId = '/@flamefront/deferred-route.tsrx';
+const resolvedDeferredRoutePrefix = `${deferredRouteId}?entry=`;
 
 export interface FlamefrontOptions {
 	/** Project-root route manifest module. */
@@ -160,18 +160,28 @@ export function flamefront(options: FlamefrontOptions = {}) {
 			const generatedModule = context.server.moduleGraph.getModuleById(resolvedRemixRoutesId);
 			if (generatedModule) context.server.moduleGraph.invalidateModule(generatedModule);
 		},
-		resolveId(id: string) {
+		resolveId(id: string, importer?: string) {
 			if (id === remixRoutesId) return resolvedRemixRoutesId;
+			if (
+				id === './deferred-route.tsrx?octane-hydrate=0' &&
+				importer?.startsWith(resolvedDeferredRoutePrefix)
+			) {
+				const entry = new URLSearchParams(importer.slice(importer.indexOf('?') + 1)).get('entry');
+				if (entry) {
+					return `${resolvedDeferredRoutePrefix}${encodeURIComponent(entry)}&octane-hydrate=0`;
+				}
+			}
 			if (id.startsWith(`${deferredRouteId}?entry=`)) {
-				return `${resolvedDeferredRoutePrefix}${id.slice(`${deferredRouteId}?entry=`.length)}.tsrx`;
+				return `${resolvedDeferredRoutePrefix}${id.slice(`${deferredRouteId}?entry=`.length)}`;
 			}
 			return null;
 		},
 		async load(id: string) {
 			if (id === resolvedRemixRoutesId) return generateRemixRoutes(await loadApp());
 			if (id.startsWith(resolvedDeferredRoutePrefix)) {
-				const encodedEntry = id.slice(resolvedDeferredRoutePrefix.length).replace(/\.tsrx$/, '');
-				return generateDeferredRoute(decodeURIComponent(encodedEntry));
+				const entry = new URLSearchParams(id.slice(id.indexOf('?') + 1)).get('entry');
+				if (!entry) throw new TypeError('Flamefront deferred route is missing its entry.');
+				return generateDeferredRoute(entry);
 			}
 			return null;
 		},
