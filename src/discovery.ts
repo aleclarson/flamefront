@@ -1,15 +1,35 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
+// @ts-expect-error @tsrx/core does not publish a declaration for its parser entrypoint.
 import { parseModule } from '@tsrx/core';
-import { normalizeRouteOptions } from './route-definition.js';
+import type { RouteDefinition } from './index.ts';
+import { normalizeRouteOptions } from './route-definition.ts';
 
-export const FLAMEFRONT_CONFIG_FILE = 'flamefront.config.json';
+export const FLAMEFRONT_CONFIG_FILE = 'flamefront.config.json' as const;
 
-function toPosixPath(value) {
+export interface FlamefrontConfig {
+	configPath: string;
+	routes: { include: string[] };
+}
+
+export interface RouteProject {
+	configPath: string;
+	sourceFiles: string[];
+	routes: RouteDefinition[];
+}
+
+export interface ExtractedRouteModule {
+	code: string;
+	routes: RouteDefinition[];
+}
+
+type AstNode = Record<string, any>;
+
+function toPosixPath(value: string): string {
 	return value.split(sep).join('/');
 }
 
-function globToRegExp(pattern) {
+function globToRegExp(pattern: string): RegExp {
 	let expression = '^';
 	for (let index = 0; index < pattern.length; index += 1) {
 		const character = pattern[index];
@@ -36,15 +56,15 @@ function globToRegExp(pattern) {
 	return new RegExp(`${expression}$`);
 }
 
-function staticPatternRoot(pattern) {
+function staticPatternRoot(pattern: string): string {
 	const wildcard = pattern.search(/[?*]/);
 	if (wildcard === -1) return pattern;
 	const slash = pattern.lastIndexOf('/', wildcard);
 	return slash === -1 ? '.' : pattern.slice(0, slash) || '.';
 }
 
-async function walkFiles(directory) {
-	const files = [];
+async function walkFiles(directory: string): Promise<string[]> {
+	const files: string[] = [];
 	const entries = await readdir(directory, { withFileTypes: true });
 	for (const entry of entries) {
 		if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue;
@@ -55,7 +75,7 @@ async function walkFiles(directory) {
 	return files;
 }
 
-async function filesForPattern(root, pattern) {
+async function filesForPattern(root: string, pattern: string): Promise<string[]> {
 	const normalizedPattern = toPosixPath(pattern).replace(/^\.\//, '');
 	const matcher = globToRegExp(normalizedPattern);
 	const base = resolve(root, staticPatternRoot(normalizedPattern));
@@ -63,14 +83,14 @@ async function filesForPattern(root, pattern) {
 	try {
 		baseStat = await stat(base);
 	} catch (error) {
-		if (error?.code === 'ENOENT') return [];
+		if (hasErrorCode(error, 'ENOENT')) return [];
 		throw error;
 	}
 	const candidates = baseStat.isDirectory() ? await walkFiles(base) : [base];
 	return candidates.filter((file) => matcher.test(toPosixPath(relative(root, file))));
 }
 
-function propertyName(property) {
+function propertyName(property: AstNode): string | null {
 	if (property.computed) return null;
 	if (property.key?.type === 'Identifier') return property.key.name;
 	if (property.key?.type === 'Literal' && typeof property.key.value === 'string') {
@@ -79,11 +99,11 @@ function propertyName(property) {
 	return null;
 }
 
-function staticRouteOptions(node, file) {
+function staticRouteOptions(node: AstNode, file: string) {
 	if (node?.type !== 'ObjectExpression') {
 		throw new TypeError(`${file}: defineRoute() options must be an object literal.`);
 	}
-	const options = {};
+	const options: Record<string, unknown> = {};
 	for (const property of node.properties ?? []) {
 		if (property.type !== 'Property' || property.kind !== 'init' || property.method) {
 			throw new TypeError(`${file}: defineRoute() options must contain plain properties.`);
@@ -100,12 +120,12 @@ function staticRouteOptions(node, file) {
 	try {
 		return normalizeRouteOptions(options);
 	} catch (error) {
-		throw new TypeError(`${file}: ${error.message}`, { cause: error });
+		throw new TypeError(`${file}: ${errorMessage(error)}`, { cause: error });
 	}
 }
 
-function exportedBindings(program) {
-	const bindings = new Map();
+function exportedBindings(program: AstNode): Map<string, string> {
+	const bindings = new Map<string, string>();
 	for (const node of program.body ?? []) {
 		if (node.type === 'ExportDefaultDeclaration') {
 			const local = node.declaration?.id?.name ?? node.declaration?.name;
@@ -130,7 +150,7 @@ function exportedBindings(program) {
 	return bindings;
 }
 
-function blankRanges(source, ranges) {
+function blankRanges(source: string, ranges: Array<[number, number]>): string {
 	let output = source;
 	for (const [start, end] of ranges.sort((left, right) => right[0] - left[0])) {
 		const blank = source.slice(start, end).replace(/[^\r\n]/g, ' ');
@@ -139,13 +159,17 @@ function blankRanges(source, ranges) {
 	return output;
 }
 
-export function extractRouteModule(source, file, root = process.cwd()) {
+export function extractRouteModule(
+	source: string,
+	file: string,
+	root = process.cwd(),
+): ExtractedRouteModule {
 	if (!source.includes('flamefront') || !source.includes('defineRoute')) {
 		return { code: source, routes: [] };
 	}
 
-	const program = parseModule(source, file);
-	const routeBindings = new Set();
+	const program = parseModule(source, file) as AstNode;
+	const routeBindings = new Set<string>();
 	for (const node of program.body ?? []) {
 		if (node.type !== 'ImportDeclaration' || node.source?.value !== 'flamefront') continue;
 		for (const specifier of node.specifiers ?? []) {
@@ -161,8 +185,8 @@ export function extractRouteModule(source, file, root = process.cwd()) {
 
 	const exports = exportedBindings(program);
 	const entry = `/${toPosixPath(relative(root, file))}`;
-	const ranges = [];
-	const routes = [];
+	const ranges: Array<[number, number]> = [];
+	const routes: RouteDefinition[] = [];
 	for (const node of program.body ?? []) {
 		const call = node.type === 'ExpressionStatement' ? node.expression : null;
 		if (
@@ -195,22 +219,40 @@ export function extractRouteModule(source, file, root = process.cwd()) {
 	return { code: blankRanges(source, ranges), routes };
 }
 
-export async function loadFlamefrontConfig(root = process.cwd()) {
+function hasErrorCode(error: unknown, code: string): boolean {
+	return (
+		typeof error === 'object' &&
+		error !== null &&
+		'code' in error &&
+		(error as { code?: unknown }).code === code
+	);
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export async function loadFlamefrontConfig(root = process.cwd()): Promise<FlamefrontConfig> {
 	const configPath = resolve(root, FLAMEFRONT_CONFIG_FILE);
 	let source;
 	try {
 		source = await readFile(configPath, 'utf8');
 	} catch (error) {
-		if (error?.code === 'ENOENT') throw new Error(`Could not find ${configPath}.`);
+		if (hasErrorCode(error, 'ENOENT')) throw new Error(`Could not find ${configPath}.`);
 		throw error;
 	}
-	let config;
+	let config: unknown;
 	try {
 		config = JSON.parse(source);
 	} catch (error) {
 		throw new Error(`${configPath} is not valid JSON.`, { cause: error });
 	}
-	const include = config?.routes?.include;
+	const routesConfig = isRecord(config) && isRecord(config.routes) ? config.routes : null;
+	const include = routesConfig?.include;
 	if (
 		!Array.isArray(include) ||
 		include.length === 0 ||
@@ -221,7 +263,7 @@ export async function loadFlamefrontConfig(root = process.cwd()) {
 	return { configPath, routes: { include } };
 }
 
-export async function discoverRouteProject(root = process.cwd()) {
+export async function discoverRouteProject(root = process.cwd()): Promise<RouteProject> {
 	const config = await loadFlamefrontConfig(root);
 	const sourceFiles = [
 		...new Set(
@@ -230,12 +272,12 @@ export async function discoverRouteProject(root = process.cwd()) {
 			).flat(),
 		),
 	].sort();
-	const routes = [];
+	const routes: RouteDefinition[] = [];
 	for (const file of sourceFiles) {
 		const source = await readFile(file, 'utf8');
 		routes.push(...extractRouteModule(source, file, root).routes);
 	}
-	const seenPaths = new Map();
+	const seenPaths = new Map<string, string>();
 	for (const route of routes) {
 		const previous = seenPaths.get(route.path);
 		if (previous) {
@@ -248,6 +290,6 @@ export async function discoverRouteProject(root = process.cwd()) {
 	return { configPath: config.configPath, sourceFiles, routes };
 }
 
-export async function discoverRoutes(root = process.cwd()) {
+export async function discoverRoutes(root = process.cwd()): Promise<RouteDefinition[]> {
 	return (await discoverRouteProject(root)).routes;
 }

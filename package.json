@@ -5,24 +5,16 @@
   "type": "module",
   "private": true,
   "bin": {
-    "ff": "./src/cli.mjs"
+    "ff": "./src/cli.ts"
   },
   "exports": {
-    ".": {
-      "types": "./src/index.d.ts",
-      "import": "./src/index.js"
-    },
-    "./discovery": {
-      "types": "./src/discovery.d.ts",
-      "import": "./src/discovery.js"
-    },
-    "./vite": {
-      "types": "./src/vite.d.ts",
-      "import": "./src/vite.js"
-    }
+    ".": "./src/index.ts",
+    "./discovery": "./src/discovery.ts",
+    "./vite": "./src/vite.ts"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@alloc/cmd-ts": "0.17.1",
@@ -30,5 +22,9 @@
   },
   "peerDependencies": {
     "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "typescript": "5.9.3"
   }
 }

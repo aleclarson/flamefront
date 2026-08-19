@@ -1,7 +1,9 @@
 # Flamefront
 
 Flamefront is the small, compiler-oriented framework layer being explored for
-the Octane playground.
+the Octane playground. Its package sources, CLI, and tests run directly as
+TypeScript through Node's built-in type stripping; there is no package build
+step or duplicate declaration surface.
 
 Routes are declared beside their Octane components:
 

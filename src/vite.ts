@@ -1,20 +1,22 @@
-import { discoverRouteProject, extractRouteModule, FLAMEFRONT_CONFIG_FILE } from './discovery.js';
+import type { Plugin } from 'vite';
+import { discoverRouteProject, extractRouteModule, FLAMEFRONT_CONFIG_FILE } from './discovery.ts';
+import type { RouteDefinition } from './index.ts';
 
 const VIRTUAL_ROUTES_ID = 'virtual:flamefront/routes';
 const RESOLVED_VIRTUAL_ROUTES_ID = `\0${VIRTUAL_ROUTES_ID}`;
 
-function virtualRoutesSource(routes) {
+function virtualRoutesSource(routes: readonly RouteDefinition[]): string {
 	return `const definitions = ${JSON.stringify(routes, null, 2)};
 export const routes = Object.freeze(definitions.map(Object.freeze));
 export const spaRoutes = Object.freeze(routes.filter((route) => route.render === 'spa'));
 `;
 }
 
-function isOctaneComponent(file) {
+function isOctaneComponent(file: string): boolean {
 	return file.endsWith('.tsrx') || file.endsWith('.tsx');
 }
 
-export function flamefront() {
+export function flamefront(): Plugin {
 	let root = process.cwd();
 
 	return {

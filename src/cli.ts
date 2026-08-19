@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { binary, command, flag, run, subcommands } from '@alloc/cmd-ts';
-import { discoverRoutes } from './discovery.js';
+import { discoverRoutes } from './discovery.ts';
 
 const routes = command({
 	name: 'routes',
