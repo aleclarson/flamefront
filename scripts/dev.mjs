@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
-import { matchRoute } from 'flamefront';
 import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,7 +26,7 @@ function sendHtml(response, status, html) {
 
 const server = createHttpServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
-	const routeMatch = matchRoute(app.routes, url);
+	const routeMatch = app.match(url);
 
 	try {
 		if (routeMatch?.data.render === 'ssr') {

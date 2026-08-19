@@ -19,8 +19,13 @@ export interface RouteDefinition extends RouteOptions {
 	readonly render: RenderMode;
 }
 
-export interface AppDefinition {
-	readonly routes: readonly RouteDefinition[];
+export interface MatchRouteOptions {
+	readonly render?: RenderMode;
+}
+
+export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
+	readonly routes: readonly T[];
+	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
 }
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>(['ssr', 'ssg', 'spa']);
@@ -29,7 +34,10 @@ const hydrationModes: ReadonlySet<unknown> = new Set<HydrationMode>([
 	'deferred',
 	'none',
 ]);
-const matcherCache = new WeakMap<readonly RouteDefinition[], MultiMatcher<RouteDefinition>>();
+const matcherCache = new WeakMap<
+	readonly RouteDefinition[],
+	Map<RenderMode | undefined, MultiMatcher<RouteDefinition>>
+>();
 
 function assertString(value: unknown, name: string): asserts value is string {
 	if (typeof value !== 'string' || value.length === 0) {
@@ -76,21 +84,34 @@ export function route(
 	return Object.freeze(definition);
 }
 
-function createRouteMatcher<T extends RouteDefinition>(routes: readonly T[]): MultiMatcher<T> {
+function createRouteMatcher<T extends RouteDefinition>(
+	routes: readonly T[],
+	render?: RenderMode,
+): MultiMatcher<T> {
 	const matcher = createMultiMatcher<T>();
-	for (const routeDefinition of routes) matcher.add(routeDefinition.path, routeDefinition);
+	for (const routeDefinition of routes) {
+		if (render === undefined || routeDefinition.render === render) {
+			matcher.add(routeDefinition.path, routeDefinition);
+		}
+	}
 	return matcher;
 }
 
-/** Match a URL against a route collection using route-pattern specificity rules. */
-export function matchRoute<T extends RouteDefinition>(
+function matchRoutes<T extends RouteDefinition>(
 	routes: readonly T[],
 	url: string | URL,
+	options: MatchRouteOptions = {},
 ): Match<string, T> | null {
-	let matcher = matcherCache.get(routes) as MultiMatcher<T> | undefined;
+	let matchers = matcherCache.get(routes);
+	if (!matchers) {
+		matchers = new Map();
+		matcherCache.set(routes, matchers);
+	}
+
+	let matcher = matchers.get(options.render) as MultiMatcher<T> | undefined;
 	if (!matcher) {
-		matcher = createRouteMatcher(routes);
-		matcherCache.set(routes, matcher as MultiMatcher<RouteDefinition>);
+		matcher = createRouteMatcher(routes, options.render);
+		matchers.set(options.render, matcher as MultiMatcher<RouteDefinition>);
 	}
 
 	const normalizedUrl = new URL(url, 'http://flamefront.local');
@@ -102,7 +123,9 @@ export function matchRoute<T extends RouteDefinition>(
 }
 
 /** Normalize and validate the application's explicit route graph. */
-export function defineApp<T extends AppDefinition>(options: T): T {
+export function defineApp<const T extends { readonly routes: readonly RouteDefinition[] }>(
+	options: T,
+): T & AppDefinition<T['routes'][number]> {
 	if (!options || !Array.isArray(options.routes)) {
 		throw new TypeError('flamefront defineApp() requires a routes array.');
 	}
@@ -117,10 +140,19 @@ export function defineApp<T extends AppDefinition>(options: T): T {
 		return routeDefinition;
 	});
 
+	const frozenRoutes = Object.freeze(routes) as readonly T['routes'][number][];
 	const app = Object.freeze({
 		...options,
-		routes: Object.freeze(routes),
-	}) as T;
-	matcherCache.set(app.routes, createRouteMatcher(app.routes));
+		routes: frozenRoutes,
+		match: (url: string | URL, matchOptions?: MatchRouteOptions) =>
+			matchRoutes(frozenRoutes, url, matchOptions),
+	}) as T & AppDefinition<T['routes'][number]>;
+	matcherCache.set(
+		frozenRoutes,
+		new Map([[undefined, createRouteMatcher(frozenRoutes)]]) as Map<
+			RenderMode | undefined,
+			MultiMatcher<RouteDefinition>
+		>,
+	);
 	return app;
 }

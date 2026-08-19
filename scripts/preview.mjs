@@ -2,7 +2,6 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { matchRoute } from 'flamefront';
 import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,7 +43,7 @@ function withinClientDir(filePath) {
 
 const server = createServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
-	const routeMatch = matchRoute(app.routes, url);
+	const routeMatch = app.match(url);
 
 	try {
 		if (url.pathname === '/') {

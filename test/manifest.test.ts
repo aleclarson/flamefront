@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { defineApp, matchRoute, route } from '../src/index.ts';
+import { defineApp, route } from '../src/index.ts';
 
 test('defines explicit routes', () => {
 	const app = defineApp({
@@ -40,12 +40,25 @@ test('matches the most specific route and extracts parameters', () => {
 		],
 	});
 
-	assert.equal(matchRoute(app.routes, '/articles/new')?.data.entry, '/src/NewArticle.tsrx');
-	assert.deepEqual(matchRoute(app.routes, '/articles/hello%20world')?.params, {
+	assert.equal(app.match('/articles/new')?.data.entry, '/src/NewArticle.tsrx');
+	assert.deepEqual(app.match('/articles/hello%20world')?.params, {
 		slug: 'hello world',
 	});
-	assert.equal(matchRoute(app.routes, '/articles/new/')?.data.entry, '/src/NewArticle.tsrx');
-	assert.equal(matchRoute(app.routes, '/elsewhere'), null);
+	assert.equal(app.match('/articles/new/')?.data.entry, '/src/NewArticle.tsrx');
+	assert.equal(app.match('/elsewhere'), null);
+});
+
+test('selects matches by render mode', () => {
+	const app = defineApp({
+		routes: [
+			route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
+			route('/articles/new', '/src/NewArticle.tsrx', { render: 'spa' }),
+		],
+	});
+
+	assert.equal(app.match('/articles/new')?.data.render, 'spa');
+	assert.equal(app.match('/articles/new', { render: 'ssr' })?.data.entry, '/src/Article.tsrx');
+	assert.equal(app.match('/articles/new', { render: 'ssg' }), null);
 });
 
 test('rejects invalid route patterns while defining the app', () => {
