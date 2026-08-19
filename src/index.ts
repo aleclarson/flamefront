@@ -3,9 +3,41 @@ import {
 	type Match,
 	type MultiMatcher,
 } from '@remix-run/route-pattern/match';
+import type { HydrationInteractionEvents } from 'octane/hydration';
 
 export type RenderMode = 'ssr' | 'ssg' | 'spa';
-export type HydrationMode = 'full' | 'deferred' | 'none';
+export interface IdleHydration {
+	readonly when: 'idle';
+	readonly timeout?: number;
+}
+
+export interface VisibleHydration {
+	readonly when: 'visible';
+	readonly rootMargin?: string;
+	readonly threshold?: number | readonly number[];
+}
+
+export interface InteractionHydration {
+	readonly when: 'interaction';
+	readonly events?: HydrationInteractionEvents;
+}
+
+export interface MediaHydration {
+	readonly when: 'media';
+	readonly query: string;
+}
+
+export type GeneratedHydration =
+	| IdleHydration
+	| VisibleHydration
+	| InteractionHydration
+	| MediaHydration;
+
+/**
+ * `full` hydrates with the shell, `deferred` leaves boundaries to the route,
+ * `none` keeps server HTML inert, and an object generates one route boundary.
+ */
+export type HydrationMode = 'full' | 'deferred' | 'none' | GeneratedHydration;
 
 export interface RouteOptions {
 	readonly render?: RenderMode;
@@ -48,10 +80,34 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 }
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>(['ssr', 'ssg', 'spa']);
-const hydrationModes: ReadonlySet<unknown> = new Set<HydrationMode>([
+const hydrationModes: ReadonlySet<unknown> = new Set([
 	'full',
 	'deferred',
 	'none',
+]);
+const interactionEvents: ReadonlySet<string> = new Set([
+	'auxclick',
+	'beforeinput',
+	'click',
+	'compositionend',
+	'compositionstart',
+	'compositionupdate',
+	'contextmenu',
+	'dblclick',
+	'focusin',
+	'input',
+	'keydown',
+	'keyup',
+	'mousedown',
+	'mouseenter',
+	'mouseover',
+	'mouseup',
+	'pointerdown',
+	'pointerenter',
+	'pointerover',
+	'pointerup',
+	'touchend',
+	'touchstart',
 ]);
 const matcherCache = new WeakMap<
 	readonly RouteDefinition[],
@@ -98,6 +154,140 @@ function assertString(value: unknown, name: string): asserts value is string {
 	}
 }
 
+function assertOnlyKeys(
+	value: Record<string, unknown>,
+	keys: readonly string[],
+	location: string,
+): void {
+	const allowed = new Set(keys);
+	const unexpected = Object.keys(value).find((key) => !allowed.has(key));
+	if (unexpected) {
+		throw new TypeError(
+			`flamefront route ${location} hydration has an unexpected ${JSON.stringify(unexpected)} option.`,
+		);
+	}
+}
+
+function assertThreshold(value: unknown, location: string): void {
+	const thresholds = Array.isArray(value) ? value : [value];
+	if (
+		thresholds.length === 0 ||
+		thresholds.some(
+			(threshold) =>
+				typeof threshold !== 'number' ||
+				!Number.isFinite(threshold) ||
+				threshold < 0 ||
+				threshold > 1,
+		)
+	) {
+		throw new TypeError(
+			`flamefront route ${location} hydration threshold must contain numbers from 0 through 1.`,
+		);
+	}
+}
+
+function validateGeneratedHydration(
+	hydration: Record<string, unknown>,
+	location: string,
+): void {
+	switch (hydration.when) {
+		case 'idle':
+			assertOnlyKeys(hydration, ['when', 'timeout'], location);
+			if (
+				hydration.timeout !== undefined &&
+				(typeof hydration.timeout !== 'number' ||
+					!Number.isFinite(hydration.timeout) ||
+					hydration.timeout < 0)
+			) {
+				throw new TypeError(
+					`flamefront route ${location} hydration timeout must be a non-negative number.`,
+				);
+			}
+			return;
+		case 'visible':
+			assertOnlyKeys(hydration, ['when', 'rootMargin', 'threshold'], location);
+			if (hydration.rootMargin !== undefined) {
+				assertString(hydration.rootMargin, `route ${location} hydration rootMargin`);
+			}
+			if (hydration.threshold !== undefined) {
+				assertThreshold(hydration.threshold, location);
+			}
+			return;
+		case 'interaction': {
+			assertOnlyKeys(hydration, ['when', 'events'], location);
+			if (hydration.events === undefined) return;
+			const events = Array.isArray(hydration.events)
+				? hydration.events
+				: [hydration.events];
+			if (
+				events.length === 0 ||
+				events.some((event) => typeof event !== 'string' || !interactionEvents.has(event))
+			) {
+				throw new TypeError(
+					`flamefront route ${location} hydration events must be supported Octane interaction events.`,
+				);
+			}
+			return;
+		}
+		case 'media':
+			assertOnlyKeys(hydration, ['when', 'query'], location);
+			assertString(hydration.query, `route ${location} hydration query`);
+			return;
+		default:
+			throw new TypeError(
+				`flamefront route ${location} hydration trigger must be 'idle', 'visible', 'interaction', or 'media'.`,
+			);
+	}
+}
+
+function validateHydration(routeDefinition: RouteDefinition, location: string): void {
+	const { hydration, render } = routeDefinition;
+	if (hydration === undefined) return;
+
+	if (typeof hydration === 'object' && hydration !== null && !Array.isArray(hydration)) {
+		validateGeneratedHydration(hydration as unknown as Record<string, unknown>, location);
+		if (render !== 'ssr') {
+			throw new TypeError(
+				`flamefront route ${location} generated hydration requires render: 'ssr'.`,
+			);
+		}
+		return;
+	}
+
+	if (!hydrationModes.has(hydration)) {
+		throw new TypeError(
+			`flamefront route ${location} hydration must be 'full', 'deferred', 'none', or a trigger object.`,
+		);
+	}
+	if (render === 'spa' && hydration !== 'full') {
+		throw new TypeError(
+			`flamefront route ${location} SPA hydration can only be 'full'.`,
+		);
+	}
+	if (render === 'ssg' && hydration !== 'none') {
+		throw new TypeError(
+			`flamefront route ${location} SSG hydration can only be 'none'.`,
+		);
+	}
+}
+
+function freezeHydration(hydration: HydrationMode | undefined): HydrationMode | undefined {
+	if (typeof hydration !== 'object' || hydration === null) return hydration;
+	if (hydration.when === 'visible' && Array.isArray(hydration.threshold)) {
+		return Object.freeze({
+			...hydration,
+			threshold: Object.freeze([...hydration.threshold]),
+		});
+	}
+	if (hydration.when === 'interaction' && Array.isArray(hydration.events)) {
+		return Object.freeze({
+			...hydration,
+			events: Object.freeze([...hydration.events]),
+		});
+	}
+	return Object.freeze({ ...hydration });
+}
+
 function validateRoute(routeDefinition: RouteDefinition, location: string): void {
 	if (!routeDefinition || typeof routeDefinition !== 'object') {
 		throw new TypeError(`flamefront route ${location} must be an object.`);
@@ -114,11 +304,7 @@ function validateRoute(routeDefinition: RouteDefinition, location: string): void
 			`flamefront route ${location} render must be 'ssr', 'ssg', or 'spa'.`,
 		);
 	}
-	if (routeDefinition.hydration !== undefined && !hydrationModes.has(routeDefinition.hydration)) {
-		throw new TypeError(
-			`flamefront route ${location} hydration must be 'full', 'deferred', or 'none'.`,
-		);
-	}
+	validateHydration(routeDefinition, location);
 }
 
 /** Define one explicit route without relying on a filesystem convention. */
@@ -131,6 +317,7 @@ export function route(
 		path,
 		entry,
 		...options,
+		hydration: freezeHydration(options.hydration),
 		render: options.render ?? 'ssr',
 	};
 	validateRoute(definition, '1');
@@ -188,7 +375,10 @@ function normalizeRouteTree(
 			throw new TypeError(`flamefront route path is duplicated: ${config.path}`);
 		}
 		seenPaths.add(config.path);
-		const normalizedRoute = Object.freeze({ ...config });
+		const normalizedRoute = Object.freeze({
+			...config,
+			hydration: freezeHydration(config.hydration),
+		});
 		routes.push(normalizedRoute);
 		return normalizedRoute;
 	});

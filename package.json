@@ -30,6 +30,7 @@
   },
   "peerDependencies": {
     "@octanejs/remix-router": "0.1.36",
+    "octane": "0.1.40",
     "vite": ">=8.0.0"
   },
   "peerDependenciesMeta": {

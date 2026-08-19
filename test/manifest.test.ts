@@ -117,6 +117,86 @@ test('selects matches by render mode', () => {
 	assert.equal(app.match('/articles/new', { render: 'ssg' }), null);
 });
 
+test('accepts every SSR hydration policy', () => {
+	const app = defineApp({
+		routes: [
+			route('/full', '/src/Full.tsrx', { hydration: 'full' }),
+			route('/owned', '/src/Owned.tsrx', { hydration: 'deferred' }),
+			route('/static', '/src/Static.tsrx', { hydration: 'none' }),
+			route('/idle', '/src/Idle.tsrx', {
+				hydration: { when: 'idle', timeout: 500 },
+			}),
+			route('/visible', '/src/Visible.tsrx', {
+				hydration: { when: 'visible', rootMargin: '200px', threshold: [0, 0.5] },
+			}),
+			route('/interaction', '/src/Interaction.tsrx', {
+				hydration: { when: 'interaction', events: ['click', 'focusin'] },
+			}),
+			route('/media', '/src/Media.tsrx', {
+				hydration: { when: 'media', query: '(min-width: 60rem)' },
+			}),
+		],
+	});
+
+	assert.equal(app.routes.length, 7);
+	assert.deepEqual(app.match('/visible')?.data.hydration, {
+		when: 'visible',
+		rootMargin: '200px',
+		threshold: [0, 0.5],
+	});
+	const visibleHydration = app.match('/visible')?.data.hydration;
+	assert.equal(Object.isFrozen(visibleHydration), true);
+	assert.equal(
+		typeof visibleHydration === 'object' &&
+			visibleHydration.when === 'visible' &&
+			Object.isFrozen(visibleHydration.threshold),
+		true,
+	);
+});
+
+test('rejects hydration policies that cannot affect a render mode', () => {
+	assert.throws(
+		() => route('/spa', '/src/Spa.tsrx', { render: 'spa', hydration: 'none' }),
+		/SPA hydration can only be 'full'/,
+	);
+	assert.throws(
+		() => route('/ssg', '/src/Ssg.tsrx', { render: 'ssg', hydration: 'deferred' }),
+		/SSG hydration can only be 'none'/,
+	);
+	assert.throws(
+		() =>
+			route('/spa-idle', '/src/Spa.tsrx', {
+				render: 'spa',
+				hydration: { when: 'idle' },
+			}),
+		/generated hydration requires render: 'ssr'/,
+	);
+});
+
+test('validates generated hydration options', () => {
+	assert.throws(
+		() =>
+			route('/visible', '/src/Visible.tsrx', {
+				hydration: { when: 'visible', threshold: 2 },
+			}),
+		/threshold must contain numbers from 0 through 1/,
+	);
+	assert.throws(
+		() =>
+			route('/interaction', '/src/Interaction.tsrx', {
+				hydration: { when: 'interaction', events: 'submit' as 'click' },
+			}),
+		/supported Octane interaction events/,
+	);
+	assert.throws(
+		() =>
+			route('/media', '/src/Media.tsrx', {
+				hydration: { when: 'media', query: '' },
+			}),
+		/hydration query must be a non-empty string/,
+	);
+});
+
 test('rejects invalid route patterns while defining the app', () => {
 	assert.throws(
 		() => defineApp({ routes: [route('/articles/:', '/src/Article.tsrx')] }),

@@ -6,7 +6,7 @@ import test from 'node:test';
 import { defineApp, layout, route } from '../src/index.ts';
 import {
 	flamefront,
-	generateDeferredRoute,
+	generateHydrationRoute,
 	generateRemixRoutes,
 	omitRouteSourceContent,
 	remixRoutesId,
@@ -228,11 +228,15 @@ test('generates one lazy Remix graph with nested layouts and route metadata', ()
 		routes: [
 			layout('/src/Shell.tsrx', [
 				route('/client', '/src/Client.tsrx', { render: 'spa' }),
-				route('/server', '/src/Server.tsrx', {
-					render: 'ssr',
-					hydration: 'deferred',
-				}),
-			]),
+			route('/server', '/src/Server.tsrx', {
+				render: 'ssr',
+				hydration: 'deferred',
+			}),
+			route('/visible', '/src/Visible.tsrx', {
+				render: 'ssr',
+				hydration: { when: 'visible', rootMargin: '200px' },
+			}),
+		]),
 		],
 	});
 	const source = generateRemixRoutes(app);
@@ -246,42 +250,70 @@ test('generates one lazy Remix graph with nested layouts and route metadata', ()
 	assert.doesNotMatch(layoutSource, /loader:/);
 	assert.match(source, /import \{ loadRouteData \} from 'flamefront\/remix-router\/data'/);
 	assert.equal(loaders?.length, 2);
+	assert.match(source, /loader: routeModule\.loader/);
+	assert.match(source, /loader: loadRouteData/);
 	assert.match(source, /children: \[/);
 	assert.match(source, /path: "\/client"/);
 	assert.match(source, /path: "\/server"/);
-	assert.match(source, /\/@flamefront\/deferred-route\.tsrx\?entry=%2Fsrc%2FServer\.tsrx/);
+	assert.match(source, /\/@flamefront\/hydration-route\.tsrx\?entry=%2Fsrc%2FVisible\.tsrx/);
 	assert.match(source, /handle: \{ flamefront: \{"render":"ssr","hydration":"deferred"\} \}/);
-	assert.doesNotMatch(source, /deferred-route\?entry=%2Fsrc%2FClient/);
+	assert.match(
+		source,
+		/handle: \{ flamefront: \{"render":"ssr","hydration":\{"when":"visible","rootMargin":"200px"\}\} \}/,
+	);
+	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FServer/);
+	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FClient/);
+	assert.match(source, /if \(import\.meta\.env\.SSR\).*Promise\.all/);
+	assert.match(source, /const componentModule = await import\("\/@flamefront\/hydration-route/);
 });
 
-test('generates an Octane deferred hydration component boundary', () => {
-	const source = generateDeferredRoute('/src/Server.tsrx');
-	assert.match(source, /import \{ Hydrate \} from 'octane'/);
-	assert.match(source, /interaction\(\{ events: 'click' \}\)/);
-	assert.match(source, /<Component \{\.\.\.props\} \/>/);
+test('generates Octane route boundaries for every framework-owned policy', () => {
+	const cases = [
+		['none', /never\(\)/],
+		[{ when: 'idle', timeout: 500 } as const, /idle\(\{"timeout":500\}\)/],
+		[
+			{ when: 'visible', rootMargin: '200px', threshold: [0, 0.5] } as const,
+			/visible\(\{"rootMargin":"200px","threshold":\[0,0\.5\]\}\)/,
+		],
+		[
+			{ when: 'interaction', events: ['click', 'focusin'] } as const,
+			/interaction\(\{"events":\["click","focusin"\]\}\)/,
+		],
+		[
+			{ when: 'media', query: '(min-width: 60rem)' } as const,
+			/media\("\(min-width: 60rem\)"\)/,
+		],
+	] as const;
+
+	for (const [hydration, expression] of cases) {
+		const source = generateHydrationRoute('/src/Server.tsrx', hydration);
+		assert.match(source, /import \{ Hydrate \} from 'octane'/);
+		assert.match(source, expression);
+		assert.match(source, /<Component \{\.\.\.props\} \/>/);
+	}
 });
 
-test('resolves the public generated routes module and deferred TSRX modules', async () => {
+test('resolves the public generated routes module and hydration TSRX modules', async () => {
 	const [plugin] = flamefront();
 	const pluginContext = { resolve: async () => null };
 	const generatedId = await plugin.resolveId.call(pluginContext, remixRoutesId);
-	const deferredId = await plugin.resolveId.call(
+	const hydrationRouteId = await plugin.resolveId.call(
 		pluginContext,
-		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx',
+		'/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D',
 	);
-	const hydrationId = await plugin.resolveId.call(
+	const extractedId = await plugin.resolveId.call(
 		pluginContext,
-		'./deferred-route.tsrx?octane-hydrate=0',
-		deferredId as string,
+		'./hydration-route.tsrx?octane-hydrate=0',
+		hydrationRouteId as string,
 	);
 
 	assert.equal(generatedId, `\0${remixRoutesId}`);
 	assert.equal(
-		deferredId,
-		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx',
+		hydrationRouteId,
+		'/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D',
 	);
 	assert.equal(
-		hydrationId,
-		'/@flamefront/deferred-route.tsrx?entry=%2Fsrc%2FServer.tsrx&octane-hydrate=0',
+		extractedId,
+		'/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D&octane-hydrate=0',
 	);
 });

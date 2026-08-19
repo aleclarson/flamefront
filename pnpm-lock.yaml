@@ -54,6 +54,9 @@ importers:
       babel-dead-code-elimination:
         specifier: ^1.0.12
         version: 1.0.12
+      octane:
+        specifier: 0.1.40
+        version: 0.1.40(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.1(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
       srvx:
         specifier: 0.12.5
         version: 0.12.5

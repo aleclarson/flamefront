@@ -124,6 +124,27 @@ is available when an application needs lower-level Remix Router APIs.
 Route modules and pathless layout modules use default component exports and are
 loaded lazily. Server routers call route modules' exported loaders directly;
 browser routers use Flamefront's route-data endpoint with navigation abort
-signals and HTTP error handling. A route marked `hydration: 'deferred'` receives a generated
-Octane interaction boundary around its component; layouts remain immediately
-interactive.
+signals and HTTP error handling.
+
+SSR routes can choose who owns hydration:
+
+```ts
+route('/reviews/:productId', '/src/Reviews.tsrx', {
+	render: 'ssr',
+	hydration: { when: 'visible', rootMargin: '200px' },
+});
+```
+
+- `full` (or an omitted value) hydrates with the shared shell.
+- `deferred` means the route authors its own Octane `<Hydrate>` boundaries.
+- `none` generates a permanent `never()` boundary around SSR output.
+- `{ when: 'idle' }`, `{ when: 'visible' }`,
+  `{ when: 'interaction' }`, and `{ when: 'media' }` generate one route-level
+  Octane boundary with the corresponding strategy options.
+
+Generated boundaries defer only DOM that came from SSR. If the same route is
+first mounted by client navigation, Octane renders it immediately. This makes
+the route component an SSR frame within the immediately interactive shared
+layout without delaying later in-app navigation. SSG routes accept `none`, and
+SPA routes accept `full`; trigger objects are SSR-only because they need
+existing server HTML to defer.

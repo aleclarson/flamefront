@@ -21,7 +21,11 @@ const routes = command({
 		}
 
 		for (const route of app.routes) {
-			console.log(`${route.path}\t${route.render}\t${route.hydration ?? 'default'}`);
+			const hydration =
+				typeof route.hydration === 'object'
+					? JSON.stringify(route.hydration)
+					: (route.hydration ?? 'default');
+			console.log(`${route.path}\t${route.render}\t${hydration}`);
 		}
 	},
 });
