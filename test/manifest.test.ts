@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { defineApp, route } from '../src/index.ts';
+import { defineApp, layout, route } from '../src/index.ts';
 
 test('defines explicit routes', () => {
 	const app = defineApp({
@@ -29,6 +29,62 @@ test('rejects duplicate paths', () => {
 				],
 			}),
 		/route path is duplicated/,
+	);
+});
+
+test('normalizes pathless layouts into leaf routes', () => {
+	const app = defineApp({
+		routes: [
+			layout('/src/Shell.tsrx', [
+				route('/spa', '/src/Spa.tsrx', { render: 'spa' }),
+				layout('/src/NestedShell.tsrx', [
+					route('/account', '/src/Account.tsrx', { render: 'ssr' }),
+				]),
+			]),
+			route('/standalone', '/src/Standalone.tsrx', { render: 'ssg' }),
+		],
+	});
+
+	assert.deepEqual(
+		app.routes.map(({ path, render }) => ({ path, render })),
+		[
+			{ path: '/spa', render: 'spa' },
+			{ path: '/account', render: 'ssr' },
+			{ path: '/standalone', render: 'ssg' },
+		],
+	);
+	assert.equal(app.match('/account')?.data.entry, '/src/Account.tsrx');
+	assert.equal('kind' in app.routeTree[0]! && app.routeTree[0].kind, 'layout');
+	assert.equal(Object.isFrozen(app.routeTree), true);
+	assert.equal(Object.isFrozen(app.routeTree[0]), true);
+});
+
+test('rejects duplicate paths across layout boundaries', () => {
+	assert.throws(
+		() =>
+			defineApp({
+				routes: [
+					layout('/src/Shell.tsrx', [route('/same', '/src/Nested.tsrx')]),
+					route('/same', '/src/Standalone.tsrx'),
+				],
+			}),
+		/route path is duplicated/,
+	);
+});
+
+test('validates authored layout definitions', () => {
+	assert.throws(
+		() =>
+			defineApp({
+				routes: [
+					{
+						kind: 'layout',
+						entry: '',
+						children: [route('/child', '/src/Child.tsrx')],
+					},
+				],
+			}),
+		/layout 1 entry must be a non-empty string/,
 	);
 });
 

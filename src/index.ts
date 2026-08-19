@@ -19,6 +19,17 @@ export interface RouteDefinition extends RouteOptions {
 	readonly render: RenderMode;
 }
 
+export interface LayoutDefinition<
+	Children extends readonly RouteConfig[] = readonly RouteConfig[],
+> {
+	readonly kind: 'layout';
+	/** Octane/Vite project-root module ID for the pathless layout component. */
+	readonly entry: string;
+	readonly children: Children;
+}
+
+export type RouteConfig = RouteDefinition | LayoutDefinition;
+
 export interface MatchRouteOptions {
 	readonly render?: RenderMode;
 }
@@ -30,6 +41,7 @@ export interface LoadRouteOptions {
 
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 	readonly routes: readonly T[];
+	readonly routeTree: readonly RouteConfig[];
 	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
 	readonly load: <Data = unknown>(url: string | URL, options?: LoadRouteOptions) => Promise<Data>;
 	readonly prefetch: (url: string | URL, options?: LoadRouteOptions) => Promise<void>;
@@ -86,25 +98,25 @@ function assertString(value: unknown, name: string): asserts value is string {
 	}
 }
 
-function validateRoute(routeDefinition: RouteDefinition, index: number): void {
+function validateRoute(routeDefinition: RouteDefinition, location: string): void {
 	if (!routeDefinition || typeof routeDefinition !== 'object') {
-		throw new TypeError(`flamefront route ${index + 1} must be an object.`);
+		throw new TypeError(`flamefront route ${location} must be an object.`);
 	}
 
-	assertString(routeDefinition.path, `route ${index + 1} path`);
+	assertString(routeDefinition.path, `route ${location} path`);
 	if (!routeDefinition.path.startsWith('/')) {
-		throw new TypeError(`flamefront route ${index + 1} path must start with '/'.`);
+		throw new TypeError(`flamefront route ${location} path must start with '/'.`);
 	}
-	assertString(routeDefinition.entry, `route ${index + 1} entry`);
+	assertString(routeDefinition.entry, `route ${location} entry`);
 
 	if (!renderModes.has(routeDefinition.render)) {
 		throw new TypeError(
-			`flamefront route ${index + 1} render must be 'ssr', 'ssg', or 'spa'.`,
+			`flamefront route ${location} render must be 'ssr', 'ssg', or 'spa'.`,
 		);
 	}
 	if (routeDefinition.hydration !== undefined && !hydrationModes.has(routeDefinition.hydration)) {
 		throw new TypeError(
-			`flamefront route ${index + 1} hydration must be 'full', 'deferred', or 'none'.`,
+			`flamefront route ${location} hydration must be 'full', 'deferred', or 'none'.`,
 		);
 	}
 }
@@ -121,8 +133,67 @@ export function route(
 		...options,
 		render: options.render ?? 'ssr',
 	};
-	validateRoute(definition, 0);
+	validateRoute(definition, '1');
 	return Object.freeze(definition);
+}
+
+/** Group routes beneath a shared pathless layout without adding a URL segment. */
+export function layout<const Children extends readonly RouteConfig[]>(
+	entry: string,
+	children: Children,
+): LayoutDefinition<Children> {
+	assertString(entry, 'layout entry');
+	if (!Array.isArray(children)) {
+		throw new TypeError('flamefront layout children must be an array.');
+	}
+	return Object.freeze({
+		kind: 'layout' as const,
+		entry,
+		children: Object.freeze([...children]) as unknown as Children,
+	});
+}
+
+function isLayoutDefinition(config: RouteConfig): config is LayoutDefinition {
+	return 'kind' in config && config.kind === 'layout';
+}
+
+function normalizeRouteTree(
+	configs: readonly RouteConfig[],
+	seenPaths: Set<string>,
+	location = '',
+): { tree: readonly RouteConfig[]; routes: readonly RouteDefinition[] } {
+	const routes: RouteDefinition[] = [];
+	const tree = configs.map((config, index): RouteConfig => {
+		const configLocation = location ? `${location}.${index + 1}` : `${index + 1}`;
+		if (!config || typeof config !== 'object') {
+			throw new TypeError(`flamefront route ${configLocation} must be an object.`);
+		}
+
+		if (isLayoutDefinition(config)) {
+			assertString(config.entry, `layout ${configLocation} entry`);
+			if (!Array.isArray(config.children)) {
+				throw new TypeError(`flamefront layout ${configLocation} children must be an array.`);
+			}
+			const normalized = normalizeRouteTree(config.children, seenPaths, configLocation);
+			routes.push(...normalized.routes);
+			return Object.freeze({
+				kind: 'layout' as const,
+				entry: config.entry,
+				children: normalized.tree,
+			});
+		}
+
+		validateRoute(config, configLocation);
+		if (seenPaths.has(config.path)) {
+			throw new TypeError(`flamefront route path is duplicated: ${config.path}`);
+		}
+		seenPaths.add(config.path);
+		const normalizedRoute = Object.freeze({ ...config });
+		routes.push(normalizedRoute);
+		return normalizedRoute;
+	});
+
+	return { tree: Object.freeze(tree), routes: Object.freeze(routes) };
 }
 
 function createRouteMatcher<T extends RouteDefinition>(
@@ -164,35 +235,27 @@ function matchRoutes<T extends RouteDefinition>(
 }
 
 /** Normalize and validate the application's explicit route graph. */
-export function defineApp<const T extends { readonly routes: readonly RouteDefinition[] }>(
+export function defineApp<const T extends { readonly routes: readonly RouteConfig[] }>(
 	options: T,
-): T & AppDefinition<T['routes'][number]> {
+): Omit<T, 'routes'> & AppDefinition {
 	if (!options || !Array.isArray(options.routes)) {
 		throw new TypeError('flamefront defineApp() requires a routes array.');
 	}
 
-	const seenPaths = new Set<string>();
-	const routes = options.routes.map((routeDefinition, index) => {
-		validateRoute(routeDefinition, index);
-		if (seenPaths.has(routeDefinition.path)) {
-			throw new TypeError(`flamefront route path is duplicated: ${routeDefinition.path}`);
-		}
-		seenPaths.add(routeDefinition.path);
-		return routeDefinition;
-	});
-
-	const frozenRoutes = Object.freeze(routes) as readonly T['routes'][number][];
+	const normalized = normalizeRouteTree(options.routes, new Set());
+	const frozenRoutes = normalized.routes;
 	const load = createRouteDataLoader();
 	const app = Object.freeze({
 		...options,
 		routes: frozenRoutes,
+		routeTree: normalized.tree,
 		match: (url: string | URL, matchOptions?: MatchRouteOptions) =>
 			matchRoutes(frozenRoutes, url, matchOptions),
 		load,
 		prefetch: async (url: string | URL, loadOptions?: LoadRouteOptions) => {
 			await load(url, loadOptions);
 		},
-	}) as T & AppDefinition<T['routes'][number]>;
+	}) as Omit<T, 'routes'> & AppDefinition;
 	matcherCache.set(
 		frozenRoutes,
 		new Map([[undefined, createRouteMatcher(frozenRoutes)]]) as Map<

@@ -8,14 +8,21 @@ step or duplicate declaration surface.
 The app owns one explicit, centralized route manifest:
 
 ```ts
-import { defineApp, route } from 'flamefront';
+import { defineApp, layout, route } from 'flamefront';
 
 export const app = defineApp({
 	routes: [
-		route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
+		layout('/src/ArticleShell.tsrx', [
+			route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
+		]),
 	],
 });
 ```
+
+`layout(module, children)` creates a pathless layout group. `app.routeTree`
+retains that authored nesting for compiler integrations, while `app.routes`
+is the normalized leaf collection used for matching, filtering, static output,
+and CLI inspection.
 
 The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
