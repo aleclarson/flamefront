@@ -82,7 +82,9 @@ try {
 		'SSR loader data is missing from the initial response.',
 	);
 
-	const ssg = await fetch(`${base}${ssgRoute.path}`).then((response) => response.text());
+	const ssgResponse = await fetch(`${base}${ssgRoute.path}`);
+	assert(ssgResponse.headers.has('etag'), 'srvx/static did not emit an ETag for the SSG page.');
+	const ssg = await ssgResponse.text();
 	assert(ssg.includes('>SSG route</h1>'), 'SSG label is missing from the generated document.');
 	assert(!ssg.includes('type="module"'), 'SSG output unexpectedly includes a client module.');
 	assert(
@@ -123,11 +125,12 @@ try {
 		'Client build is missing production JavaScript source maps.',
 	);
 	await readFile(resolve(root, 'dist/client', `${clientManifest['index.html'].file}.map`));
+	await readFile(resolve(root, 'dist/server/server.js.map'));
 
 	console.log('SSR response contains the shared shell, loader hydration state, label, and deferred HTML.');
-	console.log('SSG output contains build-time loader data, its label, and no client module.');
+	console.log('srvx/static serves SSG output with build-time loader data, an ETag, and no client module.');
 	console.log('Both SPA paths expose loader data and return a client-only Vite shell.');
-	console.log('Production client JavaScript source maps are present.');
+	console.log('Production client and srvx server JavaScript source maps are present.');
 } finally {
 	preview.kill('SIGTERM');
 }

@@ -41,9 +41,14 @@ ff build
 ff preview
 ```
 
-`ff build` emits client and server bundles, then prerenders every SSG route.
-The app keeps its thin `src/entry-server.ts` Octane adapter, which exports the
-SSR renderer, SSG renderer, and route-data handler used by these commands.
+`ff build` emits client assets and a srvx-compatible `dist/server/server.js`,
+then prerenders every SSG route. The server build default-exports srvx options
+with a web-standard `fetch` handler. `ff preview` runs that built handler through
+srvx, while `srvx/static` serves static output and client assets.
+
+The app keeps its thin `src/entry-server.ts` Octane adapter. It exports the SSR
+renderer, SSG renderer, and route-data handler, then passes them to
+`createSrvxServer()` from `flamefront/server`.
 
 ## Route loaders
 

@@ -1,7 +1,8 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, extname, relative, resolve, sep } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { ServerOptions } from 'srvx';
 import type { AppDefinition, RouteDefinition } from './index.ts';
 
 interface AppModule {
@@ -10,19 +11,11 @@ interface AppModule {
 }
 
 interface ServerEntry {
+	default?: ServerOptions;
 	loadRouteData?(request: Request): Promise<Response>;
 	renderSsgDocument?(request: Request): Promise<string>;
 	renderSsrDocument?(template: string, request: Request): Promise<string>;
 }
-
-const contentTypes: Readonly<Record<string, string>> = {
-	'.css': 'text/css; charset=utf-8',
-	'.html': 'text/html; charset=utf-8',
-	'.js': 'text/javascript; charset=utf-8',
-	'.json': 'application/json; charset=utf-8',
-	'.map': 'application/json; charset=utf-8',
-	'.svg': 'image/svg+xml',
-};
 
 export interface ProjectContext {
 	readonly app: AppDefinition;
@@ -95,11 +88,6 @@ async function sendFetchResponse(response: ServerResponse, fetchResponse: Respon
 	);
 }
 
-async function sendFile(response: ServerResponse, filePath: string): Promise<void> {
-	const body = await readFile(filePath);
-	send(response, 200, body, contentTypes[extname(filePath)] ?? 'application/octet-stream');
-}
-
 function isWithin(directory: string, filePath: string): boolean {
 	const pathFromDirectory = relative(directory, filePath);
 	return pathFromDirectory === '' || (
@@ -128,7 +116,7 @@ function staticRouteFile(clientDirectory: string, route: RouteDefinition): strin
 }
 
 async function loadBuiltServer(root: string): Promise<ServerEntry> {
-	const serverFile = resolve(root, 'dist/server/entry-server.js');
+	const serverFile = resolve(root, 'dist/server/server.js');
 	try {
 		await access(serverFile);
 	} catch {
@@ -174,11 +162,12 @@ export async function buildProject(root = process.cwd()): Promise<void> {
 	await build({
 		root,
 		configFile: resolve(root, 'vite.config.ts'),
+		ssr: { noExternal: ['srvx'] },
 		build: {
 			ssr: resolve(root, 'src/entry-server.ts'),
 			outDir: resolve(dist, 'server'),
 			rollupOptions: {
-				output: { entryFileNames: 'entry-server.js' },
+				output: { entryFileNames: 'server.js' },
 			},
 		},
 	});
@@ -291,83 +280,39 @@ export async function devProject(root = process.cwd()): Promise<void> {
 }
 
 export async function previewProject(root = process.cwd()): Promise<void> {
-	const { app } = await loadProject(root);
 	const port = Number(process.env.PORT ?? 4173);
 	const checkToken = process.env.FLAMEFRONT_CHECK_TOKEN;
-	const clientDirectory = resolve(root, 'dist/client');
-	const defaultSpaRoute = app.routes.find((route) => route.render === 'spa');
 	const serverEntry = await loadBuiltServer(root);
-	const server = createHttpServer(async (request, response) => {
-		if (checkToken) response.setHeader('X-Flamefront-Check-Token', checkToken);
-		const url = requestUrl(request);
-		const match = app.match(url);
+	if (!serverEntry.default?.fetch) {
+		throw new Error('The server build must default-export srvx options with a fetch handler.');
+	}
 
-		try {
-			if (url.pathname === '/' && !match && defaultSpaRoute) {
-				response.statusCode = 302;
-				response.setHeader('Location', defaultSpaRoute.path);
-				response.end();
-				return;
-			}
-
-			if (url.pathname === '/__flamefront/data') {
-				await sendFetchResponse(
-					response,
-					await requireServerExport(serverEntry, 'loadRouteData')(toRequest(request, url)),
-				);
-				return;
-			}
-
-			if (match?.data.render === 'ssr') {
-				const template = await readFile(resolve(clientDirectory, 'index.html'), 'utf8');
-				send(
-					response,
-					200,
-					await requireServerExport(serverEntry, 'renderSsrDocument')(
-						template,
-						toRequest(request, url),
-					),
-					'text/html; charset=utf-8',
-				);
-				return;
-			}
-
-			if (match?.data.render === 'ssg') {
-				await sendFile(response, staticRouteFile(clientDirectory, match.data));
-				return;
-			}
-
-			if (match?.data.render === 'spa') {
-				await sendFile(response, resolve(clientDirectory, 'index.html'));
-				return;
-			}
-
-			const assetPath = resolve(clientDirectory, `.${decodeURIComponent(url.pathname)}`);
-			if (isWithin(clientDirectory, assetPath)) {
+	const { serve } = await import('srvx');
+	const checkMiddleware = checkToken
+		? async (_request: Request, next: () => Response | Promise<Response>) => {
+				const response = await next();
 				try {
-					await sendFile(response, assetPath);
-				} catch (error) {
-					if (['EISDIR', 'ENOENT'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-						send(response, 404, 'Not found');
-						return;
-					}
-					throw error;
+					response.headers.set('X-Flamefront-Check-Token', checkToken);
+					return response;
+				} catch {
+					const headers = new Headers(response.headers);
+					headers.set('X-Flamefront-Check-Token', checkToken);
+					return new Response(response.body, {
+						headers,
+						status: response.status,
+						statusText: response.statusText,
+					});
 				}
-				return;
 			}
-
-			send(response, 404, 'Not found');
-		} catch (error) {
-			if (error instanceof Response) {
-				await sendFetchResponse(response, error);
-				return;
-			}
-			console.error(error);
-			send(response, 500, String((error as Error).stack ?? error));
-		}
+		: undefined;
+	const server = serve({
+		...serverEntry.default,
+		port,
+		gracefulShutdown: true,
+		middleware: [
+			checkMiddleware,
+			...(serverEntry.default.middleware ?? []),
+		].filter(Boolean) as NonNullable<ServerOptions['middleware']>,
 	});
-
-	await listen(server, port, 'Flamefront preview server');
-	process.once('SIGINT', () => server.close());
-	process.once('SIGTERM', () => server.close());
+	await server.ready();
 }

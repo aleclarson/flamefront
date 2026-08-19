@@ -25,7 +25,8 @@
     "@babel/traverse": "^7.29.8",
     "@babel/types": "^7.29.8",
     "@remix-run/route-pattern": "0.24.0",
-    "babel-dead-code-elimination": "^1.0.12"
+    "babel-dead-code-elimination": "^1.0.12",
+    "srvx": "0.12.5"
   },
   "peerDependencies": {
     "@octanejs/remix-router": "0.1.36",
