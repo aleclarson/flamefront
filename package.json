@@ -20,7 +20,12 @@
   },
   "dependencies": {
     "@alloc/cmd-ts": "0.17.1",
-    "@remix-run/route-pattern": "0.24.0"
+    "@babel/generator": "^7.29.8",
+    "@babel/parser": "^7.29.8",
+    "@babel/traverse": "^7.29.8",
+    "@babel/types": "^7.29.8",
+    "@remix-run/route-pattern": "0.24.0",
+    "babel-dead-code-elimination": "^1.0.12"
   },
   "peerDependencies": {
     "@octanejs/remix-router": "0.1.36"
@@ -31,6 +36,8 @@
     }
   },
   "devDependencies": {
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
     "@types/node": "26.1.1",
     "typescript": "5.9.3"
   }

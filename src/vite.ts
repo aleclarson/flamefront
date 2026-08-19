@@ -1,13 +1,17 @@
-import { resolve } from 'node:path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { AppDefinition, RouteConfig } from './index.ts';
-
-const loaderExport = /\bexport\s+(?:async\s+)?function\s+loader\s*\(/g;
+import type { AppDefinition, RouteConfig, RouteDefinition } from './index.ts';
+import { generate, parse } from './babel.ts';
+import { removeExports } from './remove-exports.ts';
 
 export const remixRoutesId = 'virtual:flamefront/remix-routes';
 const resolvedRemixRoutesId = `\0${remixRoutesId}`;
 const deferredRouteId = '/@flamefront/deferred-route.tsrx';
 const resolvedDeferredRoutePrefix = `${deferredRouteId}?entry=`;
+const SERVER_ONLY_ROUTE_EXPORTS = ['loader'] as const;
+const serverFilePattern = /\.server(?:\.[cm]?[jt]sx?|\.tsrx)$/;
+const serverDirectoryPattern = /\/\.server\//;
 
 export interface FlamefrontOptions {
 	/** Project-root route manifest module. */
@@ -52,88 +56,139 @@ export function generateDeferredRoute(entry: string): string {
 	return `import { Hydrate } from 'octane';\nimport { interaction } from 'octane/hydration';\nimport Component from ${quote(entry)};\n\nexport default function DeferredRoute(props) @{\n\t<Hydrate when={interaction({ events: 'click' })}>\n\t\t<Component {...props} />\n\t</Hydrate>\n}\n`;
 }
 
-function findBodyStart(source: string, start: number): number {
-	let parentheses = 0;
-	for (let index = start; index < source.length; index += 1) {
-		if (source[index] === '(') parentheses += 1;
-		if (source[index] === ')') parentheses -= 1;
-		if (source[index] === '{' && parentheses === 0) return index;
-	}
-	return -1;
+interface TransformOptions {
+	readonly ssr?: boolean;
 }
 
-function findBodyEnd(source: string, start: number): number {
-	let depth = 0;
-	let quote: '"' | "'" | '`' | null = null;
-	let escaped = false;
-	let lineComment = false;
-	let blockComment = false;
-
-	for (let index = start; index < source.length; index += 1) {
-		const character = source[index];
-		const next = source[index + 1];
-
-		if (lineComment) {
-			if (character === '\n') lineComment = false;
-			continue;
-		}
-		if (blockComment) {
-			if (character === '*' && next === '/') {
-				blockComment = false;
-				index += 1;
-			}
-			continue;
-		}
-		if (quote) {
-			if (escaped) escaped = false;
-			else if (character === '\\') escaped = true;
-			else if (character === quote) quote = null;
-			continue;
-		}
-
-		if (character === '/' && next === '/') {
-			lineComment = true;
-			index += 1;
-			continue;
-		}
-		if (character === '/' && next === '*') {
-			blockComment = true;
-			index += 1;
-			continue;
-		}
-		if (character === '"' || character === "'" || character === '`') {
-			quote = character;
-			continue;
-		}
-		if (character === '{') depth += 1;
-		if (character === '}') {
-			depth -= 1;
-			if (depth === 0) return index + 1;
-		}
-	}
-
-	return -1;
+interface ResolveOptions extends TransformOptions {
+	readonly scan?: boolean;
+	custom?: Record<string, unknown>;
 }
 
-export function stripRouteLoader(source: string): string {
-	loaderExport.lastIndex = 0;
-	const match = loaderExport.exec(source);
-	if (!match) return source;
+interface PluginContext {
+	readonly environment?: { readonly config?: { readonly consumer?: string } };
+	resolve(
+		id: string,
+		importer: string | undefined,
+		options: ResolveOptions,
+	): Promise<{ readonly id: string } | null>;
+}
 
-	const bodyStart = findBodyStart(source, match.index);
-	const bodyEnd = bodyStart < 0 ? -1 : findBodyEnd(source, bodyStart);
-	if (bodyEnd < 0) throw new SyntaxError('Flamefront could not isolate the exported route loader.');
+interface OutputAsset {
+	readonly type: 'asset';
+	readonly fileName: string;
+	source: string | Uint8Array;
+}
 
-	const masked = source.slice(match.index, bodyEnd).replace(/[^\n\r]/g, ' ');
-	return `${source.slice(0, match.index)}${masked}${source.slice(bodyEnd)}`;
+interface OutputChunk {
+	readonly type: 'chunk';
+	map?: SourceMapLike | null;
+}
+
+type OutputBundle = Record<string, OutputAsset | OutputChunk>;
+
+interface SourceMapLike {
+	sources?: string[];
+	sourcesContent?: (string | null)[];
+}
+
+function cleanModuleId(id: string): string {
+	return id.split('?', 1)[0].replaceAll('\\', '/');
+}
+
+function isServerEnvironment(context: PluginContext, options?: TransformOptions): boolean {
+	return options?.ssr === true || context.environment?.config?.consumer === 'server';
+}
+
+function resolveRouteEntry(root: string, entry: string): string {
+	const relativeEntry = entry.startsWith('/') ? `.${entry}` : entry;
+	return cleanModuleId(path.resolve(root, relativeEntry));
+}
+
+function routeSourceSuffix(entry: string): string {
+	return cleanModuleId(entry).replace(/^\.?(?:\/|$)/, '');
+}
+
+export function omitRouteSourceContent(
+	bundle: OutputBundle,
+	routes: readonly Pick<RouteDefinition, 'entry'>[],
+): void {
+	const routeSuffixes = new Set(routes.map((route) => routeSourceSuffix(route.entry)));
+	const omitFromSourceMap = (sourceMap: SourceMapLike): boolean => {
+		if (!sourceMap.sources || !sourceMap.sourcesContent) return false;
+
+		let changed = false;
+		for (let index = 0; index < sourceMap.sources.length; index += 1) {
+			const source = cleanModuleId(sourceMap.sources[index]).replace(/^(?:\.\.\/)+/, '');
+			if (!routeSuffixes.has(source)) continue;
+			if (sourceMap.sourcesContent[index] === null) continue;
+			sourceMap.sourcesContent[index] = null;
+			changed = true;
+		}
+		return changed;
+	};
+
+	for (const output of Object.values(bundle)) {
+		if (output.type === 'chunk') {
+			if (output.map) omitFromSourceMap(output.map);
+			continue;
+		}
+		if (output.type !== 'asset' || !output.fileName.endsWith('.map')) continue;
+
+		const serializedSourceMap =
+			typeof output.source === 'string'
+				? output.source
+				: new TextDecoder().decode(output.source);
+		const sourceMap = JSON.parse(serializedSourceMap) as SourceMapLike;
+		if (omitFromSourceMap(sourceMap)) output.source = JSON.stringify(sourceMap);
+	}
+}
+
+function omitRouteSourceContentFromDirectory(
+	directory: string,
+	routes: readonly Pick<RouteDefinition, 'entry'>[],
+): void {
+	for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+		const entryPath = path.join(directory, entry.name);
+		if (entry.isDirectory()) {
+			omitRouteSourceContentFromDirectory(entryPath, routes);
+			continue;
+		}
+		if (!entry.name.endsWith('.map')) continue;
+
+		const serializedSourceMap = fs.readFileSync(entryPath, 'utf8');
+		const asset: OutputAsset = {
+			type: 'asset',
+			fileName: entry.name,
+			source: serializedSourceMap,
+		};
+		const bundle = { [entry.name]: asset };
+		omitRouteSourceContent(bundle, routes);
+		if (typeof asset.source === 'string' && asset.source !== serializedSourceMap) {
+			fs.writeFileSync(entryPath, asset.source);
+		}
+	}
+}
+
+export function removeServerRouteExports(source: string, id = 'route.js') {
+	const ast = parse(source, { sourceType: 'module' });
+	if (!removeExports(ast, SERVER_ONLY_ROUTE_EXPORTS)) return null;
+
+	return generate(ast, {
+		sourceMaps: true,
+		filename: id,
+		sourceFileName: cleanModuleId(id),
+	});
 }
 
 export function flamefront(options: FlamefrontOptions = {}) {
 	let root = process.cwd();
+	let serverBuild = false;
 	let appPromise: Promise<AppDefinition> | undefined;
 	let manifestRevision = 0;
 	const manifestId = options.routes ?? '/src/routes.ts';
-	const manifestPath = () => resolve(root, manifestId.startsWith('/') ? `.${manifestId}` : manifestId);
+	const manifestPath = () =>
+		path.resolve(root, manifestId.startsWith('/') ? `.${manifestId}` : manifestId);
 	const loadApp = async () => {
 		const manifestUrl = new URL(pathToFileURL(manifestPath()));
 		manifestUrl.searchParams.set('flamefront', String(manifestRevision));
@@ -146,13 +201,17 @@ export function flamefront(options: FlamefrontOptions = {}) {
 		});
 		return appPromise;
 	};
+	const loadRoutes = async () => (await loadApp()).routes;
+	const loadRouteModuleIds = async () =>
+		new Set((await loadRoutes()).map((route) => resolveRouteEntry(root, route.entry)));
+	const configureRoot = (config: { readonly root: string }) => {
+		root = config.root;
+	};
 
-	return {
-		name: 'flamefront:route-modules',
+	const frameworkModulesPlugin = {
+		name: 'flamefront:framework-modules',
 		enforce: 'pre' as const,
-		configResolved(config: { root: string }) {
-			root = config.root;
-		},
+		configResolved: configureRoot,
 		handleHotUpdate(context: { file: string; server: { moduleGraph: { getModuleById(id: string): unknown; invalidateModule(module: unknown): void } } }) {
 			if (context.file !== manifestPath()) return;
 			manifestRevision += 1;
@@ -160,7 +219,12 @@ export function flamefront(options: FlamefrontOptions = {}) {
 			const generatedModule = context.server.moduleGraph.getModuleById(resolvedRemixRoutesId);
 			if (generatedModule) context.server.moduleGraph.invalidateModule(generatedModule);
 		},
-		resolveId(id: string, importer?: string) {
+		async resolveId(
+			this: PluginContext,
+			id: string,
+			importer?: string,
+			resolveOptions: ResolveOptions = {},
+		) {
 			if (id === remixRoutesId) return resolvedRemixRoutesId;
 			if (
 				id === './deferred-route.tsrx?octane-hydrate=0' &&
@@ -174,7 +238,36 @@ export function flamefront(options: FlamefrontOptions = {}) {
 			if (id.startsWith(`${deferredRouteId}?entry=`)) {
 				return `${resolvedDeferredRoutePrefix}${id.slice(`${deferredRouteId}?entry=`.length)}`;
 			}
-			return null;
+
+			if (
+				resolveOptions.scan ||
+				isServerEnvironment(this, resolveOptions) ||
+				resolveOptions.custom?.['flamefront:server-module']
+			) {
+				return null;
+			}
+
+			const nestedOptions: ResolveOptions = {
+				...resolveOptions,
+				custom: { ...resolveOptions.custom, 'flamefront:server-module': true },
+			};
+			const resolved = await this.resolve(id, importer, nestedOptions);
+			if (!resolved) return null;
+
+			const resolvedId = cleanModuleId(resolved.id);
+			if (!serverFilePattern.test(resolvedId) && !serverDirectoryPattern.test(resolvedId)) {
+				return null;
+			}
+			if (!importer || importer.endsWith('.html')) return null;
+
+			const importerId = cleanModuleId(importer);
+			const importerLabel = path.relative(root, importerId) || importerId;
+			const routeHint = (await loadRouteModuleIds()).has(importerId)
+				? ' Flamefront removes server imports used exclusively by `loader`, but this import is still referenced by client code.'
+				: '';
+			throw new Error(
+				`Server-only module ${JSON.stringify(id)} was referenced by client module ${JSON.stringify(importerLabel)}.${routeHint}`,
+			);
 		},
 		async load(id: string) {
 			if (id === resolvedRemixRoutesId) return generateRemixRoutes(await loadApp());
@@ -185,10 +278,42 @@ export function flamefront(options: FlamefrontOptions = {}) {
 			}
 			return null;
 		},
-		transform(source: string, id: string, options?: { ssr?: boolean }) {
-			if (options?.ssr || !id.split('?', 1)[0].endsWith('.tsrx')) return null;
-			const code = stripRouteLoader(source);
-			return code === source ? null : { code, map: null };
+	};
+
+	const routeModulePlugin = {
+		name: 'flamefront:route-modules',
+		enforce: 'post' as const,
+		configResolved(config: {
+			readonly root: string;
+			readonly build?: { readonly ssr?: unknown };
+		}) {
+			configureRoot(config);
+			serverBuild = Boolean(config.build?.ssr);
+		},
+		async generateBundle(_outputOptions: unknown, bundle: OutputBundle) {
+			if (!serverBuild) omitRouteSourceContent(bundle, await loadRoutes());
+		},
+		async writeBundle(outputOptions: { readonly dir?: string }) {
+			// Rollup serializes chunk maps after generateBundle, and other plugins can
+			// emit late client chunks. Scrub the completed output as the final guard.
+			if (!serverBuild && outputOptions.dir) {
+				omitRouteSourceContentFromDirectory(outputOptions.dir, await loadRoutes());
+			}
+		},
+		async transform(
+			this: PluginContext,
+			source: string,
+			id: string,
+			transformOptions?: TransformOptions,
+		) {
+			if (isServerEnvironment(this, transformOptions)) return null;
+			if (!(await loadRouteModuleIds()).has(cleanModuleId(id))) return null;
+
+			const transformed = removeServerRouteExports(source, id);
+			if (!transformed) return null;
+			return { code: transformed.code, map: transformed.map };
 		},
 	};
+
+	return [frameworkModulesPlugin, routeModulePlugin] as const;
 }

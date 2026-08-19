@@ -57,8 +57,9 @@ Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
 can call `app.load(url)` from their route loaders, while `app.prefetch(url)`
 warms the same deduplicated cache on link intent.
 
-Place Flamefront's Vite transform before Octane's so loader bodies remain
-server-only, including in production sourcemaps:
+Flamefront's Vite transform loads the centralized route manifest. Octane
+compiles TSRX first, then Flamefront removes loaders and their private
+dependency graph from client modules while retaining them in server modules:
 
 ```ts
 import { octane } from '@octanejs/vite-plugin';
@@ -68,6 +69,15 @@ export default {
 	plugins: [flamefront(), octane()],
 };
 ```
+
+Files and directories named `.server` are rejected if they remain reachable
+from client code after loader removal. This turns accidental server imports into
+compile-time errors in both development and production.
+
+When client source maps are emitted, mixed route sources omit embedded
+`sourcesContent` so removed server implementations are not republished in map
+files. The generated client code remains mapped, but developer tools need local
+source access to display those route sources.
 
 ## Remix Router adapter
 
