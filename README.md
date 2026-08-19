@@ -68,3 +68,38 @@ export default {
 	plugins: [flamefront(), octane()],
 };
 ```
+
+## Remix Router adapter
+
+Applications that install `@octanejs/remix-router` can opt into Flamefront's
+Remix adapter. Flamefront keeps that package as an optional peer, so core route
+configuration and matching remain router-agnostic.
+
+The Vite plugin generates the application's nested, lazy route-object graph at
+`virtual:flamefront/remix-routes`. Most applications can use the stable adapter
+instead; it creates a browser router or a request-scoped static router over the
+same graph:
+
+```ts
+import {
+	createClientRouter,
+	createServerRouter,
+	routes,
+} from 'flamefront/remix-router';
+
+const browserRouter = createClientRouter({ hydrationData });
+const serverResult = await createServerRouter(request);
+if (serverResult instanceof Response) return serverResult;
+```
+
+The server result contains `router`, `context`, and serializable
+`hydrationData`. Redirect responses are returned directly and route errors stay
+in both the static context and hydration state. The exported `routes` collection
+is available when an application needs lower-level Remix Router APIs.
+
+Route modules and pathless layout modules use default component exports and are
+loaded lazily. Server routers call route modules' exported loaders directly;
+browser routers use Flamefront's route-data endpoint with navigation abort
+signals and HTTP error handling. A route marked `hydration: 'deferred'` receives a generated
+Octane interaction boundary around its component; layouts remain immediately
+interactive.

@@ -9,6 +9,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./remix-router": "./src/remix-router.ts",
+    "./remix-router/data": "./src/remix-route-data.ts",
     "./server": "./src/server.ts",
     "./vite": "./src/vite.ts"
   },
@@ -19,6 +21,14 @@
   "dependencies": {
     "@alloc/cmd-ts": "0.17.1",
     "@remix-run/route-pattern": "0.24.0"
+  },
+  "peerDependencies": {
+    "@octanejs/remix-router": "0.1.36"
+  },
+  "peerDependenciesMeta": {
+    "@octanejs/remix-router": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "26.1.1",
