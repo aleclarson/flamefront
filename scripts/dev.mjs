@@ -24,22 +24,45 @@ function sendHtml(response, status, html) {
 	response.end(html);
 }
 
+function toFetchRequest(request, url) {
+	return new Request(url, {
+		method: request.method,
+		headers: request.headers,
+	});
+}
+
+async function sendFetchResponse(response, fetchResponse) {
+	response.statusCode = fetchResponse.status;
+	for (const [name, value] of fetchResponse.headers) response.setHeader(name, value);
+	response.end(Buffer.from(await fetchResponse.arrayBuffer()));
+}
+
 const server = createHttpServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
 	const routeMatch = app.match(url);
 
 	try {
+		if (url.pathname === '/__flamefront/data') {
+			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
+			await sendFetchResponse(response, await entry.loadRouteData(toFetchRequest(request, url)));
+			return;
+		}
+
 		if (routeMatch?.data.render === 'ssr') {
 			const template = await readFile(resolve(root, 'index.html'), 'utf8');
 			const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
-			sendHtml(response, 200, entry.renderSsrDocument(transformedTemplate));
+			sendHtml(
+				response,
+				200,
+				await entry.renderSsrDocument(transformedTemplate, toFetchRequest(request, url)),
+			);
 			return;
 		}
 
 		if (routeMatch?.data.render === 'ssg') {
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
-			sendHtml(response, 200, await entry.renderSsgDocument());
+			sendHtml(response, 200, await entry.renderSsgDocument(toFetchRequest(request, url)));
 			return;
 		}
 	} catch (error) {

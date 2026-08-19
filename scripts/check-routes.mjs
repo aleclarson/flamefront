@@ -56,10 +56,28 @@ try {
 	const ssr = await fetch(`${base}${ssrRoute.path}`).then((response) => response.text());
 	assert(ssr.includes('SSR route with deferred hydration'), 'SSR label is missing from the initial response.');
 	assert(ssr.includes('data-testid="deferred-panel"'), 'SSR response is missing the deferred boundary content.');
+	assert(
+		ssr.includes('Loader resolved /ssr before SSR.'),
+		'SSR loader data is missing from the initial response.',
+	);
 
 	const ssg = await fetch(`${base}${ssgRoute.path}`).then((response) => response.text());
 	assert(ssg.includes('>SSG route</h1>'), 'SSG label is missing from the generated document.');
 	assert(!ssg.includes('type="module"'), 'SSG output unexpectedly includes a client module.');
+	assert(
+		ssg.includes('Loader resolved /ssg during the build.'),
+		'SSG loader data is missing from the generated document.',
+	);
+
+	for (const route of spaRoutes) {
+		const endpoint = new URL('/__flamefront/data', base);
+		endpoint.searchParams.set('url', `${base}${route.path}`);
+		const loaderData = await fetch(endpoint).then((response) => response.json());
+		assert(
+			loaderData.message === `Loader prefetched ${route.path}.`,
+			`${route.path} loader endpoint returned unexpected data.`,
+		);
+	}
 
 	for (const route of spaRoutes) {
 		const spa = await fetch(`${base}${route.path}`).then((response) => response.text());
@@ -72,9 +90,9 @@ try {
 	const generatedSsg = await readFile(resolve(root, 'dist/client', ssgPath, 'index.html'), 'utf8');
 	assert(generatedSsg.includes('data-render-mode="ssg"'), 'Build output is missing the SSG mode marker.');
 
-	console.log('SSR response contains its label and deferred HTML.');
-	console.log('SSG output contains its label and no client module.');
-	console.log('Both SPA paths return the Vite shell without server-rendered labels.');
+	console.log('SSR response contains its loader data, label, and deferred HTML.');
+	console.log('SSG output contains build-time loader data, its label, and no client module.');
+	console.log('Both SPA paths expose loader data and return a client-only Vite shell.');
 } finally {
 	preview.kill('SIGTERM');
 }

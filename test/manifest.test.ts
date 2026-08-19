@@ -67,3 +67,22 @@ test('rejects invalid route patterns while defining the app', () => {
 		/parse|parameter|name/i,
 	);
 });
+
+test('deduplicates load and prefetch requests', async () => {
+	const originalFetch = globalThis.fetch;
+	let requests = 0;
+	globalThis.fetch = async () => {
+		requests += 1;
+		return Response.json({ value: requests });
+	};
+
+	try {
+		const app = defineApp({ routes: [route('/data', '/src/Data.tsrx')] });
+		await app.prefetch('https://example.test/data');
+		assert.deepEqual(await app.load('https://example.test/data'), { value: 1 });
+		assert.deepEqual(await app.load('https://example.test/data', { reload: true }), { value: 2 });
+		assert.equal(requests, 2);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});

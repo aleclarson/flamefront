@@ -8,7 +8,9 @@
     "ff": "./src/cli.ts"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./vite": "./src/vite.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts",

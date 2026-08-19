@@ -36,6 +36,19 @@ async function sendFile(response, filePath) {
 	send(response, 200, body, contentTypes[extname(filePath)] ?? 'application/octet-stream');
 }
 
+function toFetchRequest(request, url) {
+	return new Request(url, {
+		method: request.method,
+		headers: request.headers,
+	});
+}
+
+async function sendFetchResponse(response, fetchResponse) {
+	response.statusCode = fetchResponse.status;
+	for (const [name, value] of fetchResponse.headers) response.setHeader(name, value);
+	response.end(Buffer.from(await fetchResponse.arrayBuffer()));
+}
+
 function withinClientDir(filePath) {
 	const clientPrefix = `${clientDir}${sep}`;
 	return filePath === clientDir || filePath.startsWith(clientPrefix);
@@ -46,6 +59,11 @@ const server = createServer(async (request, response) => {
 	const routeMatch = app.match(url);
 
 	try {
+		if (url.pathname === '/__flamefront/data') {
+			await sendFetchResponse(response, await serverEntry.loadRouteData(toFetchRequest(request, url)));
+			return;
+		}
+
 		if (url.pathname === '/') {
 			response.statusCode = 302;
 			response.setHeader('Location', defaultSpaRoute.path);
@@ -55,7 +73,12 @@ const server = createServer(async (request, response) => {
 
 		if (routeMatch?.data.render === 'ssr') {
 			const template = await readFile(resolve(clientDir, 'index.html'), 'utf8');
-			send(response, 200, serverEntry.renderSsrDocument(template), 'text/html; charset=utf-8');
+			send(
+				response,
+				200,
+				await serverEntry.renderSsrDocument(template, toFetchRequest(request, url)),
+				'text/html; charset=utf-8',
+			);
 			return;
 		}
 

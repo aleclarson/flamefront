@@ -23,9 +23,16 @@ export interface MatchRouteOptions {
 	readonly render?: RenderMode;
 }
 
+export interface LoadRouteOptions {
+	readonly signal?: AbortSignal;
+	readonly reload?: boolean;
+}
+
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 	readonly routes: readonly T[];
 	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
+	readonly load: <Data = unknown>(url: string | URL, options?: LoadRouteOptions) => Promise<Data>;
+	readonly prefetch: (url: string | URL, options?: LoadRouteOptions) => Promise<void>;
 }
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>(['ssr', 'ssg', 'spa']);
@@ -38,6 +45,40 @@ const matcherCache = new WeakMap<
 	readonly RouteDefinition[],
 	Map<RenderMode | undefined, MultiMatcher<RouteDefinition>>
 >();
+
+function resolveDataUrl(url: string | URL): URL {
+	const browserOrigin = typeof location === 'undefined' ? undefined : location.origin;
+	if (!browserOrigin && typeof url === 'string' && !URL.canParse(url)) {
+		throw new TypeError('flamefront app.load() requires an absolute URL outside the browser.');
+	}
+	return new URL(url, browserOrigin);
+}
+
+function createRouteDataLoader() {
+	const cache = new Map<string, Promise<unknown>>();
+
+	return function load<Data = unknown>(
+		url: string | URL,
+		options: LoadRouteOptions = {},
+	): Promise<Data> {
+		const routeUrl = resolveDataUrl(url);
+		const cacheKey = `${routeUrl.pathname}${routeUrl.search}`;
+		const cached = options.reload ? undefined : cache.get(cacheKey);
+		if (cached) return cached as Promise<Data>;
+
+		const endpoint = new URL('/__flamefront/data', routeUrl.origin);
+		endpoint.searchParams.set('url', routeUrl.href);
+		const pending = fetch(endpoint, { signal: options.signal }).then(async (response) => {
+			if (!response.ok) {
+				throw new Error(`flamefront loader request failed with ${response.status}.`);
+			}
+			return response.json() as Promise<Data>;
+		});
+		cache.set(cacheKey, pending);
+		void pending.catch(() => cache.delete(cacheKey));
+		return pending;
+	};
+}
 
 function assertString(value: unknown, name: string): asserts value is string {
 	if (typeof value !== 'string' || value.length === 0) {
@@ -141,11 +182,16 @@ export function defineApp<const T extends { readonly routes: readonly RouteDefin
 	});
 
 	const frozenRoutes = Object.freeze(routes) as readonly T['routes'][number][];
+	const load = createRouteDataLoader();
 	const app = Object.freeze({
 		...options,
 		routes: frozenRoutes,
 		match: (url: string | URL, matchOptions?: MatchRouteOptions) =>
 			matchRoutes(frozenRoutes, url, matchOptions),
+		load,
+		prefetch: async (url: string | URL, loadOptions?: LoadRouteOptions) => {
+			await load(url, loadOptions);
+		},
 	}) as T & AppDefinition<T['routes'][number]>;
 	matcherCache.set(
 		frozenRoutes,
