@@ -12,13 +12,17 @@ import { defineApp, route } from 'flamefront';
 
 export const app = defineApp({
 	routes: [
-		route('/home', '/src/Home.tsrx', { render: 'ssr' }),
+		route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
 	],
 });
 ```
 
 The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
+
+Use `matchRoute(app.routes, url)` to select the most specific route and read
+decoded parameters. Flamefront delegates route grammar and specificity to
+`@remix-run/route-pattern` rather than maintaining its own matcher.
 
 Run `ff routes` from an app with `src/routes.ts` to inspect its route graph.
 Production rendering and static output remain on the existing thin Octane

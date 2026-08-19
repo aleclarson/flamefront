@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
+import { matchRoute } from 'flamefront';
 import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,10 +12,6 @@ const ssrRoute = app.routes.find((route) => route.render === 'ssr');
 const ssgRoute = app.routes.find((route) => route.render === 'ssg');
 
 if (!ssrRoute || !ssgRoute) throw new Error('The route manifest must define SSR and SSG routes.');
-
-function matchesPath(url, route) {
-	return url.pathname === route.path || url.pathname === `${route.path}/`;
-}
 
 const vite = await createViteServer({
 	root,
@@ -30,9 +27,10 @@ function sendHtml(response, status, html) {
 
 const server = createHttpServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
+	const routeMatch = matchRoute(app.routes, url);
 
 	try {
-		if (matchesPath(url, ssrRoute)) {
+		if (routeMatch?.data.render === 'ssr') {
 			const template = await readFile(resolve(root, 'index.html'), 'utf8');
 			const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
@@ -40,7 +38,7 @@ const server = createHttpServer(async (request, response) => {
 			return;
 		}
 
-		if (matchesPath(url, ssgRoute)) {
+		if (routeMatch?.data.render === 'ssg') {
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
 			sendHtml(response, 200, await entry.renderSsgDocument());
 			return;

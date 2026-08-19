@@ -27,6 +27,9 @@ importers:
       '@alloc/cmd-ts':
         specifier: 0.17.1
         version: 0.17.1
+      '@remix-run/route-pattern':
+        specifier: 0.24.0
+        version: 0.24.0
     devDependencies:
       '@types/node':
         specifier: 26.1.1
@@ -235,6 +238,9 @@ packages:
 
   '@oxc-project/types@0.144.0':
     resolution: {integrity: sha512-nuhZIOLuI6TFQ32I/WnUx+SCPY7SdSKwgnFHydAuoS1+Z4BRcaP+RRJmGzl9lw+0OFF7UmaESf7KQRXaNLHypg==}
+
+  '@remix-run/route-pattern@0.24.0':
+    resolution: {integrity: sha512-w0/lhgY40l2GrBQjJIOeYWIuKm1rxlOsc9Hvt+nyydnka0v4aI9Vv0VK4XzLD3aP08JzGtTlxFxwf1PZ8SGdLg==}
 
   '@ripple-ts/adapter@0.3.120':
     resolution: {integrity: sha512-k0mEF+MXC2t69P+atWggBdp9O3pXxaJP6Q65n4+w652gAe2f5rd8qGt92nKYqTSoeUBjx26NGwgDlrx1qlexlw==}
@@ -709,6 +715,8 @@ snapshots:
       vite: 8.2.1(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
 
   '@oxc-project/types@0.144.0': {}
+
+  '@remix-run/route-pattern@0.24.0': {}
 
   '@ripple-ts/adapter@0.3.120': {}
 

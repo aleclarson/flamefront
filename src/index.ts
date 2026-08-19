@@ -1,3 +1,9 @@
+import {
+	createMultiMatcher,
+	type Match,
+	type MultiMatcher,
+} from '@remix-run/route-pattern/match';
+
 export type RenderMode = 'ssr' | 'ssg' | 'spa';
 export type HydrationMode = 'full' | 'deferred' | 'none';
 
@@ -23,6 +29,7 @@ const hydrationModes: ReadonlySet<unknown> = new Set<HydrationMode>([
 	'deferred',
 	'none',
 ]);
+const matcherCache = new WeakMap<readonly RouteDefinition[], MultiMatcher<RouteDefinition>>();
 
 function assertString(value: unknown, name: string): asserts value is string {
 	if (typeof value !== 'string' || value.length === 0) {
@@ -69,6 +76,31 @@ export function route(
 	return Object.freeze(definition);
 }
 
+function createRouteMatcher<T extends RouteDefinition>(routes: readonly T[]): MultiMatcher<T> {
+	const matcher = createMultiMatcher<T>();
+	for (const routeDefinition of routes) matcher.add(routeDefinition.path, routeDefinition);
+	return matcher;
+}
+
+/** Match a URL against a route collection using route-pattern specificity rules. */
+export function matchRoute<T extends RouteDefinition>(
+	routes: readonly T[],
+	url: string | URL,
+): Match<string, T> | null {
+	let matcher = matcherCache.get(routes) as MultiMatcher<T> | undefined;
+	if (!matcher) {
+		matcher = createRouteMatcher(routes);
+		matcherCache.set(routes, matcher as MultiMatcher<RouteDefinition>);
+	}
+
+	const normalizedUrl = new URL(url, 'http://flamefront.local');
+	if (normalizedUrl.pathname.length > 1) {
+		normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/+$/, '');
+	}
+
+	return matcher.match(normalizedUrl);
+}
+
 /** Normalize and validate the application's explicit route graph. */
 export function defineApp<T extends AppDefinition>(options: T): T {
 	if (!options || !Array.isArray(options.routes)) {
@@ -85,8 +117,10 @@ export function defineApp<T extends AppDefinition>(options: T): T {
 		return routeDefinition;
 	});
 
-	return Object.freeze({
+	const app = Object.freeze({
 		...options,
 		routes: Object.freeze(routes),
 	}) as T;
+	matcherCache.set(app.routes, createRouteMatcher(app.routes));
+	return app;
 }

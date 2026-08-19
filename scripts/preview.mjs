@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { matchRoute } from 'flamefront';
 import { app } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,10 +16,6 @@ const defaultSpaRoute = spaRoutes[0];
 
 if (!ssrRoute || !ssgRoute || !defaultSpaRoute) {
 	throw new Error('The route manifest must define SSR, SSG, and SPA routes.');
-}
-
-function matchesPath(url, route) {
-	return url.pathname === route.path || url.pathname === `${route.path}/`;
 }
 
 const contentTypes = {
@@ -47,6 +44,7 @@ function withinClientDir(filePath) {
 
 const server = createServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
+	const routeMatch = matchRoute(app.routes, url);
 
 	try {
 		if (url.pathname === '/') {
@@ -56,19 +54,19 @@ const server = createServer(async (request, response) => {
 			return;
 		}
 
-		if (matchesPath(url, ssrRoute)) {
+		if (routeMatch?.data.render === 'ssr') {
 			const template = await readFile(resolve(clientDir, 'index.html'), 'utf8');
 			send(response, 200, serverEntry.renderSsrDocument(template), 'text/html; charset=utf-8');
 			return;
 		}
 
-		if (matchesPath(url, ssgRoute)) {
-			const ssgPath = ssgRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
+		if (routeMatch?.data.render === 'ssg') {
+			const ssgPath = routeMatch.data.path.replace(/^\/+|\/+$/g, '') || 'index';
 			await sendFile(response, resolve(clientDir, ssgPath, 'index.html'));
 			return;
 		}
 
-		if (spaRoutes.some((route) => matchesPath(url, route))) {
+		if (routeMatch?.data.render === 'spa') {
 			await sendFile(response, resolve(clientDir, 'index.html'));
 			return;
 		}

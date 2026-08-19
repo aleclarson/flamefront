@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@alloc/cmd-ts": "0.17.1"
+    "@alloc/cmd-ts": "0.17.1",
+    "@remix-run/route-pattern": "0.24.0"
   },
   "devDependencies": {
     "@types/node": "26.1.1",
