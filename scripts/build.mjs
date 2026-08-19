@@ -2,9 +2,13 @@ import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
+const ssgRoute = routes.find((route) => route.render === 'ssg');
+
+if (!ssgRoute) throw new Error('routes.ts must define an SSG route.');
 
 await rm(dist, { recursive: true, force: true });
 
@@ -33,9 +37,10 @@ await build({
 
 const serverEntry = await import(`${pathToFileURL(resolve(dist, 'server/entry-server.js')).href}?build=${Date.now()}`);
 const ssgHtml = await serverEntry.renderSsgDocument();
-const ssgDir = resolve(dist, 'client/ssg');
+const ssgPath = ssgRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
+const ssgDir = resolve(dist, 'client', ssgPath);
 
 await mkdir(ssgDir, { recursive: true });
 await writeFile(resolve(ssgDir, 'index.html'), ssgHtml);
 
-console.log('Generated dist/client/ssg/index.html with octane/static prerender().');
+console.log(`Generated dist/client/${ssgPath}/index.html with octane/static prerender().`);

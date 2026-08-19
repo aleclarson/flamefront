@@ -1,0 +1,22 @@
+{
+  "name": "flamefront",
+  "version": "0.0.0",
+  "description": "A small code-based route manifest and Octane framework seed.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "ff": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@alloc/cmd-ts": "0.17.1"
+  }
+}

@@ -3,9 +3,18 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT ?? 5173);
+const ssrRoute = routes.find((route) => route.render === 'ssr');
+const ssgRoute = routes.find((route) => route.render === 'ssg');
+
+if (!ssrRoute || !ssgRoute) throw new Error('routes.ts must define SSR and SSG routes.');
+
+function matchesPath(url, route) {
+	return url.pathname === route.path || url.pathname === `${route.path}/`;
+}
 
 const vite = await createViteServer({
 	root,
@@ -23,7 +32,7 @@ const server = createHttpServer(async (request, response) => {
 	const url = new URL(request.url ?? '/', 'http://localhost');
 
 	try {
-		if (url.pathname === '/ssr') {
+		if (matchesPath(url, ssrRoute)) {
 			const template = await readFile(resolve(root, 'index.html'), 'utf8');
 			const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
@@ -31,7 +40,7 @@ const server = createHttpServer(async (request, response) => {
 			return;
 		}
 
-		if (url.pathname === '/ssg' || url.pathname === '/ssg/') {
+		if (matchesPath(url, ssgRoute)) {
 			const entry = await vite.ssrLoadModule('/src/entry-server.ts');
 			sendHtml(response, 200, await entry.renderSsgDocument());
 			return;

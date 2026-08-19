@@ -2,11 +2,24 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientDir = resolve(root, 'dist/client');
 const port = Number(process.env.PORT ?? 4173);
 const serverEntry = await import(`${pathToFileURL(resolve(root, 'dist/server/entry-server.js')).href}?preview=${Date.now()}`);
+const ssrRoute = routes.find((route) => route.render === 'ssr');
+const ssgRoute = routes.find((route) => route.render === 'ssg');
+const spaRoutes = routes.filter((route) => route.render === 'spa');
+const defaultSpaRoute = spaRoutes[0];
+
+if (!ssrRoute || !ssgRoute || !defaultSpaRoute) {
+	throw new Error('routes.ts must define SSR, SSG, and SPA routes.');
+}
+
+function matchesPath(url, route) {
+	return url.pathname === route.path || url.pathname === `${route.path}/`;
+}
 
 const contentTypes = {
 	'.css': 'text/css; charset=utf-8',
@@ -38,23 +51,24 @@ const server = createServer(async (request, response) => {
 	try {
 		if (url.pathname === '/') {
 			response.statusCode = 302;
-			response.setHeader('Location', '/spa-one');
+			response.setHeader('Location', defaultSpaRoute.path);
 			response.end();
 			return;
 		}
 
-		if (url.pathname === '/ssr') {
+		if (matchesPath(url, ssrRoute)) {
 			const template = await readFile(resolve(clientDir, 'index.html'), 'utf8');
 			send(response, 200, serverEntry.renderSsrDocument(template), 'text/html; charset=utf-8');
 			return;
 		}
 
-		if (url.pathname === '/ssg' || url.pathname === '/ssg/') {
-			await sendFile(response, resolve(clientDir, 'ssg/index.html'));
+		if (matchesPath(url, ssgRoute)) {
+			const ssgPath = ssgRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
+			await sendFile(response, resolve(clientDir, ssgPath, 'index.html'));
 			return;
 		}
 
-		if (url.pathname === '/spa-one' || url.pathname === '/spa-two') {
+		if (spaRoutes.some((route) => matchesPath(url, route))) {
 			await sendFile(response, resolve(clientDir, 'index.html'));
 			return;
 		}

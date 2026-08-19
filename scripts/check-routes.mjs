@@ -2,10 +2,19 @@ import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { routes } from '../src/routes.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4179;
 const base = `http://127.0.0.1:${port}`;
+const ssrRoute = routes.find((route) => route.render === 'ssr');
+const ssgRoute = routes.find((route) => route.render === 'ssg');
+const spaRoutes = routes.filter((route) => route.render === 'spa');
+
+if (!ssrRoute || !ssgRoute || spaRoutes.length !== 2) {
+	throw new Error('routes.ts must define one SSR, one SSG, and two SPA routes.');
+}
+
 const preview = spawn(process.execPath, [resolve(root, 'scripts/preview.mjs')], {
 	cwd: root,
 	env: { ...process.env, PORT: String(port) },
@@ -23,7 +32,7 @@ preview.stderr.on('data', (chunk) => {
 async function waitForPreview() {
 	for (let attempt = 0; attempt < 50; attempt += 1) {
 		try {
-			const response = await fetch(`${base}/ssr`);
+			const response = await fetch(`${base}${ssrRoute.path}`);
 			if (response.status === 200) return;
 		} catch {
 			// The preview process is still starting.
@@ -40,22 +49,23 @@ function assert(condition, message) {
 try {
 	await waitForPreview();
 
-	const ssr = await fetch(`${base}/ssr`).then((response) => response.text());
+	const ssr = await fetch(`${base}${ssrRoute.path}`).then((response) => response.text());
 	assert(ssr.includes('SSR route with deferred hydration'), 'SSR label is missing from the initial response.');
 	assert(ssr.includes('data-testid="deferred-panel"'), 'SSR response is missing the deferred boundary content.');
 
-	const ssg = await fetch(`${base}/ssg`).then((response) => response.text());
+	const ssg = await fetch(`${base}${ssgRoute.path}`).then((response) => response.text());
 	assert(ssg.includes('>SSG route</h1>'), 'SSG label is missing from the generated document.');
 	assert(!ssg.includes('type="module"'), 'SSG output unexpectedly includes a client module.');
 
-	for (const path of ['/spa-one', '/spa-two']) {
-		const spa = await fetch(`${base}${path}`).then((response) => response.text());
-		assert(spa.includes('/assets/'), `${path} did not receive the Vite SPA shell.`);
-		assert(!spa.includes('SPA route one'), `${path} was server-rendered instead of client-only.`);
-		assert(!spa.includes('SPA route two'), `${path} was server-rendered instead of client-only.`);
+	for (const route of spaRoutes) {
+		const spa = await fetch(`${base}${route.path}`).then((response) => response.text());
+		assert(spa.includes('/assets/'), `${route.path} did not receive the Vite SPA shell.`);
+		assert(!spa.includes('SPA route one'), `${route.path} was server-rendered instead of client-only.`);
+		assert(!spa.includes('SPA route two'), `${route.path} was server-rendered instead of client-only.`);
 	}
 
-	const generatedSsg = await readFile(resolve(root, 'dist/client/ssg/index.html'), 'utf8');
+	const ssgPath = ssgRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
+	const generatedSsg = await readFile(resolve(root, 'dist/client', ssgPath, 'index.html'), 'utf8');
 	assert(generatedSsg.includes('data-render-mode="ssg"'), 'Build output is missing the SSG mode marker.');
 
 	console.log('SSR response contains its label and deferred HTML.');

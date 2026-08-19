@@ -1,2 +1,5 @@
+packages:
+  - flamefront
+
 allowBuilds:
   esbuild: true
