@@ -33,8 +33,17 @@ render mode. Flamefront delegates route grammar and specificity to
 `@remix-run/route-pattern` rather than maintaining its own matcher.
 
 Run `ff routes` from an app with `src/routes.ts` to inspect its route graph.
-Production rendering and static output remain on the existing thin Octane
-adapters.
+Flamefront also owns the Vite lifecycle commands:
+
+```sh
+ff dev
+ff build
+ff preview
+```
+
+`ff build` emits client and server bundles, then prerenders every SSG route.
+The app keeps its thin `src/entry-server.ts` Octane adapter, which exports the
+SSR renderer, SSG renderer, and route-data handler used by these commands.
 
 ## Route loaders
 

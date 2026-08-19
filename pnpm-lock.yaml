@@ -64,6 +64,9 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vite:
+        specifier: latest
+        version: 8.2.1(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 

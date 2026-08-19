@@ -1,33 +1,7 @@
 #!/usr/bin/env node
 
-import { access } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { binary, command, flag, run, subcommands } from '@alloc/cmd-ts';
-import type { AppDefinition } from './index.ts';
-
-interface RouteModule {
-	app?: AppDefinition;
-	default?: AppDefinition;
-}
-
-async function loadApp(): Promise<AppDefinition> {
-	const routesFile = resolve(process.cwd(), 'src/routes.ts');
-	try {
-		await access(routesFile);
-	} catch {
-		throw new Error(`Could not find ${routesFile}. Run ff from an app with src/routes.ts.`);
-	}
-
-	const url = pathToFileURL(routesFile);
-	url.searchParams.set('ff', String(Date.now()));
-	const module = (await import(url.href)) as RouteModule;
-	const app = module.app ?? module.default;
-	if (!app || !Array.isArray(app.routes)) {
-		throw new Error(`${routesFile} must export an app with a routes array.`);
-	}
-	return app;
-}
+import { buildProject, devProject, loadProject, previewProject } from './lifecycle.ts';
 
 const routes = command({
 	name: 'routes',
@@ -40,7 +14,7 @@ const routes = command({
 		}),
 	},
 	async handler({ json }) {
-		const app = await loadApp();
+		const { app } = await loadProject();
 		if (json) {
 			console.log(JSON.stringify(app.routes, null, 2));
 			return;
@@ -52,11 +26,32 @@ const routes = command({
 	},
 });
 
+const dev = command({
+	name: 'dev',
+	description: 'Start the development server for every render mode.',
+	args: {},
+	handler: () => devProject(),
+});
+
+const build = command({
+	name: 'build',
+	description: 'Build client and server bundles, then prerender SSG routes.',
+	args: {},
+	handler: () => buildProject(),
+});
+
+const preview = command({
+	name: 'preview',
+	description: 'Serve a production build locally.',
+	args: {},
+	handler: () => previewProject(),
+});
+
 const cli = subcommands({
 	name: 'ff',
 	version: '0.0.0',
 	description: 'Flamefront, a small compiler-oriented framework for Octane.',
-	cmds: { routes },
+	cmds: { build, dev, preview, routes },
 });
 
 await run(binary(cli), process.argv);

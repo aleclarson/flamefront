@@ -20,7 +20,7 @@ if (app.routes.some((route) => 'label' in route || 'navLabel' in route)) {
 	throw new Error('Compiled route metadata must not contain display labels.');
 }
 
-const preview = spawn(process.execPath, [resolve(root, 'scripts/preview.mjs')], {
+const preview = spawn(resolve(root, 'node_modules/.bin/ff'), ['preview'], {
 	cwd: root,
 	env: { ...process.env, PORT: String(port), FLAMEFRONT_CHECK_TOKEN: previewToken },
 	stdio: ['ignore', 'pipe', 'pipe'],

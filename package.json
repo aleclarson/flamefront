@@ -28,7 +28,8 @@
     "babel-dead-code-elimination": "^1.0.12"
   },
   "peerDependencies": {
-    "@octanejs/remix-router": "0.1.36"
+    "@octanejs/remix-router": "0.1.36",
+    "vite": ">=8.0.0"
   },
   "peerDependenciesMeta": {
     "@octanejs/remix-router": {
@@ -39,6 +40,7 @@
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
     "@types/node": "26.1.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "latest"
   }
 }
