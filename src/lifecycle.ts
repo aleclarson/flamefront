@@ -295,6 +295,7 @@ export async function previewProject(root = process.cwd()): Promise<void> {
 	const port = Number(process.env.PORT ?? 4173);
 	const checkToken = process.env.FLAMEFRONT_CHECK_TOKEN;
 	const clientDirectory = resolve(root, 'dist/client');
+	const defaultSpaRoute = app.routes.find((route) => route.render === 'spa');
 	const serverEntry = await loadBuiltServer(root);
 	const server = createHttpServer(async (request, response) => {
 		if (checkToken) response.setHeader('X-Flamefront-Check-Token', checkToken);
@@ -302,6 +303,13 @@ export async function previewProject(root = process.cwd()): Promise<void> {
 		const match = app.match(url);
 
 		try {
+			if (url.pathname === '/' && !match && defaultSpaRoute) {
+				response.statusCode = 302;
+				response.setHeader('Location', defaultSpaRoute.path);
+				response.end();
+				return;
+			}
+
 			if (url.pathname === '/__flamefront/data') {
 				await sendFetchResponse(
 					response,
@@ -339,7 +347,7 @@ export async function previewProject(root = process.cwd()): Promise<void> {
 				try {
 					await sendFile(response, assetPath);
 				} catch (error) {
-					if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					if (['EISDIR', 'ENOENT'].includes((error as NodeJS.ErrnoException).code ?? '')) {
 						send(response, 404, 'Not found');
 						return;
 					}

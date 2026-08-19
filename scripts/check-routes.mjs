@@ -56,6 +56,14 @@ function assert(condition, message) {
 
 try {
 	await waitForPreview();
+	const landing = await fetch(base, { redirect: 'manual' });
+	assert(landing.status === 302, 'The preview root did not redirect to the default SPA route.');
+	assert(
+		landing.headers.get('location') === spaRoutes[0].path,
+		'The preview root redirected to the wrong route.',
+	);
+	const assetDirectory = await fetch(`${base}/assets`);
+	assert(assetDirectory.status === 404, 'An asset directory request did not return 404.');
 
 	const ssr = await fetch(`${base}${ssrRoute.path}`).then((response) => response.text());
 	assert(
