@@ -283,13 +283,30 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 test('uses static artifacts for browser navigation and preserves static hydration boundaries', () => {
 	const app = defineApp({
 		shell: '/src/AppShell.tsrx',
-		routes: [route('/about', '/src/About.tsrx', { render: 'static', hydration: 'none' })],
+		routes: [
+			route('/about', '/src/About.tsrx', { render: 'static', hydration: 'none' }),
+			route('/built-full', '/src/BuiltFull.tsrx', {
+				render: 'static',
+				hydration: 'full',
+			}),
+			route('/built-deferred', '/src/BuiltDeferred.tsrx', {
+				render: 'static',
+				hydration: 'deferred',
+			}),
+			route('/built-visible', '/src/BuiltVisible.tsrx', {
+				render: 'static',
+				hydration: { when: 'visible' },
+			}),
+		],
 	});
 	const source = generateRemixRoutes(app);
 
 	assert.match(source, /loader: routeModule\.loader/);
 	assert.match(source, /loader: loadStaticRouteData/);
 	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx/);
+	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltFull\.tsrx/);
+	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltDeferred\.tsrx/);
+	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltVisible\.tsrx/);
 });
 
 test('generates Octane route boundaries for every framework-owned policy', () => {

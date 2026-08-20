@@ -150,7 +150,7 @@ test('selects matches by render mode', () => {
 	assert.equal(app.match('/articles/new', { render: 'static' }), null);
 });
 
-test('accepts every server hydration policy', () => {
+test('accepts every server and static hydration policy', () => {
 	const app = defineApp({
 		shell,
 		routes: [
@@ -169,10 +169,22 @@ test('accepts every server hydration policy', () => {
 			route('/media', '/src/Media.tsrx', {
 				hydration: { when: 'media', query: '(min-width: 60rem)' },
 			}),
+			route('/static-full', '/src/StaticFull.tsrx', {
+				render: 'static',
+				hydration: 'full',
+			}),
+			route('/static-deferred', '/src/StaticDeferred.tsrx', {
+				render: 'static',
+				hydration: 'deferred',
+			}),
+			route('/static-visible', '/src/StaticVisible.tsrx', {
+				render: 'static',
+				hydration: { when: 'visible', rootMargin: '200px' },
+			}),
 		],
 	});
 
-	assert.equal(app.routes.length, 7);
+	assert.equal(app.routes.length, 10);
 	assert.deepEqual(app.match('/visible')?.data.hydration, {
 		when: 'visible',
 		rootMargin: '200px',
@@ -194,16 +206,12 @@ test('rejects hydration policies that cannot affect a render mode', () => {
 		/client hydration can only be 'full'/,
 	);
 	assert.throws(
-		() => route('/static', '/src/Static.tsrx', { render: 'static', hydration: 'deferred' }),
-		/static hydration can only be 'none'/,
-	);
-	assert.throws(
 		() =>
 			route('/client-idle', '/src/Client.tsrx', {
 				render: 'client',
 				hydration: { when: 'idle' },
 			}),
-		/generated hydration requires render: 'server'/,
+		/generated hydration requires render: 'server' or 'static'/,
 	);
 });
 

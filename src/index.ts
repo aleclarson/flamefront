@@ -252,9 +252,9 @@ function validateHydration(routeDefinition: RouteDefinition, location: string): 
 
 	if (typeof hydration === 'object' && hydration !== null && !Array.isArray(hydration)) {
 		validateGeneratedHydration(hydration as unknown as Record<string, unknown>, location);
-		if (render !== 'server') {
+		if (render !== 'server' && render !== 'static') {
 			throw new TypeError(
-				`flamefront route ${location} generated hydration requires render: 'server'.`,
+				`flamefront route ${location} generated hydration requires render: 'server' or 'static'.`,
 			);
 		}
 		return;
@@ -268,11 +268,6 @@ function validateHydration(routeDefinition: RouteDefinition, location: string): 
 	if (render === 'client' && hydration !== 'full') {
 		throw new TypeError(
 			`flamefront route ${location} client hydration can only be 'full'.`,
-		);
-	}
-	if (render === 'static' && hydration !== 'none') {
-		throw new TypeError(
-			`flamefront route ${location} static hydration can only be 'none'.`,
 		);
 	}
 }

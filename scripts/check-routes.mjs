@@ -10,7 +10,8 @@ const port = 40_000 + (process.pid % 10_000);
 const base = `http://127.0.0.1:${port}`;
 const previewToken = `route-check-${process.pid}-${Date.now()}`;
 const serverRoutes = app.routes.filter((route) => route.render === 'server');
-const staticRoute = app.routes.find((route) => route.render === 'static');
+const staticRoute = app.routes.find((route) => route.path === '/about');
+const staticInteractiveRoute = app.routes.find((route) => route.path === '/static-interactive');
 const clientRoutes = app.routes.filter((route) => route.render === 'client');
 const productMatch = app.match('/products/octane');
 const appLayout = app.routeTree.find((config) => 'children' in config);
@@ -23,12 +24,15 @@ assert.equal(app.shell, '/src/AppShell.tsrx');
 assert.equal(serverRoutes.length, 4, 'The field guide must define four server routes.');
 assert.equal(clientRoutes.length, 2, 'The field guide must define two client routes.');
 assert.equal(staticRoute?.path, '/about', 'The field guide must define one /about static route.');
+assert.equal(staticInteractiveRoute?.render, 'static');
+assert.equal(staticInteractiveRoute?.hydration, 'deferred');
 assert.deepEqual(standalonePaths, ['/', '/about']);
 assert.equal(appLayout?.entry, '/src/AppLayout.tsrx');
 assert.deepEqual(layoutPaths, [
 	'/products/:productId',
 	'/hydration',
 	'/server-static',
+	'/static-interactive',
 	'/workspace',
 	'/workspace/settings',
 ]);
@@ -36,6 +40,7 @@ assert.equal(productMatch?.data.path, '/products/:productId');
 assert.equal(productMatch?.data.render, 'server');
 assert.equal(productMatch?.params.productId, 'octane');
 assert.equal(app.match('/about')?.data.render, 'static');
+assert.equal(app.match('/static-interactive')?.data.hydration, 'deferred');
 assert.equal(app.match('/workspace')?.data.render, 'client');
 assert.equal(app.match('/missing'), null);
 assert.equal(
@@ -148,6 +153,17 @@ try {
 	assert.match(serverStatic, /data-render-mode="server"/);
 	assert.match(serverStatic, /data-testid="server-static-proof"/);
 
+	const staticInteractive = (await fetchHtml('/static-interactive')).html;
+	assertShell(staticInteractive, 'The static interactive document');
+	assertAppLayout(staticInteractive, 'The static interactive document');
+	assert.match(staticInteractive, /Build-time HTML with a split child/);
+	assert.match(staticInteractive, /data-render-mode="static"/);
+	assert.match(staticInteractive, /data-testid="static-interactive-proof"/);
+	assert.match(staticInteractive, /data-probe="static"/);
+	assert.match(staticInteractive, /data-octane-hydrate-when="idle"/);
+	assert.match(staticInteractive, /Server HTML is dormant\./);
+	assert.match(staticInteractive, /window\.__staticRouterHydrationData/);
+
 	for (const route of clientRoutes) {
 		const data = await loaderData(route.path);
 		assert.equal(
@@ -197,6 +213,20 @@ try {
 	const servedStaticData = await fetch(`${base}/about/index.data.json`);
 	assert.equal(servedStaticData.status, 200);
 	assert.deepEqual(await servedStaticData.json(), staticData);
+
+	const interactiveStaticPath = staticInteractiveRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
+	const generatedInteractiveStatic = await readFile(
+		resolve(root, 'dist/client', interactiveStaticPath, 'index.html'),
+		'utf8',
+	);
+	assert.match(generatedInteractiveStatic, /data-render-mode="static"/);
+	assert.match(generatedInteractiveStatic, /data-probe="static"/);
+	assert.match(generatedInteractiveStatic, /data-octane-hydrate-when="idle"/);
+	assert.match(generatedInteractiveStatic, /Server HTML is dormant\./);
+	const interactiveStaticData = JSON.parse(
+		await readFile(resolve(root, 'dist/client', interactiveStaticPath, 'index.data.json'), 'utf8'),
+	);
+	assert.equal(interactiveStaticData.message, 'Generated /static-interactive during ff build.');
 
 	const clientManifest = JSON.parse(
 		await readFile(resolve(root, 'dist/client/.vite/manifest.json'), 'utf8'),
