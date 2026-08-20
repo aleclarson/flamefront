@@ -47,9 +47,11 @@ then prerenders every static route. The server build default-exports srvx option
 with a web-standard `fetch` handler. `ff preview` runs that built handler through
 srvx, while `srvx/static` serves static output and client assets.
 
-The app keeps its thin `src/entry-server.ts` Octane adapter. It exports the server
-renderer, static renderer, and route-data handler, then passes them to
-`createSrvxServer()` from `flamefront/server`.
+The app keeps its thin `src/entry-server.ts` composition entry. It calls
+`createOctaneServer()` from `flamefront/octane-server`, which owns the Octane
+document renderers, hydration payload, route-data handler, and srvx adapter.
+The entry re-exports those handlers for Flamefront's build lifecycle and
+default-exports the generated srvx server.
 
 ## Route loaders
 

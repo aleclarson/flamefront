@@ -3,3 +3,9 @@ declare module 'virtual:flamefront/remix-routes' {
 
 	export const routes: RouteObject[];
 }
+
+declare module 'virtual:flamefront/server-routes' {
+	import type { RouteModule } from './server.ts';
+
+	export function importRoute(entry: string): Promise<RouteModule>;
+}

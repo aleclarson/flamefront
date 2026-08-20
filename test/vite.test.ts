@@ -8,9 +8,11 @@ import {
 	flamefront,
 	generateHydrationRoute,
 	generateRemixRoutes,
+	generateServerRoutes,
 	omitRouteSourceContent,
 	remixRoutesId,
 	removeServerRouteExports,
+	serverRoutesId,
 } from '../src/vite.ts';
 
 const routeSource = { entry: '/src/Route.tsrx' };
@@ -309,6 +311,23 @@ test('uses static artifacts for browser navigation and preserves static hydratio
 	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltVisible\.tsrx/);
 });
 
+test('generates a server-only importer for every unique leaf route module', () => {
+	const app = defineApp({
+		shell: '/src/AppShell.tsrx',
+		routes: [
+			route('/one', '/src/One.tsrx'),
+			route('/two', '/src/Two.tsrx'),
+			route('/alias', '/src/One.tsrx'),
+		],
+	});
+	const source = generateServerRoutes(app);
+
+	assert.equal(source.match(/import\("\/src\/One\.tsrx"\)/g)?.length, 1);
+	assert.equal(source.match(/import\("\/src\/Two\.tsrx"\)/g)?.length, 1);
+	assert.match(source, /export async function importRoute\(entry\)/);
+	assert.match(source, /No Vite route module was generated for \$\{entry\}/);
+});
+
 test('generates Octane route boundaries for every framework-owned policy', () => {
 	const cases = [
 		['none', /never\(\)/],
@@ -339,6 +358,7 @@ test('resolves the public generated routes module and hydration TSRX modules', a
 	const [plugin] = flamefront();
 	const pluginContext = { resolve: async () => null };
 	const generatedId = await plugin.resolveId.call(pluginContext, remixRoutesId);
+	const serverGeneratedId = await plugin.resolveId.call(pluginContext, serverRoutesId);
 	const hydrationRouteId = await plugin.resolveId.call(
 		pluginContext,
 		'/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D',
@@ -350,6 +370,7 @@ test('resolves the public generated routes module and hydration TSRX modules', a
 	);
 
 	assert.equal(generatedId, `\0${remixRoutesId}`);
+	assert.equal(serverGeneratedId, `\0${serverRoutesId}`);
 	assert.equal(
 		hydrationRouteId,
 		'/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D',
