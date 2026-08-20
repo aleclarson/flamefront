@@ -256,7 +256,7 @@ export function flamefront(options: FlamefrontOptions = {}) {
 	let serverBuild = false;
 	let appPromise: Promise<AppDefinition> | undefined;
 	let manifestRevision = 0;
-	const manifestId = options.routes ?? '/src/routes.ts';
+	const manifestId = options.routes ?? '/src/app.ts';
 	const manifestPath = () =>
 		path.resolve(root, manifestId.startsWith('/') ? `.${manifestId}` : manifestId);
 	const loadApp = async () => {

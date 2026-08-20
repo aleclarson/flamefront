@@ -33,7 +33,7 @@ parameters. Pass `{ render: 'client' }` to select only routes with a particular
 render mode. Flamefront delegates route grammar and specificity to
 `@remix-run/route-pattern` rather than maintaining its own matcher.
 
-Run `ff routes` from an app with `src/routes.ts` to inspect its route graph.
+Run `ff routes` from an app with `src/app.ts` to inspect its route graph.
 Flamefront also owns the Vite lifecycle commands:
 
 ```sh

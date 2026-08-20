@@ -25,11 +25,11 @@ export interface ProjectContext {
 }
 
 export async function loadProject(root = process.cwd()): Promise<ProjectContext> {
-	const routesFile = resolve(root, 'src/routes.ts');
+	const routesFile = resolve(root, 'src/app.ts');
 	try {
 		await access(routesFile);
 	} catch {
-		throw new Error(`Could not find ${routesFile}. Run ff from an app with src/routes.ts.`);
+		throw new Error(`Could not find ${routesFile}. Run ff from an app with src/app.ts.`);
 	}
 
 	const url = pathToFileURL(routesFile);

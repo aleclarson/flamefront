@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app } from '../src/routes.ts';
+import { app } from '../src/app.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = 40_000 + (process.pid % 10_000);

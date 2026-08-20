@@ -19,7 +19,7 @@ async function createTestPlugins() {
 	const root = await mkdtemp(path.join(tmpdir(), 'flamefront-vite-'));
 	await mkdir(path.join(root, 'src'));
 	await writeFile(
-		path.join(root, 'src/routes.ts'),
+		path.join(root, 'src/app.ts'),
 		`export const app = {
 	shell: '/src/AppShell.tsrx',
 	routeTree: [],
