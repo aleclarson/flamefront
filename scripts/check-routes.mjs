@@ -157,7 +157,8 @@ try {
 		);
 		const clientDocument = (await fetchHtml(route.path)).html;
 		assertShell(clientDocument, `${route.path} client shell`);
-		assertAppLayout(clientDocument, `${route.path} client shell`);
+		assert.doesNotMatch(clientDocument, /data-testid="layout-state"/);
+		assert.doesNotMatch(clientDocument, /aria-label="All routes"/);
 		assert.match(clientDocument, /\/assets\//);
 		assert.doesNotMatch(clientDocument, /<main/);
 	}
@@ -177,7 +178,8 @@ try {
 
 	const builtShell = await readFile(resolve(root, 'dist/client/index.html'), 'utf8');
 	assertShell(builtShell, 'The built client shell');
-	assertAppLayout(builtShell, 'The built client shell');
+	assert.doesNotMatch(builtShell, /data-testid="layout-state"/);
+	assert.doesNotMatch(builtShell, /aria-label="All routes"/);
 	assert.doesNotMatch(builtShell, /<main/);
 
 	const staticPath = staticRoute.path.replace(/^\/+|\/+$/g, '') || 'index';
