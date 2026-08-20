@@ -42,7 +42,7 @@ export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
 		: options.clientDirectory;
 	const clientTemplate = () => readFile(`${clientDirectory}/index.html`, 'utf8');
 	const serveClientFile = staticMiddleware({ dir: clientDirectory });
-	const defaultSpaRoute = options.app.routes.find((route) => route.render === 'spa');
+	const defaultClientRoute = options.app.routes.find((route) => route.render === 'client');
 
 	return {
 		middleware: [
@@ -50,7 +50,7 @@ export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
 				const url = new URL(request.url);
 				const match = options.app.match(url);
 				if (url.pathname === '/' && !match) return next();
-				if (match?.data.render === 'spa' || match?.data.render === 'ssr') return next();
+				if (match?.data.render === 'client' || match?.data.render === 'server') return next();
 				return serveClientFile(request, next);
 			},
 		],
@@ -59,21 +59,21 @@ export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
 			const match = options.app.match(url);
 
 			try {
-				if (url.pathname === '/' && !match && defaultSpaRoute) {
+				if (url.pathname === '/' && !match && defaultClientRoute) {
 					return new Response(null, {
 						status: 302,
-						headers: { Location: defaultSpaRoute.path },
+						headers: { Location: defaultClientRoute.path },
 					});
 				}
 				if (url.pathname === '/__flamefront/data') {
 					return options.loadRouteData(request);
 				}
-				if (match?.data.render === 'ssr') {
+				if (match?.data.render === 'server') {
 					return new Response(await options.renderSsrDocument(await clientTemplate(), request), {
 						headers: { 'Content-Type': 'text/html; charset=utf-8' },
 					});
 				}
-				if (match?.data.render === 'spa') {
+				if (match?.data.render === 'client') {
 					return new Response(await clientTemplate(), {
 						headers: { 'Content-Type': 'text/html; charset=utf-8' },
 					});

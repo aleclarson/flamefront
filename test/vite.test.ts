@@ -21,6 +21,7 @@ async function createTestPlugins() {
 	await writeFile(
 		path.join(root, 'src/routes.ts'),
 		`export const app = {
+	shell: '/src/AppShell.tsrx',
 	routeTree: [],
 	routes: [{ entry: '/src/Route.tsrx' }],
 };
@@ -223,29 +224,37 @@ test('omits route sources from generated chunk maps', () => {
 	assert.deepEqual(bundle['assets/Route.js'].map.sourcesContent, [null]);
 });
 
-test('generates one lazy Remix graph with nested layouts and route metadata', () => {
+test('generates an eager shell root with lazy layouts and route metadata', () => {
 	const app = defineApp({
+		shell: '/src/AppShell.tsrx',
 		routes: [
 			layout('/src/Shell.tsrx', [
-				route('/client', '/src/Client.tsrx', { render: 'spa' }),
+				route('/client', '/src/Client.tsrx', { render: 'client' }),
 			route('/server', '/src/Server.tsrx', {
-				render: 'ssr',
+				render: 'server',
 				hydration: 'deferred',
 			}),
 			route('/visible', '/src/Visible.tsrx', {
-				render: 'ssr',
+				render: 'server',
 				hydration: { when: 'visible', rootMargin: '200px' },
 			}),
 		]),
 		],
 	});
 	const source = generateRemixRoutes(app);
-	const layoutSource = source.slice(source.indexOf('lazy:'), source.indexOf('children:'));
+	const layoutSource = source.slice(
+		source.indexOf('lazy: async () => { const routeModule = await import("/src/Shell.tsrx")'),
+		source.indexOf('path: "/client"'),
+	);
 	const loaders = source.match(
 		/loader: import\.meta\.env\.SSR \? routeModule\.loader : loadRouteData/g,
 	);
 
-	assert.match(source, /import\("\/src\/Shell\.tsrx"\)/);
+	assert.match(source, /import Shell from "\/src\/AppShell\.tsrx"/);
+	assert.match(source, /Component: Shell/);
+	assert.equal(source.match(/import Shell from "\/src\/AppShell\.tsrx"/g)?.length, 1);
+	assert.match(source, /Component: Shell,\n\t\tchildren: \[/);
+	assert.match(source, /lazy: async \(\) => \{ const routeModule = await import\("\/src\/Shell\.tsrx"\)/);
 	assert.equal(source.match(/import\("\/src\/Shell\.tsrx"\)/g)?.length, 1);
 	assert.doesNotMatch(layoutSource, /loader:/);
 	assert.match(source, /import \{ loadRouteData \} from 'flamefront\/remix-router\/data'/);
@@ -256,10 +265,10 @@ test('generates one lazy Remix graph with nested layouts and route metadata', ()
 	assert.match(source, /path: "\/client"/);
 	assert.match(source, /path: "\/server"/);
 	assert.match(source, /\/@flamefront\/hydration-route\.tsrx\?entry=%2Fsrc%2FVisible\.tsrx/);
-	assert.match(source, /handle: \{ flamefront: \{"render":"ssr","hydration":"deferred"\} \}/);
+	assert.match(source, /handle: \{ flamefront: \{"render":"server","hydration":"deferred"\} \}/);
 	assert.match(
 		source,
-		/handle: \{ flamefront: \{"render":"ssr","hydration":\{"when":"visible","rootMargin":"200px"\}\} \}/,
+		/handle: \{ flamefront: \{"render":"server","hydration":\{"when":"visible","rootMargin":"200px"\}\} \}/,
 	);
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FServer/);
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FClient/);

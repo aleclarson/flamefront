@@ -35,8 +35,8 @@ export async function loadProject(root = process.cwd()): Promise<ProjectContext>
 	url.searchParams.set('ff', String(Date.now()));
 	const module = (await import(url.href)) as AppModule;
 	const app = module.app ?? module.default;
-	if (!app || !Array.isArray(app.routes)) {
-		throw new Error(`${routesFile} must export an app with a routes array.`);
+	if (!app || typeof app.shell !== 'string' || !Array.isArray(app.routes)) {
+		throw new Error(`${routesFile} must export an app with a shell and routes array.`);
 	}
 	return { app, root, routesFile };
 }
@@ -100,17 +100,17 @@ function isWithin(directory: string, filePath: string): boolean {
 function staticRouteFile(clientDirectory: string, route: RouteDefinition): string {
 	if (/[:*]/.test(route.path)) {
 		throw new Error(
-			`Cannot prerender parameterized SSG route ${JSON.stringify(route.path)} without concrete paths.`,
+			`Cannot prerender parameterized static route ${JSON.stringify(route.path)} without concrete paths.`,
 		);
 	}
 
 	const segments = route.path.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
 	if (segments.some((segment) => segment === '.' || segment === '..' || segment.includes('/'))) {
-		throw new Error(`Cannot write unsafe SSG route path ${JSON.stringify(route.path)}.`);
+		throw new Error(`Cannot write unsafe static route path ${JSON.stringify(route.path)}.`);
 	}
 	const filePath = resolve(clientDirectory, ...segments, 'index.html');
 	if (!isWithin(clientDirectory, filePath)) {
-		throw new Error(`Cannot write SSG route outside the client build: ${JSON.stringify(route.path)}.`);
+		throw new Error(`Cannot write static route outside the client build: ${JSON.stringify(route.path)}.`);
 	}
 	return filePath;
 }
@@ -172,7 +172,7 @@ export async function buildProject(root = process.cwd()): Promise<void> {
 		},
 	});
 
-	const staticRoutes = app.routes.filter((route) => route.render === 'ssg');
+	const staticRoutes = app.routes.filter((route) => route.render === 'static');
 	if (staticRoutes.length === 0) return;
 
 	const serverEntry = await loadBuiltServer(root);
@@ -220,7 +220,7 @@ export async function devProject(root = process.cwd()): Promise<void> {
 				return;
 			}
 
-			if (match?.data.render === 'ssr') {
+			if (match?.data.render === 'server') {
 				const template = await readFile(resolve(root, 'index.html'), 'utf8');
 				const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
@@ -236,7 +236,7 @@ export async function devProject(root = process.cwd()): Promise<void> {
 				return;
 			}
 
-			if (match?.data.render === 'ssg') {
+			if (match?.data.render === 'static') {
 				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
 				send(
 					response,

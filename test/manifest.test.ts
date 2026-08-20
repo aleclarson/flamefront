@@ -2,27 +2,55 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { defineApp, layout, route } from '../src/index.ts';
 
+const shell = '/src/AppShell.tsrx';
+
 test('defines explicit routes', () => {
 	const app = defineApp({
+		shell,
 		routes: [
-			route('/ssr', '/src/SsrPage.tsrx', { render: 'ssr' }),
-			route('/spa', '/src/App.tsrx', { render: 'spa' }),
+			route('/server', '/src/ServerPage.tsrx', { render: 'server' }),
+			route('/client', '/src/App.tsrx', { render: 'client' }),
 		],
 	});
 
 	assert.deepEqual(
 		app.routes
-			.filter((routeDefinition) => routeDefinition.render === 'spa')
+			.filter((routeDefinition) => routeDefinition.render === 'client')
 			.map((routeDefinition) => routeDefinition.path),
-		['/spa'],
+		['/client'],
 	);
+	assert.equal(app.shell, shell);
 	assert.equal(Object.isFrozen(app.routes), true);
+});
+
+test('requires a shell entry outside the authored route tree', () => {
+	const app = defineApp({ shell, routes: [] });
+	assert.equal(app.shell, shell);
+	assert.deepEqual(app.routeTree, []);
+
+	assert.throws(
+		() => Reflect.apply(defineApp, undefined, [{ routes: [] }]),
+		/app shell entry must be a non-empty string/,
+	);
+	assert.throws(
+		() => defineApp({ shell: '', routes: [] }),
+		/app shell entry must be a non-empty string/,
+	);
+});
+
+test('uses server as the default mode and rejects legacy mode names', () => {
+	assert.equal(route('/default', '/src/Default.tsrx').render, 'server');
+	assert.throws(
+		() => Reflect.apply(route, undefined, ['/legacy', '/src/Legacy.tsrx', { render: 'ssr' }]),
+		/render must be 'client', 'server', or 'static'/,
+	);
 });
 
 test('rejects duplicate paths', () => {
 	assert.throws(
 		() =>
 			defineApp({
+				shell,
 				routes: [
 					route('/same', '/src/One.tsrx'),
 					route('/same', '/src/Two.tsrx'),
@@ -34,23 +62,24 @@ test('rejects duplicate paths', () => {
 
 test('normalizes pathless layouts into leaf routes', () => {
 	const app = defineApp({
+		shell,
 		routes: [
 			layout('/src/Shell.tsrx', [
-				route('/spa', '/src/Spa.tsrx', { render: 'spa' }),
+				route('/client', '/src/Client.tsrx', { render: 'client' }),
 				layout('/src/NestedShell.tsrx', [
-					route('/account', '/src/Account.tsrx', { render: 'ssr' }),
+					route('/account', '/src/Account.tsrx', { render: 'server' }),
 				]),
 			]),
-			route('/standalone', '/src/Standalone.tsrx', { render: 'ssg' }),
+			route('/standalone', '/src/Standalone.tsrx', { render: 'static' }),
 		],
 	});
 
 	assert.deepEqual(
 		app.routes.map(({ path, render }) => ({ path, render })),
 		[
-			{ path: '/spa', render: 'spa' },
-			{ path: '/account', render: 'ssr' },
-			{ path: '/standalone', render: 'ssg' },
+			{ path: '/client', render: 'client' },
+			{ path: '/account', render: 'server' },
+			{ path: '/standalone', render: 'static' },
 		],
 	);
 	assert.equal(app.match('/account')?.data.entry, '/src/Account.tsrx');
@@ -63,6 +92,7 @@ test('rejects duplicate paths across layout boundaries', () => {
 	assert.throws(
 		() =>
 			defineApp({
+				shell,
 				routes: [
 					layout('/src/Shell.tsrx', [route('/same', '/src/Nested.tsrx')]),
 					route('/same', '/src/Standalone.tsrx'),
@@ -76,6 +106,7 @@ test('validates authored layout definitions', () => {
 	assert.throws(
 		() =>
 			defineApp({
+				shell,
 				routes: [
 					{
 						kind: 'layout',
@@ -90,6 +121,7 @@ test('validates authored layout definitions', () => {
 
 test('matches the most specific route and extracts parameters', () => {
 	const app = defineApp({
+		shell,
 		routes: [
 			route('/articles/:slug', '/src/Article.tsrx'),
 			route('/articles/new', '/src/NewArticle.tsrx'),
@@ -106,19 +138,21 @@ test('matches the most specific route and extracts parameters', () => {
 
 test('selects matches by render mode', () => {
 	const app = defineApp({
+		shell,
 		routes: [
-			route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
-			route('/articles/new', '/src/NewArticle.tsrx', { render: 'spa' }),
+			route('/articles/:slug', '/src/Article.tsrx', { render: 'server' }),
+			route('/articles/new', '/src/NewArticle.tsrx', { render: 'client' }),
 		],
 	});
 
-	assert.equal(app.match('/articles/new')?.data.render, 'spa');
-	assert.equal(app.match('/articles/new', { render: 'ssr' })?.data.entry, '/src/Article.tsrx');
-	assert.equal(app.match('/articles/new', { render: 'ssg' }), null);
+	assert.equal(app.match('/articles/new')?.data.render, 'client');
+	assert.equal(app.match('/articles/new', { render: 'server' })?.data.entry, '/src/Article.tsrx');
+	assert.equal(app.match('/articles/new', { render: 'static' }), null);
 });
 
-test('accepts every SSR hydration policy', () => {
+test('accepts every server hydration policy', () => {
 	const app = defineApp({
+		shell,
 		routes: [
 			route('/full', '/src/Full.tsrx', { hydration: 'full' }),
 			route('/owned', '/src/Owned.tsrx', { hydration: 'deferred' }),
@@ -156,20 +190,20 @@ test('accepts every SSR hydration policy', () => {
 
 test('rejects hydration policies that cannot affect a render mode', () => {
 	assert.throws(
-		() => route('/spa', '/src/Spa.tsrx', { render: 'spa', hydration: 'none' }),
-		/SPA hydration can only be 'full'/,
+		() => route('/client', '/src/Client.tsrx', { render: 'client', hydration: 'none' }),
+		/client hydration can only be 'full'/,
 	);
 	assert.throws(
-		() => route('/ssg', '/src/Ssg.tsrx', { render: 'ssg', hydration: 'deferred' }),
-		/SSG hydration can only be 'none'/,
+		() => route('/static', '/src/Static.tsrx', { render: 'static', hydration: 'deferred' }),
+		/static hydration can only be 'none'/,
 	);
 	assert.throws(
 		() =>
-			route('/spa-idle', '/src/Spa.tsrx', {
-				render: 'spa',
+			route('/client-idle', '/src/Client.tsrx', {
+				render: 'client',
 				hydration: { when: 'idle' },
 			}),
-		/generated hydration requires render: 'ssr'/,
+		/generated hydration requires render: 'server'/,
 	);
 });
 
@@ -199,7 +233,7 @@ test('validates generated hydration options', () => {
 
 test('rejects invalid route patterns while defining the app', () => {
 	assert.throws(
-		() => defineApp({ routes: [route('/articles/:', '/src/Article.tsrx')] }),
+		() => defineApp({ shell, routes: [route('/articles/:', '/src/Article.tsrx')] }),
 		/parse|parameter|name/i,
 	);
 });
@@ -213,7 +247,7 @@ test('deduplicates load and prefetch requests', async () => {
 	};
 
 	try {
-		const app = defineApp({ routes: [route('/data', '/src/Data.tsrx')] });
+		const app = defineApp({ shell, routes: [route('/data', '/src/Data.tsrx')] });
 		await app.prefetch('https://example.test/data');
 		assert.deepEqual(await app.load('https://example.test/data'), { value: 1 });
 		assert.deepEqual(await app.load('https://example.test/data', { reload: true }), { value: 2 });

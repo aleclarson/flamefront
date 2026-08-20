@@ -5,7 +5,7 @@ import {
 } from '@remix-run/route-pattern/match';
 import type { HydrationInteractionEvents } from 'octane/hydration';
 
-export type RenderMode = 'ssr' | 'ssg' | 'spa';
+export type RenderMode = 'client' | 'server' | 'static';
 export interface IdleHydration {
 	readonly when: 'idle';
 	readonly timeout?: number;
@@ -72,6 +72,8 @@ export interface LoadRouteOptions {
 }
 
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
+	/** Octane/Vite project-root module ID for the persistent app shell. */
+	readonly shell: string;
 	readonly routes: readonly T[];
 	readonly routeTree: readonly RouteConfig[];
 	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
@@ -79,7 +81,11 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 	readonly prefetch: (url: string | URL, options?: LoadRouteOptions) => Promise<void>;
 }
 
-const renderModes: ReadonlySet<unknown> = new Set<RenderMode>(['ssr', 'ssg', 'spa']);
+const renderModes: ReadonlySet<unknown> = new Set<RenderMode>([
+	'client',
+	'server',
+	'static',
+]);
 const hydrationModes: ReadonlySet<unknown> = new Set([
 	'full',
 	'deferred',
@@ -246,9 +252,9 @@ function validateHydration(routeDefinition: RouteDefinition, location: string): 
 
 	if (typeof hydration === 'object' && hydration !== null && !Array.isArray(hydration)) {
 		validateGeneratedHydration(hydration as unknown as Record<string, unknown>, location);
-		if (render !== 'ssr') {
+		if (render !== 'server') {
 			throw new TypeError(
-				`flamefront route ${location} generated hydration requires render: 'ssr'.`,
+				`flamefront route ${location} generated hydration requires render: 'server'.`,
 			);
 		}
 		return;
@@ -259,14 +265,14 @@ function validateHydration(routeDefinition: RouteDefinition, location: string): 
 			`flamefront route ${location} hydration must be 'full', 'deferred', 'none', or a trigger object.`,
 		);
 	}
-	if (render === 'spa' && hydration !== 'full') {
+	if (render === 'client' && hydration !== 'full') {
 		throw new TypeError(
-			`flamefront route ${location} SPA hydration can only be 'full'.`,
+			`flamefront route ${location} client hydration can only be 'full'.`,
 		);
 	}
-	if (render === 'ssg' && hydration !== 'none') {
+	if (render === 'static' && hydration !== 'none') {
 		throw new TypeError(
-			`flamefront route ${location} SSG hydration can only be 'none'.`,
+			`flamefront route ${location} static hydration can only be 'none'.`,
 		);
 	}
 }
@@ -301,7 +307,7 @@ function validateRoute(routeDefinition: RouteDefinition, location: string): void
 
 	if (!renderModes.has(routeDefinition.render)) {
 		throw new TypeError(
-			`flamefront route ${location} render must be 'ssr', 'ssg', or 'spa'.`,
+			`flamefront route ${location} render must be 'client', 'server', or 'static'.`,
 		);
 	}
 	validateHydration(routeDefinition, location);
@@ -318,7 +324,7 @@ export function route(
 		entry,
 		...options,
 		hydration: freezeHydration(options.hydration),
-		render: options.render ?? 'ssr',
+		render: options.render ?? 'server',
 	};
 	validateRoute(definition, '1');
 	return Object.freeze(definition);
@@ -425,12 +431,16 @@ function matchRoutes<T extends RouteDefinition>(
 }
 
 /** Normalize and validate the application's explicit route graph. */
-export function defineApp<const T extends { readonly routes: readonly RouteConfig[] }>(
+export function defineApp<const T extends {
+	readonly shell: string;
+	readonly routes: readonly RouteConfig[];
+}>(
 	options: T,
 ): Omit<T, 'routes'> & AppDefinition {
-	if (!options || !Array.isArray(options.routes)) {
+	if (!options || typeof options !== 'object' || !Array.isArray(options.routes)) {
 		throw new TypeError('flamefront defineApp() requires a routes array.');
 	}
+	assertString(options.shell, 'app shell entry');
 
 	const normalized = normalizeRouteTree(options.routes, new Set());
 	const frozenRoutes = normalized.routes;

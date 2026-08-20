@@ -11,9 +11,10 @@ The app owns one explicit, centralized route manifest:
 import { defineApp, layout, route } from 'flamefront';
 
 export const app = defineApp({
+	shell: '/src/AppShell.tsrx',
 	routes: [
 		layout('/src/ArticleShell.tsrx', [
-			route('/articles/:slug', '/src/Article.tsrx', { render: 'ssr' }),
+			route('/articles/:slug', '/src/Article.tsrx', { render: 'server' }),
 		]),
 	],
 });
@@ -28,7 +29,7 @@ The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
 
 Use `app.match(url)` to select the most specific route and read decoded
-parameters. Pass `{ render: 'spa' }` to select only routes with a particular
+parameters. Pass `{ render: 'client' }` to select only routes with a particular
 render mode. Flamefront delegates route grammar and specificity to
 `@remix-run/route-pattern` rather than maintaining its own matcher.
 
@@ -42,12 +43,12 @@ ff preview
 ```
 
 `ff build` emits client assets and a srvx-compatible `dist/server/server.js`,
-then prerenders every SSG route. The server build default-exports srvx options
+then prerenders every static route. The server build default-exports srvx options
 with a web-standard `fetch` handler. `ff preview` runs that built handler through
 srvx, while `srvx/static` serves static output and client assets.
 
-The app keeps its thin `src/entry-server.ts` Octane adapter. It exports the SSR
-renderer, SSG renderer, and route-data handler, then passes them to
+The app keeps its thin `src/entry-server.ts` Octane adapter. It exports the server
+renderer, static renderer, and route-data handler, then passes them to
 `createSrvxServer()` from `flamefront/server`.
 
 ## Route loaders
@@ -126,25 +127,25 @@ loaded lazily. Server routers call route modules' exported loaders directly;
 browser routers use Flamefront's route-data endpoint with navigation abort
 signals and HTTP error handling.
 
-SSR routes can choose who owns hydration:
+Server routes can choose who owns hydration:
 
 ```ts
 route('/reviews/:productId', '/src/Reviews.tsrx', {
-	render: 'ssr',
+	render: 'server',
 	hydration: { when: 'visible', rootMargin: '200px' },
 });
 ```
 
 - `full` (or an omitted value) hydrates with the shared shell.
 - `deferred` means the route authors its own Octane `<Hydrate>` boundaries.
-- `none` generates a permanent `never()` boundary around SSR output.
+- `none` generates a permanent `never()` boundary around server output.
 - `{ when: 'idle' }`, `{ when: 'visible' }`,
   `{ when: 'interaction' }`, and `{ when: 'media' }` generate one route-level
   Octane boundary with the corresponding strategy options.
 
-Generated boundaries defer only DOM that came from SSR. If the same route is
+Generated boundaries defer only DOM that came from server rendering. If the same route is
 first mounted by client navigation, Octane renders it immediately. This makes
-the route component a deferred SSR region within the interactive shared
-layout without delaying later in-app navigation. SSG routes accept `none`, and
-SPA routes accept `full`; trigger objects are SSR-only because they need
+the route component a deferred server-rendered region within the interactive shared
+layout without delaying later in-app navigation. Static routes accept `none`, and
+client routes accept `full`; trigger objects are server-only because they need
 existing server HTML to defer.

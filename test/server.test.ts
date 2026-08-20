@@ -7,8 +7,11 @@ import { serve } from 'srvx';
 import { defineApp, route } from '../src/index.ts';
 import { createSrvxServer, loadRoute } from '../src/server.ts';
 
+const shell = '/src/AppShell.tsrx';
+
 test('loads the matched route module with request parameters', async () => {
 	const app = defineApp({
+		shell,
 		routes: [route('/articles/:slug', '/src/Article.tsrx')],
 	});
 	const request = new Request('https://example.test/articles/hello%20world?preview=true');
@@ -32,7 +35,7 @@ test('loads the matched route module with request parameters', async () => {
 });
 
 test('returns null when no route matches', async () => {
-	const app = defineApp({ routes: [route('/known', '/src/Known.tsrx')] });
+	const app = defineApp({ shell, routes: [route('/known', '/src/Known.tsrx')] });
 	const loaded = await loadRoute(app, new Request('https://example.test/unknown'), async () => {
 		throw new Error('An unmatched route must not be imported.');
 	});
@@ -43,14 +46,15 @@ test('returns null when no route matches', async () => {
 test('creates a srvx handler for every render mode', async () => {
 	const root = await mkdtemp(resolve(tmpdir(), 'flamefront-srvx-'));
 	const clientDirectory = resolve(root, 'client');
-	await mkdir(resolve(clientDirectory, 'ssg'), { recursive: true });
-	await writeFile(resolve(clientDirectory, 'index.html'), '<main>SPA shell</main>');
-	await writeFile(resolve(clientDirectory, 'ssg/index.html'), '<main>Static page</main>');
+	await mkdir(resolve(clientDirectory, 'static'), { recursive: true });
+	await writeFile(resolve(clientDirectory, 'index.html'), '<main>Client shell</main>');
+	await writeFile(resolve(clientDirectory, 'static/index.html'), '<main>Static page</main>');
 	const app = defineApp({
+		shell,
 		routes: [
-			route('/ssr', '/src/Ssr.tsrx', { render: 'ssr' }),
-			route('/spa', '/src/Spa.tsrx', { render: 'spa' }),
-			route('/ssg', '/src/Ssg.tsrx', { render: 'ssg' }),
+			route('/server', '/src/Server.tsrx', { render: 'server' }),
+			route('/client', '/src/Client.tsrx', { render: 'client' }),
+			route('/static', '/src/Static.tsrx', { render: 'static' }),
 		],
 	});
 	const server = serve({
@@ -58,7 +62,7 @@ test('creates a srvx handler for every render mode', async () => {
 			app,
 			clientDirectory,
 			loadRouteData: () => Response.json({ loaded: true }),
-			renderSsrDocument: (template) => template.replace('SPA shell', 'SSR page'),
+			renderSsrDocument: (template) => template.replace('Client shell', 'SSR page'),
 		}),
 		manual: true,
 		silent: true,
@@ -67,16 +71,16 @@ test('creates a srvx handler for every render mode', async () => {
 	try {
 		const rootResponse = await server.fetch(new Request('http://flamefront.test/'));
 		assert.equal(rootResponse.status, 302);
-		assert.equal(rootResponse.headers.get('location'), '/spa');
+		assert.equal(rootResponse.headers.get('location'), '/client');
 
-		const spaResponse = await server.fetch(new Request('http://flamefront.test/spa'));
-		assert.equal(await spaResponse.text(), '<main>SPA shell</main>');
+		const clientResponse = await server.fetch(new Request('http://flamefront.test/client'));
+		assert.equal(await clientResponse.text(), '<main>Client shell</main>');
 
-		const ssrResponse = await server.fetch(new Request('http://flamefront.test/ssr'));
-		assert.equal(await ssrResponse.text(), '<main>SSR page</main>');
+		const serverResponse = await server.fetch(new Request('http://flamefront.test/server'));
+		assert.equal(await serverResponse.text(), '<main>SSR page</main>');
 
-		const ssgResponse = await server.fetch(new Request('http://flamefront.test/ssg'));
-		assert.equal(await ssgResponse.text(), '<main>Static page</main>');
+		const staticResponse = await server.fetch(new Request('http://flamefront.test/static'));
+		assert.equal(await staticResponse.text(), '<main>Static page</main>');
 
 		const dataResponse = await server.fetch(
 			new Request('http://flamefront.test/__flamefront/data'),

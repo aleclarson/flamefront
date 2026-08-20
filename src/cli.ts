@@ -39,7 +39,7 @@ const dev = command({
 
 const build = command({
 	name: 'build',
-	description: 'Build client and server bundles, then prerender SSG routes.',
+	description: 'Build client and server bundles, then prerender static routes.',
 	args: {},
 	handler: () => buildProject(),
 });

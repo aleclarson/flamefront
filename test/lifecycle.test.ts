@@ -6,12 +6,12 @@ import test from 'node:test';
 import { route } from '../src/index.ts';
 import { prerenderStaticRoutes } from '../src/lifecycle.ts';
 
-test('prerenders every supplied SSG route', async () => {
+test('prerenders every supplied static route', async () => {
 	const root = await mkdtemp(resolve(tmpdir(), 'flamefront-build-'));
 	const clientDirectory = resolve(root, 'dist/client');
 	const routes = [
-		route('/docs', '/src/Docs.tsrx', { render: 'ssg' }),
-		route('/about/team', '/src/Team.tsrx', { render: 'ssg' }),
+		route('/docs', '/src/Docs.tsrx', { render: 'static' }),
+		route('/about/team', '/src/Team.tsrx', { render: 'static' }),
 	];
 
 	try {
@@ -32,9 +32,9 @@ test('prerenders every supplied SSG route', async () => {
 	}
 });
 
-test('rejects parameterized SSG routes without concrete paths', async () => {
+test('rejects parameterized static routes without concrete paths', async () => {
 	const root = await mkdtemp(resolve(tmpdir(), 'flamefront-build-'));
-	const parameterizedRoute = route('/articles/:slug', '/src/Article.tsrx', { render: 'ssg' });
+	const parameterizedRoute = route('/articles/:slug', '/src/Article.tsrx', { render: 'static' });
 
 	try {
 		await assert.rejects(
