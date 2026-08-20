@@ -126,6 +126,33 @@ loaded lazily. Server routers call route modules' exported loaders directly;
 browser routers use Flamefront's route-data endpoint with navigation abort
 signals and HTTP error handling.
 
+Pathless layouts render their matched child through `<Frame>`:
+
+```tsx
+import { useLocation } from '@octanejs/remix-router';
+import { Frame } from 'flamefront/remix-router';
+
+export default function AppShell() {
+	const location = useLocation();
+	return (
+		<div data-pathname={location.pathname}>
+			<Frame />
+		</div>
+	);
+}
+```
+
+`<Frame>` is Flamefront's semantic name for the Remix Router outlet. It does not
+run a second router or maintain a separate module registry. The generated route
+graph lazy-imports the matched child, which makes the frame a route-level code
+splitting point without `lazy()` in application code. Static routers resolve the
+same lazy child before SSR, while browser routers load it on navigation.
+
+The child route's hydration policy controls server-rendered DOM inside the
+frame. A generated policy delays that route chunk's activation after SSR, but a
+route first reached through browser navigation mounts when its lazy import
+resolves.
+
 SSR routes can choose who owns hydration:
 
 ```ts
