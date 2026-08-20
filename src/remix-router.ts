@@ -11,7 +11,6 @@ import {
 import { routes } from 'virtual:flamefront/remix-routes';
 
 export { routes };
-export { Outlet as Frame } from '@octanejs/remix-router';
 export { createRemixRouterAdapter };
 export type { ServerRouterOptions, ServerRouterResult };
 

@@ -145,21 +145,6 @@ try {
 	const clientManifest = JSON.parse(
 		await readFile(resolve(root, 'dist/client/.vite/manifest.json'), 'utf8'),
 	);
-	const shellEntry = clientManifest['src/AppShell.tsrx'];
-	assert(shellEntry?.isDynamicEntry, 'The shared Frame shell is not a dynamic entry.');
-	const dynamicRouteIds = new Set();
-	for (const route of app.routes) {
-		const routeName = route.entry.slice(route.entry.lastIndexOf('/') + 1);
-		const dynamicEntry = Object.entries(clientManifest).find(
-			([manifestId, asset]) => manifestId.includes(routeName) && asset.isDynamicEntry,
-		);
-		assert(dynamicEntry, `${route.entry} was not emitted as a dynamic Frame entry.`);
-		dynamicRouteIds.add(dynamicEntry[0]);
-	}
-	assert(
-		!shellEntry.imports?.some((entry) => dynamicRouteIds.has(entry)),
-		'The shared Frame shell statically imports a child route.',
-	);
 	assert(
 		Object.values(clientManifest).some((asset) => asset.file.endsWith('.js')),
 		'Client build manifest is missing JavaScript output.',
@@ -185,7 +170,6 @@ try {
 	console.log('Dynamic params and server-only catalog code work without leaking into client chunks.');
 	console.log('Both SPA loaders return data while their paths receive only the client shell.');
 	console.log('The SSG document has build data, an ETag, and no client module.');
-	console.log('The shared Frame and every child route are separate dynamic entries.');
 	console.log('Production client and srvx server JavaScript source maps are present.');
 } finally {
 	preview.kill('SIGTERM');
