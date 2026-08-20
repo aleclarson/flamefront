@@ -257,8 +257,11 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 	assert.match(source, /lazy: async \(\) => \{ const routeModule = await import\("\/src\/Shell\.tsrx"\)/);
 	assert.equal(source.match(/import\("\/src\/Shell\.tsrx"\)/g)?.length, 1);
 	assert.doesNotMatch(layoutSource, /loader:/);
-	assert.match(source, /import \{ loadRouteData \} from 'flamefront\/remix-router\/data'/);
-	assert.equal(loaders?.length, 2);
+	assert.match(
+		source,
+		/import \{ loadRouteData, loadStaticRouteData \} from 'flamefront\/remix-router\/data'/,
+	);
+	assert.equal(loaders?.length, 1);
 	assert.match(source, /loader: routeModule\.loader/);
 	assert.match(source, /loader: loadRouteData/);
 	assert.match(source, /children: \[/);
@@ -274,6 +277,19 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FClient/);
 	assert.match(source, /if \(import\.meta\.env\.SSR\).*Promise\.all/);
 	assert.match(source, /const componentModule = await import\("\/@flamefront\/hydration-route/);
+	assert.match(source, /if \(import\.meta\.env\.SSR\) return \{\}; const routeModule = await import\("\/src\/Client\.tsrx"\)/);
+});
+
+test('uses static artifacts for browser navigation and preserves static hydration boundaries', () => {
+	const app = defineApp({
+		shell: '/src/AppShell.tsrx',
+		routes: [route('/about', '/src/About.tsrx', { render: 'static', hydration: 'none' })],
+	});
+	const source = generateRemixRoutes(app);
+
+	assert.match(source, /loader: routeModule\.loader/);
+	assert.match(source, /loader: loadStaticRouteData/);
+	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx/);
 });
 
 test('generates Octane route boundaries for every framework-owned policy', () => {

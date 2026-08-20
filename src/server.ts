@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { staticMiddleware } from 'srvx/static';
 import type { ServerOptions } from 'srvx';
 import type { AppDefinition, RouteDefinition } from './index.ts';
@@ -19,6 +20,14 @@ export interface RouteModule<Data = unknown, Context = unknown> {
 	readonly loader?: Loader<Data, Context>;
 }
 
+export interface RenderedDocument {
+	readonly html: string;
+	readonly routeData?: unknown;
+	readonly status?: number;
+}
+
+export type RenderDocumentResult = string | RenderedDocument;
+
 export interface LoadedRoute<
 	Data = unknown,
 	Context = unknown,
@@ -33,14 +42,35 @@ export interface SrvxServerOptions {
 	readonly app: AppDefinition;
 	readonly clientDirectory: string | URL;
 	readonly loadRouteData: (request: Request) => Response | Promise<Response>;
-	readonly renderSsrDocument: (template: string, request: Request) => string | Promise<string>;
+	readonly renderSsrDocument: (
+		template: string,
+		request: Request,
+	) => RenderDocumentResult | Promise<RenderDocumentResult>;
+	readonly renderSsgDocument: (
+		template: string,
+		request: Request,
+	) => RenderDocumentResult | Promise<RenderDocumentResult>;
+}
+
+function documentParts(document: RenderDocumentResult): {
+	readonly html: string;
+	readonly status: number;
+} {
+	if (typeof document === 'string') return { html: document, status: 200 };
+	return { html: document.html, status: document.status ?? 200 };
 }
 
 export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
 	const clientDirectory = options.clientDirectory instanceof URL
 		? fileURLToPath(options.clientDirectory)
 		: options.clientDirectory;
-	const clientTemplate = () => readFile(`${clientDirectory}/index.html`, 'utf8');
+	const documentTemplate = async () => {
+		try {
+			return await readFile(resolve(clientDirectory, '..', 'server', 'index.html'), 'utf8');
+		} catch {
+			return readFile(`${clientDirectory}/index.html`, 'utf8');
+		}
+	};
 	const serveClientFile = staticMiddleware({ dir: clientDirectory });
 	const defaultClientRoute = options.app.routes.find((route) => route.render === 'client');
 
@@ -69,12 +99,29 @@ export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
 					return options.loadRouteData(request);
 				}
 				if (match?.data.render === 'server') {
-					return new Response(await options.renderSsrDocument(await clientTemplate(), request), {
+					const document = documentParts(
+						await options.renderSsrDocument(await documentTemplate(), request),
+					);
+					return new Response(document.html, {
+						status: document.status,
 						headers: { 'Content-Type': 'text/html; charset=utf-8' },
 					});
 				}
 				if (match?.data.render === 'client') {
-					return new Response(await clientTemplate(), {
+					const document = documentParts(
+						await options.renderSsrDocument(await documentTemplate(), request),
+					);
+					return new Response(document.html, {
+						status: document.status,
+						headers: { 'Content-Type': 'text/html; charset=utf-8' },
+					});
+				}
+				if (match?.data.render === 'static') {
+					const document = documentParts(
+						await options.renderSsgDocument(await documentTemplate(), request),
+					);
+					return new Response(document.html, {
+						status: document.status,
 						headers: { 'Content-Type': 'text/html; charset=utf-8' },
 					});
 				}

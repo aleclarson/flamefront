@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadRouteData } from '../src/remix-route-data.ts';
+import { loadRouteData, loadStaticRouteData } from '../src/remix-route-data.ts';
 
 test('loads browser route data using the request URL and abort signal', async (context) => {
 	const originalFetch = globalThis.fetch;
@@ -32,6 +32,34 @@ test('reports unsuccessful browser route-data responses', async (context) => {
 	await assert.rejects(
 		loadRouteData({ request: new Request('https://example.test/items/one') }),
 		/flamefront loader request failed with 503/,
+	);
+});
+
+test('loads static route data from the generated artifact beside the document', async (context) => {
+	const originalFetch = globalThis.fetch;
+	context.after(() => {
+		globalThis.fetch = originalFetch;
+	});
+	const request = new Request('https://example.test/about?view=full');
+	globalThis.fetch = async (input, init) => {
+		assert.equal(String(input), 'https://example.test/about/index.data.json');
+		assert.equal(init?.signal, request.signal);
+		return Response.json({ message: 'built' });
+	};
+
+	assert.deepEqual(await loadStaticRouteData({ request }), { message: 'built' });
+});
+
+test('reports unsuccessful static route-data responses', async (context) => {
+	const originalFetch = globalThis.fetch;
+	context.after(() => {
+		globalThis.fetch = originalFetch;
+	});
+	globalThis.fetch = async () => new Response('Unavailable', { status: 404 });
+
+	await assert.rejects(
+		loadStaticRouteData({ request: new Request('https://example.test/about') }),
+		/flamefront static route data request failed with 404/,
 	);
 });
 

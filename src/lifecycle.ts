@@ -4,6 +4,7 @@ import { dirname, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ServerOptions } from 'srvx';
 import type { AppDefinition, RouteDefinition } from './index.ts';
+import type { RenderDocumentResult } from './server.ts';
 
 interface AppModule {
 	app?: AppDefinition;
@@ -13,8 +14,8 @@ interface AppModule {
 interface ServerEntry {
 	default?: ServerOptions;
 	loadRouteData?(request: Request): Promise<Response>;
-	renderSsgDocument?(request: Request): Promise<string>;
-	renderSsrDocument?(template: string, request: Request): Promise<string>;
+	renderSsgDocument?(template: string, request: Request): Promise<RenderDocumentResult>;
+	renderSsrDocument?(template: string, request: Request): Promise<RenderDocumentResult>;
 }
 
 export interface ProjectContext {
@@ -115,6 +116,10 @@ function staticRouteFile(clientDirectory: string, route: RouteDefinition): strin
 	return filePath;
 }
 
+export function staticRouteDataFile(clientDirectory: string, route: RouteDefinition): string {
+	return staticRouteFile(clientDirectory, route).replace(/\.html$/, '.data.json');
+}
+
 async function loadBuiltServer(root: string): Promise<ServerEntry> {
 	const serverFile = resolve(root, 'dist/server/server.js');
 	try {
@@ -127,6 +132,34 @@ async function loadBuiltServer(root: string): Promise<ServerEntry> {
 
 function requestUrl(request: IncomingMessage): URL {
 	return new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+}
+
+function documentParts(document: RenderDocumentResult): {
+	readonly html: string;
+	readonly status: number;
+	readonly hasRouteData: boolean;
+	readonly routeData: unknown;
+} {
+	if (typeof document === 'string') {
+		return { html: document, status: 200, hasRouteData: false, routeData: null };
+	}
+	return {
+		html: document.html,
+		status: document.status ?? 200,
+		hasRouteData: 'routeData' in document,
+		routeData: document.routeData,
+	};
+}
+
+function concreteRoutePath(path: string): string {
+	return path
+		.split('/')
+		.map((segment) => {
+			if (segment.startsWith('*')) return 'flamefront';
+			if (segment.startsWith(':')) return 'flamefront';
+			return segment;
+		})
+		.join('/') || '/';
 }
 
 async function listen(
@@ -172,27 +205,70 @@ export async function buildProject(root = process.cwd()): Promise<void> {
 		},
 	});
 
+	const clientTemplateFile = resolve(clientDirectory, 'index.html');
+	const clientTemplate = await readFile(clientTemplateFile, 'utf8');
+	const serverTemplateFile = resolve(dist, 'server/index.html');
+
+	const serverEntry = await loadBuiltServer(root);
+	await writeFile(serverTemplateFile, clientTemplate);
+
+	const clientRoute = app.routes.find((route) => route.render === 'client');
+	if (clientRoute) {
+		const renderSsrDocument = requireServerExport(serverEntry, 'renderSsrDocument');
+		const shellPath = concreteRoutePath(clientRoute.path);
+		const shellRequest = new Request(
+			new URL(`${shellPath}?__flamefront_shell=1`, 'http://flamefront.build'),
+		);
+		const shell = documentParts(await renderSsrDocument(clientTemplate, shellRequest));
+		await writeFile(clientTemplateFile, shell.html);
+	}
+
 	const staticRoutes = app.routes.filter((route) => route.render === 'static');
 	if (staticRoutes.length === 0) return;
 
-	const serverEntry = await loadBuiltServer(root);
 	const renderSsgDocument = requireServerExport(serverEntry, 'renderSsgDocument');
-	await prerenderStaticRoutes(root, clientDirectory, staticRoutes, renderSsgDocument);
+	const loadRouteData = serverEntry.loadRouteData
+		? requireServerExport(serverEntry, 'loadRouteData')
+		: undefined;
+	await prerenderStaticRoutes(
+		root,
+		clientDirectory,
+		staticRoutes,
+		(request) => renderSsgDocument(clientTemplate, request),
+		loadRouteData
+			? async (request) => {
+				const endpoint = new URL('/__flamefront/data', request.url);
+				endpoint.searchParams.set('url', request.url);
+				const response = await loadRouteData(
+					new Request(endpoint, { headers: request.headers, signal: request.signal }),
+				);
+				if (!response.ok) throw response;
+				return response.json();
+			}
+			: undefined,
+	);
 }
 
 export async function prerenderStaticRoutes(
 	root: string,
 	clientDirectory: string,
 	routes: readonly RouteDefinition[],
-	render: (request: Request) => Promise<string>,
+	render: (request: Request) => Promise<RenderDocumentResult>,
+	loadData?: (request: Request) => Promise<unknown>,
 ): Promise<void> {
 	for (const route of routes) {
 		const outputFile = staticRouteFile(clientDirectory, route);
-		const html = await render(
-			new Request(new URL(route.path, 'http://flamefront.build')),
-		);
+		const outputDataFile = staticRouteDataFile(clientDirectory, route);
+		const request = new Request(new URL(route.path, 'http://flamefront.build'));
+		const rendered = documentParts(await render(request));
+		const data = rendered.hasRouteData
+			? rendered.routeData
+			: loadData
+				? await loadData(request)
+				: null;
 		await mkdir(dirname(outputFile), { recursive: true });
-		await writeFile(outputFile, html);
+		await writeFile(outputFile, rendered.html);
+		await writeFile(outputDataFile, JSON.stringify(data ?? null));
 		console.log(`Generated ${relative(root, outputFile)}.`);
 	}
 }
@@ -220,28 +296,35 @@ export async function devProject(root = process.cwd()): Promise<void> {
 				return;
 			}
 
-			if (match?.data.render === 'server') {
+			if (match?.data.render === 'client' || match?.data.render === 'server') {
 				const template = await readFile(resolve(root, 'index.html'), 'utf8');
 				const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
+				const rendered = documentParts(await requireServerExport(entry, 'renderSsrDocument')(
+					transformedTemplate,
+					toRequest(request, url),
+				));
 				send(
 					response,
-					200,
-					await requireServerExport(entry, 'renderSsrDocument')(
-						transformedTemplate,
-						toRequest(request, url),
-					),
+					rendered.status,
+					rendered.html,
 					'text/html; charset=utf-8',
 				);
 				return;
 			}
 
 			if (match?.data.render === 'static') {
+				const template = await readFile(resolve(root, 'index.html'), 'utf8');
+				const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
 				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
+				const rendered = documentParts(await requireServerExport(entry, 'renderSsgDocument')(
+					transformedTemplate,
+					toRequest(request, url),
+				));
 				send(
 					response,
-					200,
-					await requireServerExport(entry, 'renderSsgDocument')(toRequest(request, url)),
+					rendered.status,
+					rendered.html,
 					'text/html; charset=utf-8',
 				);
 				return;

@@ -12,3 +12,18 @@ export async function loadRouteData({ request }: ClientLoaderArgs): Promise<unkn
 	}
 	return response.json();
 }
+
+function staticRouteDataPath(request: Request): string {
+	const pathname = new URL(request.url).pathname.replace(/\/+$/, '');
+	return pathname === '' ? '/index.data.json' : `${pathname}/index.data.json`;
+}
+
+/** Load a build-time static route artifact during browser navigation. */
+export async function loadStaticRouteData({ request }: ClientLoaderArgs): Promise<unknown> {
+	const url = new URL(staticRouteDataPath(request), request.url);
+	const response = await fetch(url, { signal: request.signal });
+	if (!response.ok) {
+		throw new Error(`flamefront static route data request failed with ${response.status}.`);
+	}
+	return response.json();
+}

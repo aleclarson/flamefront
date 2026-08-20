@@ -62,7 +62,9 @@ test('creates a srvx handler for every render mode', async () => {
 			app,
 			clientDirectory,
 			loadRouteData: () => Response.json({ loaded: true }),
-			renderSsrDocument: (template) => template.replace('Client shell', 'SSR page'),
+			renderSsrDocument: (template, request) =>
+				template.replace('Client shell', new URL(request.url).pathname === '/client' ? 'Client shell rendered' : 'SSR page'),
+			renderSsgDocument: (template) => template.replace('Client shell', 'Static page rendered'),
 		}),
 		manual: true,
 		silent: true,
@@ -74,7 +76,7 @@ test('creates a srvx handler for every render mode', async () => {
 		assert.equal(rootResponse.headers.get('location'), '/client');
 
 		const clientResponse = await server.fetch(new Request('http://flamefront.test/client'));
-		assert.equal(await clientResponse.text(), '<main>Client shell</main>');
+		assert.equal(await clientResponse.text(), '<main>Client shell rendered</main>');
 
 		const serverResponse = await server.fetch(new Request('http://flamefront.test/server'));
 		assert.equal(await serverResponse.text(), '<main>SSR page</main>');
