@@ -16,6 +16,7 @@ export interface RouterDocumentProps {
 
 export type RouterDocument = (props: RouterDocumentProps) => unknown;
 
+/** Framework-rendered document pieces available to the app composer. */
 export interface DocumentParts {
 	readonly template: string;
 	readonly body: string;
@@ -76,7 +77,9 @@ export interface OctaneDocumentsOptions<
 > {
 	readonly app: AppDefinition<Route>;
 	readonly runtime: RouteRuntime<Context, Route>;
+	/** Wrap the framework's default RouterProvider with app providers. */
 	readonly routerDocument?: RouterDocument;
+	/** Control HTML placement while retaining framework protocol pieces. */
 	readonly composeDocument?: ComposeDocument<Route>;
 	readonly router?: DocumentRouter;
 	readonly renderer?: OctaneRenderer;

@@ -24,6 +24,7 @@ export interface RouteModule<Data = unknown, Context = unknown> {
 export type DocumentMode = 'shell' | RenderMode;
 export type RequestPurpose = 'data' | 'document';
 
+/** Inputs for constructing one request-scoped value for route work. */
 export interface RequestContextArgs<Route extends RouteDefinition = RouteDefinition> {
 	readonly request: Request;
 	readonly route: Route | null;
@@ -37,6 +38,7 @@ export type RequestContextFactory<
 	Route extends RouteDefinition = RouteDefinition,
 > = (args: RequestContextArgs<Route>) => Context | Promise<Context>;
 
+/** Import a generated or application-provided route module by its entry ID. */
 export type RouteImporter<Data = unknown, Context = unknown> = (
 	entry: string,
 ) => Promise<RouteModule<Data, Context>>;
@@ -97,6 +99,7 @@ export interface RouteRuntimeOptions<
 > {
 	readonly app: AppDefinition<Route>;
 	readonly importRoute: RouteImporter<unknown, Context>;
+	/** Build request context for data requests and document router queries. */
 	readonly requestContext?: RequestContextFactory<Context, Route>;
 }
 

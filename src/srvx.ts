@@ -24,6 +24,7 @@ export type TemplateLoader<Route extends RouteDefinition = RouteDefinition> = (
 	context: TemplateContext<Route>,
 ) => string | Promise<string>;
 
+/** Client asset location and the optional replacement for template lookup. */
 export interface ServerAssets<Route extends RouteDefinition = RouteDefinition> {
 	readonly clientDirectory: string | URL;
 	readonly loadTemplate?: TemplateLoader<Route>;
@@ -40,17 +41,21 @@ export interface ResponseHeadersContext<
 
 export type ResponseHeaders = HeadersInit;
 
+/** Add or override response headers after document rendering. */
 export type ResponseHeadersHook<Route extends RouteDefinition = RouteDefinition> = (
 	context: ResponseHeadersContext<Route>,
 ) => ResponseHeaders | Promise<ResponseHeaders>;
 
+/** Lifecycle operations exposed alongside the srvx server options. */
 export interface ServerEntryLifecycle {
 	readonly renderDocument: OctaneDocuments['renderDocument'];
 	readonly loadRouteData: OctaneDocuments['loadRouteData'];
 }
 
+/** The single default-export value consumed by Flamefront's lifecycle. */
 export type FlamefrontServerEntry = ServerOptions & ServerEntryLifecycle;
 
+/** Inputs for composing the transport around an Octane document service. */
 export interface SrvxServerEntryOptions<
 	Route extends RouteDefinition = RouteDefinition,
 > {

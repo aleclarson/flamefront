@@ -8,7 +8,9 @@ import type { HydrationInteractionEvents } from 'octane/hydration';
 export type RenderMode = 'client' | 'server' | 'static';
 
 export interface RoutingOptions {
+	/** URL pathname prefix shared by app matching and generated routes. */
 	readonly basename?: string;
+	/** Route-data endpoint pathname shared by browser loaders and the server. */
 	readonly dataPath?: string;
 }
 
