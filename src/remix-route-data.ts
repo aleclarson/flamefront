@@ -1,4 +1,16 @@
-import { joinBasename, stripBasename as stripAppBasename } from './index.ts';
+import {
+	createRouteDataClient,
+	type RouteDataLoadOptions,
+	type RouteDataRoutingOptions,
+} from './route-data-client.ts';
+
+export {
+	createRouteDataClient,
+	type RouteDataClient,
+	type RouteDataLoadOptions,
+	type RouteDataRoutingOptions,
+	type RouteDataSource,
+} from './route-data-client.ts';
 
 export interface ClientLoaderArgs {
 	readonly request: Request;
@@ -9,27 +21,17 @@ export interface RouteDataOptions {
 	readonly dataPath?: string;
 }
 
+function client(options: RouteDataOptions) {
+	return createRouteDataClient(options satisfies RouteDataRoutingOptions);
+}
+
 /** Load route data through Flamefront's server endpoint during browser navigation. */
 export async function loadRouteData(
 	{ request }: ClientLoaderArgs,
 	options: RouteDataOptions = {},
 ): Promise<unknown> {
-	const endpoint = new URL(options.dataPath ?? '/__flamefront/data', request.url);
-	endpoint.searchParams.set('url', request.url);
-	const response = await fetch(endpoint, { signal: request.signal });
-	if (!response.ok) {
-		throw new Error(`flamefront loader request failed with ${response.status}.`);
-	}
-	return response.json();
-}
-
-function staticRouteDataPath(request: Request, basename = '/'): string {
-	const appPathname = stripAppBasename(
-		new URL(request.url).pathname,
-		basename,
-	) ?? new URL(request.url).pathname;
-	const pathname = joinBasename(basename, appPathname).replace(/\/+$/, '');
-	return pathname === '' ? '/index.data.json' : `${pathname}/index.data.json`;
+	const loadOptions: RouteDataLoadOptions = { signal: request.signal };
+	return client(options).load(request.url, 'live', loadOptions);
 }
 
 /** Load a build-time static route artifact during browser navigation. */
@@ -37,10 +39,6 @@ export async function loadStaticRouteData(
 	{ request }: ClientLoaderArgs,
 	options: RouteDataOptions = {},
 ): Promise<unknown> {
-	const url = new URL(staticRouteDataPath(request, options.basename), request.url);
-	const response = await fetch(url, { signal: request.signal });
-	if (!response.ok) {
-		throw new Error(`flamefront static route data request failed with ${response.status}.`);
-	}
-	return response.json();
+	const loadOptions: RouteDataLoadOptions = { signal: request.signal };
+	return client(options).load(request.url, 'static', loadOptions);
 }

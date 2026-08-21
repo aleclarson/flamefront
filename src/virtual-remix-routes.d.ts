@@ -4,6 +4,7 @@ declare module 'virtual:flamefront/remix-routes' {
 
 	export const routes: RouteObject[];
 	export const routing: NormalizedRoutingOptions;
+	export function preloadRoute(entry: string): Promise<void>;
 }
 
 declare module 'virtual:flamefront/server-routes' {

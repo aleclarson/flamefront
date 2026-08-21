@@ -257,7 +257,7 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 	assert.equal(source.match(/import Shell from "\/src\/AppShell\.tsrx"/g)?.length, 1);
 	assert.match(source, /Component: Shell,\n\t\tchildren: \[/);
 	assert.match(source, /lazy: async \(\) => \{ const routeModule = await import\("\/src\/Shell\.tsrx"\)/);
-	assert.equal(source.match(/import\("\/src\/Shell\.tsrx"\)/g)?.length, 1);
+	assert.equal(source.match(/import\("\/src\/Shell\.tsrx"\)/g)?.length, 4);
 	assert.doesNotMatch(layoutSource, /loader:/);
 	assert.match(
 		source,
@@ -284,6 +284,12 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 	assert.match(source, /if \(import\.meta\.env\.SSR\).*Promise\.all/);
 	assert.match(source, /const componentModule = await import\("\/@flamefront\/hydration-route/);
 	assert.match(source, /if \(import\.meta\.env\.SSR\) return \{\}; const routeModule = await import\("\/src\/Client\.tsrx"\)/);
+	assert.match(source, /const routePreloaders = \{/);
+	assert.match(
+		source,
+		/"\/src\/Client\.tsrx": \(\) => Promise\.all\(\[import\("\/src\/Shell\.tsrx"\), import\("\/src\/Client\.tsrx"\)\]\)/,
+	);
+	assert.match(source, /export function preloadRoute\(entry\)/);
 });
 
 test('uses static artifacts for browser navigation and preserves static hydration boundaries', () => {
@@ -316,6 +322,15 @@ test('uses static artifacts for browser navigation and preserves static hydratio
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltFull\.tsrx/);
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltDeferred\.tsrx/);
 	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltVisible\.tsrx/);
+	assert.match(source, /export function preloadRoute\(entry\)/);
+	assert.match(
+		source,
+		/"\/src\/About\.tsrx": \(\) => Promise\.all\(\[import\("\/@flamefront\/hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx[^\]]*\)\]\)/,
+	);
+	assert.match(
+		source,
+		/"\/src\/BuiltFull\.tsrx": \(\) => Promise\.all\(\[import\("\/src\/BuiltFull\.tsrx"\)\]\)/,
+	);
 });
 
 test('generates a server-only importer for every unique leaf route module', () => {

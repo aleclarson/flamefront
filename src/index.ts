@@ -4,6 +4,7 @@ import {
 	type MultiMatcher,
 } from '@remix-run/route-pattern/match';
 import type { HydrationInteractionEvents } from 'octane/hydration';
+import { createRouteDataClient } from './route-data-client.ts';
 
 export type RenderMode = 'client' | 'server' | 'static';
 
@@ -91,7 +92,9 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 	readonly routeTree: readonly RouteConfig[];
 	readonly routing: NormalizedRoutingOptions;
 	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
+	/** Load route data using the route's live or static data source. */
 	readonly load: <Data = unknown>(url: string | URL, options?: LoadRouteOptions) => Promise<Data>;
+	/** Warm the same cache used by generated client route loaders. */
 	readonly prefetch: (url: string | URL, options?: LoadRouteOptions) => Promise<void>;
 }
 
@@ -139,14 +142,6 @@ const matcherCache = new WeakMap<
 	Map<RenderMode | undefined, MultiMatcher<RouteDefinition>>
 >();
 
-function resolveDataUrl(url: string | URL): URL {
-	const browserOrigin = typeof location === 'undefined' ? undefined : location.origin;
-	if (!browserOrigin && typeof url === 'string' && !URL.canParse(url)) {
-		throw new TypeError('flamefront app.load() requires an absolute URL outside the browser.');
-	}
-	return new URL(url, browserOrigin);
-}
-
 function normalizeRoutingPath(value: unknown, name: string, fallback: string): string {
 	const path = value ?? fallback;
 	if (typeof path !== 'string' || path.length === 0) {
@@ -186,32 +181,6 @@ export function joinBasename(basename: string, pathname: string): string {
 	if (basename === '/') return pathname || '/';
 	if (pathname === '/') return basename;
 	return `${basename}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
-}
-
-function createRouteDataLoader(dataPath: string) {
-	const cache = new Map<string, Promise<unknown>>();
-
-	return function load<Data = unknown>(
-		url: string | URL,
-		options: LoadRouteOptions = {},
-	): Promise<Data> {
-		const routeUrl = resolveDataUrl(url);
-		const cacheKey = `${routeUrl.pathname}${routeUrl.search}`;
-		const cached = options.reload ? undefined : cache.get(cacheKey);
-		if (cached) return cached as Promise<Data>;
-
-		const endpoint = new URL(dataPath, routeUrl.origin);
-		endpoint.searchParams.set('url', routeUrl.href);
-		const pending = fetch(endpoint, { signal: options.signal }).then(async (response) => {
-			if (!response.ok) {
-				throw new Error(`flamefront loader request failed with ${response.status}.`);
-			}
-			return response.json() as Promise<Data>;
-		});
-		cache.set(cacheKey, pending);
-		void pending.catch(() => cache.delete(cacheKey));
-		return pending;
-	};
 }
 
 function assertString(value: unknown, name: string): asserts value is string {
@@ -505,7 +474,12 @@ export function defineApp<const T extends {
 	const normalized = normalizeRouteTree(options.routes, new Set());
 	const frozenRoutes = normalized.routes;
 	const routing = normalizeRoutingOptions(options.routing);
-	const load = createRouteDataLoader(routing.dataPath);
+	const routeDataClient = createRouteDataClient(routing);
+	const load = <Data = unknown>(url: string | URL, loadOptions: LoadRouteOptions = {}) => {
+		const match = matchRoutes(frozenRoutes, url, {}, routing.basename);
+		const source = match?.data.render === 'static' ? 'static' : 'live';
+		return routeDataClient.load<Data>(url, source, loadOptions);
+	};
 	const app = Object.freeze({
 		...options,
 		routes: frozenRoutes,

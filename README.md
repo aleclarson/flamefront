@@ -152,8 +152,25 @@ export default function Route({ loaderData }) {
 ```
 
 Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
-can call `app.load(url)` from their route loaders, while `app.prefetch(url)`
-warms the same deduplicated cache on link intent.
+can call `app.load(url)` from their route loaders. `app.load(url)` and
+`app.prefetch(url)` share a browser-side `RouteDataClient` with generated route
+loaders, so a prefetched result is reused during client navigation. The data
+source follows the route mode: client and server routes use the live data
+endpoint, while static routes use their build-time `.data.json` artifact.
+
+For link-intent prefetching, `prefetchRoute()` combines that data request with
+the generated client module imports for the route and its pathless layouts:
+
+```ts
+import { prefetchRoute } from 'flamefront/remix-router';
+
+void prefetchRoute(app, '/products/one');
+```
+
+This preloads client navigation data and JavaScript. It does not request
+server-rendered HTML because server-rendered routes also use client-side
+navigation after the initial document load. A full document reload still uses
+the route's server or static document policy.
 
 Flamefront's Vite transform loads the centralized route manifest. Octane
 compiles TSRX first, then Flamefront removes loaders and their private

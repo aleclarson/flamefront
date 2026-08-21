@@ -9,7 +9,12 @@ import {
 	createStaticRouter,
 } from '@octanejs/remix-router';
 import type { HydrationState } from '@octanejs/remix-router';
-import { routes, routing } from 'virtual:flamefront/remix-routes';
+import type { AppDefinition, LoadRouteOptions, RouteDefinition } from './index.ts';
+import {
+	preloadRoute as preloadGeneratedRoute,
+	routes,
+	routing,
+} from 'virtual:flamefront/remix-routes';
 
 export { routes, routing };
 export { createRemixRouterAdapter };
@@ -34,3 +39,20 @@ const adapter = createRemixRouterAdapter(routes, {
 
 export const createClientRouter = adapter.createClientRouter;
 export const createServerRouter = adapter.createServerRouter;
+
+/** Prefetch route data and the generated client modules used by navigation. */
+export async function prefetchRoute<
+	Route extends RouteDefinition = RouteDefinition,
+>(
+	app: Pick<AppDefinition<Route>, 'match' | 'prefetch'>,
+	url: string | URL,
+	options?: LoadRouteOptions,
+): Promise<void> {
+	const match = app.match(url);
+	if (!match) return;
+
+	await Promise.all([
+		app.prefetch(url, options),
+		preloadGeneratedRoute(match.data.entry),
+	]);
+}
