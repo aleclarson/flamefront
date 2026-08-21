@@ -10,10 +10,12 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./octane": "./src/octane.ts",
     "./octane-server": "./src/octane-server.ts",
     "./remix-router": "./src/remix-router.ts",
     "./remix-router/data": "./src/remix-route-data.ts",
     "./server": "./src/server.ts",
+    "./srvx": "./src/srvx.ts",
     "./vite": "./src/vite.ts"
   },
   "scripts": {

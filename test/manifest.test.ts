@@ -23,6 +23,35 @@ test('defines explicit routes', () => {
 	assert.equal(Object.isFrozen(app.routes), true);
 });
 
+test('normalizes shared basename and route-data paths', async () => {
+	const app = defineApp({
+		shell,
+		routing: { basename: '/docs/', dataPath: '/__data/' },
+		routes: [route('/guide', '/src/Guide.tsrx')],
+	});
+
+	assert.deepEqual(app.routing, {
+		basename: '/docs',
+		dataPath: '/__data',
+	});
+	assert.equal(app.match('/docs/guide')?.data.path, '/guide');
+	assert.equal(app.match('/guide'), null);
+
+	const originalFetch = globalThis.fetch;
+	let endpoint: URL | undefined;
+	globalThis.fetch = async (input) => {
+		endpoint = new URL(String(input));
+		return Response.json({ loaded: true });
+	};
+	try {
+		assert.deepEqual(await app.load('https://example.test/docs/guide'), { loaded: true });
+		assert.equal(endpoint?.pathname, '/__data');
+		assert.equal(endpoint?.searchParams.get('url'), 'https://example.test/docs/guide');
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
 test('requires a shell entry outside the authored route tree', () => {
 	const app = defineApp({ shell, routes: [] });
 	assert.equal(app.shell, shell);

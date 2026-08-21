@@ -41,6 +41,10 @@ export interface ServerRouterOptions {
 	readonly requestContext?: unknown;
 }
 
+export interface RemixRouterAdapterOptions {
+	readonly basename?: string;
+}
+
 export function createRemixRouterAdapter<
 	Route,
 	ClientRouter,
@@ -50,18 +54,25 @@ export function createRemixRouterAdapter<
 >(
 	routeGraph: Route[],
 	runtime: RemixRouterRuntime<Route, ClientRouter, ServerRouter, Context, ClientOptions>,
+	defaults: RemixRouterAdapterOptions = {},
 ) {
 	return {
 		routes: routeGraph,
 		createClientRouter(options?: ClientOptions) {
-			return runtime.createBrowserRouter(routeGraph, options);
+			if (defaults.basename === undefined) {
+				return runtime.createBrowserRouter(routeGraph, options);
+			}
+			return runtime.createBrowserRouter(routeGraph, {
+				...(options && typeof options === 'object' ? options : {}),
+				basename: defaults.basename,
+			} as ClientOptions);
 		},
 		async createServerRouter(
 			request: Request,
 			options: ServerRouterOptions = {},
 		): Promise<Response | ServerRouterResult<ServerRouter, Context>> {
 			const handler = runtime.createStaticHandler(routeGraph, {
-				basename: options.basename,
+				basename: options.basename ?? defaults.basename,
 			});
 			const context = await handler.query(request, {
 				requestContext: options.requestContext,

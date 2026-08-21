@@ -6,6 +6,17 @@ import {
 import type { HydrationInteractionEvents } from 'octane/hydration';
 
 export type RenderMode = 'client' | 'server' | 'static';
+
+export interface RoutingOptions {
+	readonly basename?: string;
+	readonly dataPath?: string;
+}
+
+export interface NormalizedRoutingOptions {
+	readonly basename: string;
+	readonly dataPath: string;
+}
+
 export interface IdleHydration {
 	readonly when: 'idle';
 	readonly timeout?: number;
@@ -76,10 +87,16 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 	readonly shell: string;
 	readonly routes: readonly T[];
 	readonly routeTree: readonly RouteConfig[];
+	readonly routing: NormalizedRoutingOptions;
 	readonly match: (url: string | URL, options?: MatchRouteOptions) => Match<string, T> | null;
 	readonly load: <Data = unknown>(url: string | URL, options?: LoadRouteOptions) => Promise<Data>;
 	readonly prefetch: (url: string | URL, options?: LoadRouteOptions) => Promise<void>;
 }
+
+const defaultRoutingOptions: NormalizedRoutingOptions = Object.freeze({
+	basename: '/',
+	dataPath: '/__flamefront/data',
+});
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>([
 	'client',
@@ -128,7 +145,48 @@ function resolveDataUrl(url: string | URL): URL {
 	return new URL(url, browserOrigin);
 }
 
-function createRouteDataLoader() {
+function normalizeRoutingPath(value: unknown, name: string, fallback: string): string {
+	const path = value ?? fallback;
+	if (typeof path !== 'string' || path.length === 0) {
+		throw new TypeError(`flamefront routing ${name} must be a non-empty string.`);
+	}
+	if (!path.startsWith('/')) {
+		throw new TypeError(`flamefront routing ${name} must start with '/'.`);
+	}
+	if (path.includes('?') || path.includes('#')) {
+		throw new TypeError(`flamefront routing ${name} must be a pathname without a query or hash.`);
+	}
+	return path.replace(/\/+$/, '') || '/';
+}
+
+export function normalizeRoutingOptions(
+	options: RoutingOptions | undefined = undefined,
+): NormalizedRoutingOptions {
+	if (options !== undefined && (!options || typeof options !== 'object')) {
+		throw new TypeError('flamefront routing options must be an object.');
+	}
+	return Object.freeze({
+		basename: normalizeRoutingPath(options?.basename, 'basename', defaultRoutingOptions.basename),
+		dataPath: normalizeRoutingPath(options?.dataPath, 'dataPath', defaultRoutingOptions.dataPath),
+	});
+}
+
+/** Remove the normalized app basename from a request pathname. */
+export function stripBasename(pathname: string, basename: string): string | null {
+	if (basename === '/') return pathname;
+	if (pathname === basename) return '/';
+	if (!pathname.startsWith(`${basename}/`)) return null;
+	return pathname.slice(basename.length) || '/';
+}
+
+/** Prefix an app-relative route path with the normalized app basename. */
+export function joinBasename(basename: string, pathname: string): string {
+	if (basename === '/') return pathname || '/';
+	if (pathname === '/') return basename;
+	return `${basename}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
+function createRouteDataLoader(dataPath: string) {
 	const cache = new Map<string, Promise<unknown>>();
 
 	return function load<Data = unknown>(
@@ -140,7 +198,7 @@ function createRouteDataLoader() {
 		const cached = options.reload ? undefined : cache.get(cacheKey);
 		if (cached) return cached as Promise<Data>;
 
-		const endpoint = new URL('/__flamefront/data', routeUrl.origin);
+		const endpoint = new URL(dataPath, routeUrl.origin);
 		endpoint.searchParams.set('url', routeUrl.href);
 		const pending = fetch(endpoint, { signal: options.signal }).then(async (response) => {
 			if (!response.ok) {
@@ -404,6 +462,7 @@ function matchRoutes<T extends RouteDefinition>(
 	routes: readonly T[],
 	url: string | URL,
 	options: MatchRouteOptions = {},
+	basename = '/',
 ): Match<string, T> | null {
 	let matchers = matcherCache.get(routes);
 	if (!matchers) {
@@ -418,6 +477,9 @@ function matchRoutes<T extends RouteDefinition>(
 	}
 
 	const normalizedUrl = new URL(url, 'http://flamefront.local');
+	const appPathname = stripBasename(normalizedUrl.pathname, basename);
+	if (appPathname === null) return null;
+	normalizedUrl.pathname = appPathname;
 	if (normalizedUrl.pathname.length > 1) {
 		normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/+$/, '');
 	}
@@ -429,9 +491,10 @@ function matchRoutes<T extends RouteDefinition>(
 export function defineApp<const T extends {
 	readonly shell: string;
 	readonly routes: readonly RouteConfig[];
+	readonly routing?: RoutingOptions;
 }>(
 	options: T,
-): Omit<T, 'routes'> & AppDefinition {
+): Omit<T, 'routes' | 'routing'> & AppDefinition {
 	if (!options || typeof options !== 'object' || !Array.isArray(options.routes)) {
 		throw new TypeError('flamefront defineApp() requires a routes array.');
 	}
@@ -439,18 +502,20 @@ export function defineApp<const T extends {
 
 	const normalized = normalizeRouteTree(options.routes, new Set());
 	const frozenRoutes = normalized.routes;
-	const load = createRouteDataLoader();
+	const routing = normalizeRoutingOptions(options.routing);
+	const load = createRouteDataLoader(routing.dataPath);
 	const app = Object.freeze({
 		...options,
 		routes: frozenRoutes,
 		routeTree: normalized.tree,
+		routing,
 		match: (url: string | URL, matchOptions?: MatchRouteOptions) =>
-			matchRoutes(frozenRoutes, url, matchOptions),
+			matchRoutes(frozenRoutes, url, matchOptions, routing.basename),
 		load,
 		prefetch: async (url: string | URL, loadOptions?: LoadRouteOptions) => {
 			await load(url, loadOptions);
 		},
-	}) as Omit<T, 'routes'> & AppDefinition;
+	}) as Omit<T, 'routes' | 'routing'> & AppDefinition;
 	matcherCache.set(
 		frozenRoutes,
 		new Map([[undefined, createRouteMatcher(frozenRoutes)]]) as Map<

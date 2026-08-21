@@ -249,7 +249,7 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 		source.indexOf('path: "/client"'),
 	);
 	const loaders = source.match(
-		/loader: import\.meta\.env\.SSR \? routeModule\.loader : loadRouteData/g,
+		/loader: import\.meta\.env\.SSR \? routeModule\.loader : \(args\) => loadRouteData\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/g,
 	);
 
 	assert.match(source, /import Shell from "\/src\/AppShell\.tsrx"/);
@@ -263,9 +263,13 @@ test('generates an eager shell root with lazy layouts and route metadata', () =>
 		source,
 		/import \{ loadRouteData, loadStaticRouteData \} from 'flamefront\/remix-router\/data'/,
 	);
+	assert.match(source, /export const routing = \{"basename":"\/","dataPath":"\/__flamefront\/data"\};/);
 	assert.equal(loaders?.length, 1);
 	assert.match(source, /loader: routeModule\.loader/);
-	assert.match(source, /loader: loadRouteData/);
+	assert.match(
+		source,
+		/loader: \(args\) => loadRouteData\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/,
+	);
 	assert.match(source, /children: \[/);
 	assert.match(source, /path: "\/client"/);
 	assert.match(source, /path: "\/server"/);
@@ -304,7 +308,10 @@ test('uses static artifacts for browser navigation and preserves static hydratio
 	const source = generateRemixRoutes(app);
 
 	assert.match(source, /loader: routeModule\.loader/);
-	assert.match(source, /loader: loadStaticRouteData/);
+	assert.match(
+		source,
+		/loader: \(args\) => loadStaticRouteData\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/,
+	);
 	assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx/);
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltFull\.tsrx/);
 	assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltDeferred\.tsrx/);

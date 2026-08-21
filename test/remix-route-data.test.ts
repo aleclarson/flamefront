@@ -22,6 +22,27 @@ test('loads browser route data using the request URL and abort signal', async (c
 	assert.deepEqual(await loadRouteData({ request }), { message: 'loaded' });
 });
 
+test('uses the app routing data path for browser route data', async (context) => {
+	const originalFetch = globalThis.fetch;
+	context.after(() => {
+		globalThis.fetch = originalFetch;
+	});
+	const request = new Request('https://example.test/docs/items/one');
+	globalThis.fetch = async (input) => {
+		const endpoint = new URL(String(input));
+		assert.equal(endpoint.pathname, '/docs/__data');
+		return Response.json({ message: 'loaded' });
+	};
+
+	assert.deepEqual(
+		await loadRouteData(
+			{ request },
+			{ basename: '/docs', dataPath: '/docs/__data' },
+		),
+		{ message: 'loaded' },
+	);
+});
+
 test('reports unsuccessful browser route-data responses', async (context) => {
 	const originalFetch = globalThis.fetch;
 	context.after(() => {
@@ -48,6 +69,22 @@ test('loads static route data from the generated artifact beside the document', 
 	};
 
 	assert.deepEqual(await loadStaticRouteData({ request }), { message: 'built' });
+});
+
+test('strips the shared basename from static route-data artifacts', async (context) => {
+	const originalFetch = globalThis.fetch;
+	context.after(() => {
+		globalThis.fetch = originalFetch;
+	});
+	const request = new Request('https://example.test/docs/about');
+	globalThis.fetch = async (input) => {
+		assert.equal(String(input), 'https://example.test/docs/about/index.data.json');
+		return Response.json({ message: 'built' });
+	};
+
+	assert.deepEqual(await loadStaticRouteData({ request }, { basename: '/docs' }), {
+		message: 'built',
+	});
 });
 
 test('reports unsuccessful static route-data responses', async (context) => {

@@ -9,9 +9,9 @@ import {
 	createStaticRouter,
 } from '@octanejs/remix-router';
 import type { HydrationState } from '@octanejs/remix-router';
-import { routes } from 'virtual:flamefront/remix-routes';
+import { routes, routing } from 'virtual:flamefront/remix-routes';
 
-export { routes };
+export { routes, routing };
 export { createRemixRouterAdapter };
 export type { ServerRouterOptions, ServerRouterResult };
 
@@ -30,7 +30,7 @@ const adapter = createRemixRouterAdapter(routes, {
 	createBrowserRouter,
 	createStaticHandler,
 	createStaticRouter,
-});
+}, routing);
 
 export const createClientRouter = adapter.createClientRouter;
 export const createServerRouter = adapter.createServerRouter;
