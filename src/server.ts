@@ -1,11 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
-import { staticMiddleware } from 'srvx/static';
-import type { ServerOptions } from 'srvx';
 import type { Match } from '@remix-run/route-pattern/match';
 import {
-	joinBasename,
 	type AppDefinition,
 	type MatchRouteOptions,
 	type RenderMode,
@@ -104,108 +98,6 @@ export interface RouteRuntimeOptions<
 	readonly app: AppDefinition<Route>;
 	readonly importRoute: RouteImporter<unknown, Context>;
 	readonly requestContext?: RequestContextFactory<Context, Route>;
-}
-
-export interface SrvxServerOptions {
-	readonly app: AppDefinition;
-	readonly clientDirectory: string | URL;
-	readonly loadRouteData: (request: Request) => Response | Promise<Response>;
-	readonly renderSsrDocument: (
-		template: string,
-		request: Request,
-	) => RenderDocumentResult | Promise<RenderDocumentResult>;
-	readonly renderSsgDocument: (
-		template: string,
-		request: Request,
-	) => RenderDocumentResult | Promise<RenderDocumentResult>;
-}
-
-function documentParts(document: RenderDocumentResult): {
-	readonly html: string;
-	readonly status: number;
-} {
-	if (typeof document === 'string') return { html: document, status: 200 };
-	return { html: document.html, status: document.status ?? 200 };
-}
-
-export function createSrvxServer(options: SrvxServerOptions): ServerOptions {
-	const clientDirectory = options.clientDirectory instanceof URL
-		? fileURLToPath(options.clientDirectory)
-		: options.clientDirectory;
-	const documentTemplate = async () => {
-		try {
-			return await readFile(resolve(clientDirectory, '..', 'server', 'index.html'), 'utf8');
-		} catch {
-			return readFile(`${clientDirectory}/index.html`, 'utf8');
-		}
-	};
-	const serveClientFile = staticMiddleware({ dir: clientDirectory });
-	const defaultClientRoute = options.app.routes.find((route) => route.render === 'client');
-
-	return {
-		middleware: [
-			(request, next) => {
-				const url = new URL(request.url);
-				const match = options.app.match(url);
-				if (url.pathname === options.app.routing.basename && !match) return next();
-				if (match?.data.render === 'client' || match?.data.render === 'server') return next();
-				return serveClientFile(request, next);
-			},
-		],
-		async fetch(request) {
-			const url = new URL(request.url);
-			const match = options.app.match(url);
-
-			try {
-				if (
-					url.pathname === options.app.routing.basename &&
-					!match &&
-					defaultClientRoute
-				) {
-					return new Response(null, {
-						status: 302,
-						headers: {
-							Location: joinBasename(options.app.routing.basename, defaultClientRoute.path),
-						},
-					});
-				}
-				if (url.pathname === options.app.routing.dataPath) {
-					return options.loadRouteData(request);
-				}
-				if (match?.data.render === 'server') {
-					const document = documentParts(
-						await options.renderSsrDocument(await documentTemplate(), request),
-					);
-					return new Response(document.html, {
-						status: document.status,
-						headers: { 'Content-Type': 'text/html; charset=utf-8' },
-					});
-				}
-				if (match?.data.render === 'client') {
-					const document = documentParts(
-						await options.renderSsrDocument(await documentTemplate(), request),
-					);
-					return new Response(document.html, {
-						status: document.status,
-						headers: { 'Content-Type': 'text/html; charset=utf-8' },
-					});
-				}
-				if (match?.data.render === 'static') {
-					const document = documentParts(
-						await options.renderSsgDocument(await documentTemplate(), request),
-					);
-					return new Response(document.html, {
-						status: document.status,
-						headers: { 'Content-Type': 'text/html; charset=utf-8' },
-					});
-				}
-				return new Response('Not found', { status: 404 });
-			} catch (error) {
-				if (error instanceof Response) return error;
-				throw error;
-			}
-		},
-	};
 }
 
 async function loadMatchedRoute<

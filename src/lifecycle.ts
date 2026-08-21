@@ -2,8 +2,15 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ServerOptions } from 'srvx';
-import type { AppDefinition, RouteDefinition } from './index.ts';
+import { serve } from 'srvx';
+import type { ServerMiddleware } from 'srvx';
+import type {
+	AppDefinition,
+	NormalizedRoutingOptions,
+	RouteDefinition,
+} from './index.ts';
+import { joinBasename } from './index.ts';
+import type { FlamefrontServerEntry } from './srvx.ts';
 import type { RenderDocumentResult } from './server.ts';
 
 interface AppModule {
@@ -11,11 +18,8 @@ interface AppModule {
 	default?: AppDefinition;
 }
 
-interface ServerEntry {
-	default?: ServerOptions;
-	loadRouteData?(request: Request): Promise<Response>;
-	renderSsgDocument?(template: string, request: Request): Promise<RenderDocumentResult>;
-	renderSsrDocument?(template: string, request: Request): Promise<RenderDocumentResult>;
+interface ServerModule {
+	default?: unknown;
 }
 
 export interface ProjectContext {
@@ -42,15 +46,20 @@ export async function loadProject(root = process.cwd()): Promise<ProjectContext>
 	return { app, root, routesFile };
 }
 
-function requireServerExport<K extends keyof ServerEntry>(
-	entry: ServerEntry,
-	name: K,
-): NonNullable<ServerEntry[K]> {
-	const value = entry[name];
-	if (typeof value !== 'function') {
-		throw new Error(`src/entry-server.ts must export ${String(name)}().`);
+function loadDefaultServerEntry(module: ServerModule): FlamefrontServerEntry {
+	const entry = module.default;
+	if (
+		!entry ||
+		typeof entry !== 'object' ||
+		typeof (entry as { fetch?: unknown }).fetch !== 'function' ||
+		typeof (entry as { renderDocument?: unknown }).renderDocument !== 'function' ||
+		typeof (entry as { loadRouteData?: unknown }).loadRouteData !== 'function'
+	) {
+		throw new Error(
+			'src/entry-server.ts must default-export a Flamefront server entry with fetch, renderDocument, and loadRouteData.',
+		);
 	}
-	return value as NonNullable<ServerEntry[K]>;
+	return entry as FlamefrontServerEntry;
 }
 
 function toRequest(request: IncomingMessage, url: URL): Request {
@@ -120,14 +129,14 @@ export function staticRouteDataFile(clientDirectory: string, route: RouteDefinit
 	return staticRouteFile(clientDirectory, route).replace(/\.html$/, '.data.json');
 }
 
-async function loadBuiltServer(root: string): Promise<ServerEntry> {
+async function loadBuiltServer(root: string): Promise<FlamefrontServerEntry> {
 	const serverFile = resolve(root, 'dist/server/server.js');
 	try {
 		await access(serverFile);
 	} catch {
 		throw new Error(`Could not find ${serverFile}. Run ff build first.`);
 	}
-	return import(pathToFileURL(serverFile).href) as Promise<ServerEntry>;
+	return loadDefaultServerEntry(await import(pathToFileURL(serverFile).href) as ServerModule);
 }
 
 function requestUrl(request: IncomingMessage): URL {
@@ -160,6 +169,13 @@ function concreteRoutePath(path: string): string {
 			return segment;
 		})
 		.join('/') || '/';
+}
+
+function joinRoutePath(
+	routing: Pick<NormalizedRoutingOptions, 'basename'>,
+	path: string,
+): string {
+	return joinBasename(routing.basename, path);
 }
 
 async function listen(
@@ -214,38 +230,36 @@ export async function buildProject(root = process.cwd()): Promise<void> {
 
 	const clientRoute = app.routes.find((route) => route.render === 'client');
 	if (clientRoute) {
-		const renderSsrDocument = requireServerExport(serverEntry, 'renderSsrDocument');
-		const shellPath = concreteRoutePath(clientRoute.path);
+		const shellPath = joinRoutePath(app.routing, concreteRoutePath(clientRoute.path));
 		const shellRequest = new Request(
 			new URL(`${shellPath}?__flamefront_shell=1`, 'http://flamefront.build'),
 		);
-		const shell = documentParts(await renderSsrDocument(clientTemplate, shellRequest));
+		const shell = documentParts(await serverEntry.renderDocument(
+			clientTemplate,
+			shellRequest,
+			{ mode: 'shell' },
+		));
 		await writeFile(clientTemplateFile, shell.html);
 	}
 
 	const staticRoutes = app.routes.filter((route) => route.render === 'static');
 	if (staticRoutes.length === 0) return;
 
-	const renderSsgDocument = requireServerExport(serverEntry, 'renderSsgDocument');
-	const loadRouteData = serverEntry.loadRouteData
-		? requireServerExport(serverEntry, 'loadRouteData')
-		: undefined;
 	await prerenderStaticRoutes(
 		root,
 		clientDirectory,
 		staticRoutes,
-		(request) => renderSsgDocument(clientTemplate, request),
-		loadRouteData
-			? async (request) => {
-				const endpoint = new URL('/__flamefront/data', request.url);
-				endpoint.searchParams.set('url', request.url);
-				const response = await loadRouteData(
-					new Request(endpoint, { headers: request.headers, signal: request.signal }),
-				);
-				if (!response.ok) throw response;
-				return response.json();
-			}
-			: undefined,
+		(request) => serverEntry.renderDocument(clientTemplate, request, { mode: 'static' }),
+		async (request) => {
+			const endpoint = new URL(app.routing.dataPath, request.url);
+			endpoint.searchParams.set('url', request.url);
+			const response = await serverEntry.loadRouteData(
+				new Request(endpoint, { headers: request.headers, signal: request.signal }),
+			);
+			if (!response.ok) throw response;
+			return response.json();
+		},
+		app.routing,
 	);
 }
 
@@ -255,11 +269,14 @@ export async function prerenderStaticRoutes(
 	routes: readonly RouteDefinition[],
 	render: (request: Request) => Promise<RenderDocumentResult>,
 	loadData?: (request: Request) => Promise<unknown>,
+	routing: Pick<NormalizedRoutingOptions, 'basename'> = { basename: '/' },
 ): Promise<void> {
 	for (const route of routes) {
 		const outputFile = staticRouteFile(clientDirectory, route);
 		const outputDataFile = staticRouteDataFile(clientDirectory, route);
-		const request = new Request(new URL(route.path, 'http://flamefront.build'));
+		const request = new Request(
+			new URL(joinRoutePath(routing, route.path), 'http://flamefront.build'),
+		);
 		const rendered = documentParts(await render(request));
 		const data = rendered.hasRouteData
 			? rendered.routeData
@@ -287,46 +304,24 @@ export async function devProject(root = process.cwd()): Promise<void> {
 		const match = app.match(url);
 
 		try {
-			if (url.pathname === '/__flamefront/data') {
-				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
-				await sendFetchResponse(
-					response,
-					await requireServerExport(entry, 'loadRouteData')(toRequest(request, url)),
+			if (
+				url.pathname === app.routing.dataPath ||
+				match ||
+				url.pathname === app.routing.basename
+			) {
+				const entry = loadDefaultServerEntry(
+					await vite.ssrLoadModule('/src/entry-server.ts') as ServerModule,
 				);
-				return;
-			}
-
-			if (match?.data.render === 'client' || match?.data.render === 'server') {
-				const template = await readFile(resolve(root, 'index.html'), 'utf8');
-				const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
-				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
-				const rendered = documentParts(await requireServerExport(entry, 'renderSsrDocument')(
-					transformedTemplate,
-					toRequest(request, url),
-				));
-				send(
-					response,
-					rendered.status,
-					rendered.html,
-					'text/html; charset=utf-8',
-				);
-				return;
-			}
-
-			if (match?.data.render === 'static') {
-				const template = await readFile(resolve(root, 'index.html'), 'utf8');
-				const transformedTemplate = await vite.transformIndexHtml(url.pathname, template);
-				const entry = await vite.ssrLoadModule('/src/entry-server.ts') as ServerEntry;
-				const rendered = documentParts(await requireServerExport(entry, 'renderSsgDocument')(
-					transformedTemplate,
-					toRequest(request, url),
-				));
-				send(
-					response,
-					rendered.status,
-					rendered.html,
-					'text/html; charset=utf-8',
-				);
+				const entryServer = serve({
+					...entry,
+					manual: true,
+					silent: true,
+				});
+				try {
+					await sendFetchResponse(response, await entryServer.fetch(toRequest(request, url)));
+				} finally {
+					await entryServer.close();
+				}
 				return;
 			}
 		} catch (error) {
@@ -366,11 +361,6 @@ export async function previewProject(root = process.cwd()): Promise<void> {
 	const port = Number(process.env.PORT ?? 4173);
 	const checkToken = process.env.FLAMEFRONT_CHECK_TOKEN;
 	const serverEntry = await loadBuiltServer(root);
-	if (!serverEntry.default?.fetch) {
-		throw new Error('The server build must default-export srvx options with a fetch handler.');
-	}
-
-	const { serve } = await import('srvx');
 	const checkMiddleware = checkToken
 		? async (_request: Request, next: () => Response | Promise<Response>) => {
 				const response = await next();
@@ -389,13 +379,13 @@ export async function previewProject(root = process.cwd()): Promise<void> {
 			}
 		: undefined;
 	const server = serve({
-		...serverEntry.default,
+		...serverEntry,
 		port,
 		gracefulShutdown: true,
 		middleware: [
 			checkMiddleware,
-			...(serverEntry.default.middleware ?? []),
-		].filter(Boolean) as NonNullable<ServerOptions['middleware']>,
+			...(serverEntry.middleware ?? []),
+		].filter(Boolean) as ServerMiddleware[],
 	});
 	await server.ready();
 }

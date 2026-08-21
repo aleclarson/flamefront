@@ -5,7 +5,8 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { serve } from 'srvx';
 import { defineApp, route } from '../src/index.ts';
-import { createSrvxServer, loadRoute } from '../src/server.ts';
+import { loadRoute } from '../src/server.ts';
+import { createSrvxServerEntry } from '../src/srvx.ts';
 
 const shell = '/src/AppShell.tsrx';
 
@@ -58,13 +59,22 @@ test('creates a srvx handler for every render mode', async () => {
 		],
 	});
 	const server = serve({
-		...createSrvxServer({
+		...createSrvxServerEntry({
 			app,
-			clientDirectory,
-			loadRouteData: () => Response.json({ loaded: true }),
-			renderSsrDocument: (template, request) =>
-				template.replace('Client shell', new URL(request.url).pathname === '/client' ? 'Client shell rendered' : 'SSR page'),
-			renderSsgDocument: (template) => template.replace('Client shell', 'Static page rendered'),
+			documents: {
+				loadRouteData: async () => Response.json({ loaded: true }),
+				renderDocument: async (template, request, options) => ({
+					html: template.replace(
+						'Client shell',
+						options?.mode === 'static'
+							? 'Static page rendered'
+							: new URL(request.url).pathname === '/client'
+								? 'Client shell rendered'
+								: 'SSR page',
+					),
+				}),
+			},
+			assets: { clientDirectory },
 		}),
 		manual: true,
 		silent: true,

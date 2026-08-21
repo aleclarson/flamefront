@@ -85,3 +85,32 @@ test('writes rendered static route data without running a fallback loader', asyn
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+test('uses the shared basename when prerendering route requests', async () => {
+	const root = await mkdtemp(resolve(tmpdir(), 'flamefront-build-'));
+	const clientDirectory = resolve(root, 'dist/client');
+	const staticRoute = route('/built', '/src/Built.tsrx', { render: 'static' });
+	let renderedPath: string | undefined;
+
+	try {
+		await prerenderStaticRoutes(
+			root,
+			clientDirectory,
+			[staticRoute],
+			async (request) => {
+				renderedPath = new URL(request.url).pathname;
+				return '<main>built</main>';
+			},
+			undefined,
+			{ basename: '/docs' },
+		);
+
+		assert.equal(renderedPath, '/docs/built');
+		assert.equal(
+			await readFile(resolve(clientDirectory, 'built/index.html'), 'utf8'),
+			'<main>built</main>',
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
