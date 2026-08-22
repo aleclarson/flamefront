@@ -8,9 +8,9 @@ A Frame would let an already hydrated route embed another route as an independen
 
 ```tsx
 <Frame
-	to="/products/octane"
-	hydration={{ when: 'visible' }}
-	fallback={<ProductPlaceholder />}
+  to="/products/octane"
+  hydration={{ when: "visible" }}
+  fallback={<ProductPlaceholder />}
 />
 ```
 

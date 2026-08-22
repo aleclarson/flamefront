@@ -1,13 +1,13 @@
 {
   "name": "flamefront",
   "version": "0.0.0",
+  "private": true,
   "description": "Typed centralized route manifests for Octane.",
   "license": "FSL-1.1-MIT",
-  "type": "module",
-  "private": true,
   "bin": {
     "ff": "./src/cli.ts"
   },
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./octane": "./src/octane.ts",
@@ -31,6 +31,13 @@
     "babel-dead-code-elimination": "^1.0.12",
     "srvx": "0.12.5"
   },
+  "devDependencies": {
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/node": "26.1.1",
+    "typescript": "5.9.3",
+    "vite": "latest"
+  },
   "peerDependencies": {
     "@octanejs/remix-router": "0.1.36",
     "octane": "0.1.40",
@@ -40,12 +47,5 @@
     "@octanejs/remix-router": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@types/babel__generator": "^7.27.0",
-    "@types/babel__traverse": "^7.28.0",
-    "@types/node": "26.1.1",
-    "typescript": "5.9.3",
-    "vite": "latest"
   }
 }

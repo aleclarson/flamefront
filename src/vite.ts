@@ -1,460 +1,597 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import fs from "node:fs"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import type {
-	AppDefinition,
-	GeneratedHydration,
-	NormalizedRoutingOptions,
-	RouteConfig,
-	RouteDefinition,
-} from './index.ts';
-import { generate, parse } from './babel.ts';
-import { removeExports } from './remove-exports.ts';
+  AppDefinition,
+  GeneratedHydration,
+  NormalizedRoutingOptions,
+  RouteConfig,
+  RouteDefinition,
+} from "./index.ts"
+import { generate, parse } from "./babel.ts"
+import { removeExports } from "./remove-exports.ts"
 
-export const remixRoutesId = 'virtual:flamefront/remix-routes';
-const resolvedRemixRoutesId = `\0${remixRoutesId}`;
-export const serverRoutesId = 'virtual:flamefront/server-routes';
-const resolvedServerRoutesId = `\0${serverRoutesId}`;
-const hydrationRouteId = '/@flamefront/hydration-route.tsrx';
-const resolvedHydrationRoutePrefix = `${hydrationRouteId}?`;
-const SERVER_ONLY_ROUTE_EXPORTS = ['loader'] as const;
-const serverFilePattern = /\.server(?:\.[cm]?[jt]sx?|\.tsrx)$/;
-const serverDirectoryPattern = /\/\.server\//;
+export const remixRoutesId = "virtual:flamefront/remix-routes"
+const resolvedRemixRoutesId = `\0${remixRoutesId}`
+
+export const serverRoutesId = "virtual:flamefront/server-routes"
+const resolvedServerRoutesId = `\0${serverRoutesId}`
+const hydrationRouteId = "/@flamefront/hydration-route.tsrx"
+const resolvedHydrationRoutePrefix = `${hydrationRouteId}?`
+const SERVER_ONLY_ROUTE_EXPORTS = ["loader"] as const
+const serverFilePattern = /\.server(?:\.[cm]?[jt]sx?|\.tsrx)$/
+const serverDirectoryPattern = /\/\.server\//
 
 export interface FlamefrontOptions {
-	/** Project-root route manifest module. */
-	readonly routes?: string;
+  /** Project-root route manifest module. */
+  readonly routes?: string
 }
 
 function quote(value: string): string {
-	return JSON.stringify(value);
+  return JSON.stringify(value)
 }
 
 function lazyLayout(entry: string): string {
-	return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default }; }`;
+  return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default }; }`
 }
 
 function generatesHydrationBoundary(
-	routeDefinition: RouteDefinition,
+  routeDefinition: RouteDefinition,
 ): routeDefinition is RouteDefinition & {
-	hydration: GeneratedHydration | 'none';
+  hydration: GeneratedHydration | "none"
 } {
-	return (
-		(routeDefinition.render === 'server' || routeDefinition.render === 'static') &&
-		(routeDefinition.hydration === 'none' || typeof routeDefinition.hydration === 'object')
-	);
+  return (
+    (routeDefinition.render === "server" ||
+      routeDefinition.render === "static") &&
+    (routeDefinition.hydration === "none" ||
+      typeof routeDefinition.hydration === "object")
+  )
 }
 
-function hydrationComponentId(entry: string, hydration: GeneratedHydration | 'none'): string {
-	const parameters = new URLSearchParams({
-		entry,
-		hydration: JSON.stringify(hydration),
-	});
-	return `${hydrationRouteId}?${parameters}`;
+function hydrationComponentId(
+  entry: string,
+  hydration: GeneratedHydration | "none",
+): string {
+  const parameters = new URLSearchParams({
+    entry,
+    hydration: JSON.stringify(hydration),
+  })
+
+  return `${hydrationRouteId}?${parameters}`
 }
 
 function browserRouteModuleId(routeDefinition: RouteDefinition): string {
-	return generatesHydrationBoundary(routeDefinition)
-		? hydrationComponentId(routeDefinition.entry, routeDefinition.hydration)
-		: routeDefinition.entry;
+  return generatesHydrationBoundary(routeDefinition)
+    ? hydrationComponentId(routeDefinition.entry, routeDefinition.hydration)
+    : routeDefinition.entry
 }
 
 function generateRoutePreloaders(routeTree: readonly RouteConfig[]): string {
-	const preloaders = new Map<string, string[]>();
+  const preloaders = new Map<string, string[]>()
 
-	const visit = (configs: readonly RouteConfig[], layoutEntries: readonly string[]) => {
-		for (const config of configs) {
-			if ('children' in config) {
-				visit(config.children, [...layoutEntries, config.entry]);
-				continue;
-			}
+  const visit = (
+    configs: readonly RouteConfig[],
+    layoutEntries: readonly string[],
+  ) => {
+    for (const config of configs) {
+      if ("children" in config) {
+        visit(config.children, [...layoutEntries, config.entry])
+        continue
+      }
 
-			const imports = [...layoutEntries, browserRouteModuleId(config)];
-			const existing = preloaders.get(config.entry) ?? [];
-			for (const entry of imports) {
-				if (!existing.includes(entry)) existing.push(entry);
-			}
-			preloaders.set(config.entry, existing);
-		}
-	};
+      const imports = [...layoutEntries, browserRouteModuleId(config)]
+      const existing = preloaders.get(config.entry) ?? []
 
-	visit(routeTree, []);
-	const entries = [...preloaders.entries()]
-		.map(([entry, imports]) => {
-			const preload = imports.map((moduleId) => `import(${quote(moduleId)})`).join(', ');
-			return `\t${quote(entry)}: () => Promise.all([${preload}])`;
-		})
-		.join(',\n');
+      for (const entry of imports) {
+        if (!existing.includes(entry)) {
+          existing.push(entry)
+        }
+      }
 
-	return `const routePreloaders = {\n${entries}\n};\n\nexport function preloadRoute(entry) {\n\tconst preload = routePreloaders[entry];\n\treturn preload ? preload().then(() => undefined) : Promise.resolve();\n}\n`;
+      preloaders.set(config.entry, existing)
+    }
+  }
+
+  visit(routeTree, [])
+  const entries = [...preloaders.entries()]
+    .map(([entry, imports]) => {
+      const preload = imports
+        .map((moduleId) => `import(${quote(moduleId)})`)
+        .join(", ")
+
+      return `\t${quote(entry)}: () => Promise.all([${preload}])`
+    })
+    .join(",\n")
+
+  return `const routePreloaders = {\n${entries}\n};\n\nexport function preloadRoute(entry) {\n\tconst preload = routePreloaders[entry];\n\treturn preload ? preload().then(() => undefined) : Promise.resolve();\n}\n`
 }
 
 function lazyRoute(
-	routeDefinition: RouteDefinition,
-	routing: NormalizedRoutingOptions,
+  routeDefinition: RouteDefinition,
+  routing: NormalizedRoutingOptions,
 ): string {
-	const { entry } = routeDefinition;
-	const browserLoader = routeDefinition.render === 'static'
-		? 'loadStaticRouteData'
-		: 'loadRouteData';
-	const browserLoaderExpression = `(args) => ${browserLoader}(args, ${JSON.stringify(routing)})`;
+  const { entry } = routeDefinition
+  const browserLoader =
+    routeDefinition.render === "static"
+      ? "loadStaticRouteData"
+      : "loadRouteData"
+  const browserLoaderExpression = `(args) => ${browserLoader}(args, ${JSON.stringify(routing)})`
 
-	if (routeDefinition.render === 'client') {
-		return `async () => { if (import.meta.env.SSR) return {}; const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: ${browserLoaderExpression} }; }`;
-	}
+  if (routeDefinition.render === "client") {
+    return `async () => { if (import.meta.env.SSR) return {}; const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: ${browserLoaderExpression} }; }`
+  }
 
-	if (!generatesHydrationBoundary(routeDefinition)) {
-		return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: import.meta.env.SSR ? routeModule.loader : ${browserLoaderExpression} }; }`;
-	}
+  if (!generatesHydrationBoundary(routeDefinition)) {
+    return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: import.meta.env.SSR ? routeModule.loader : ${browserLoaderExpression} }; }`
+  }
 
-	const componentId = hydrationComponentId(entry, routeDefinition.hydration);
-	return `async () => { if (import.meta.env.SSR) { const [routeModule, componentModule] = await Promise.all([import(${quote(entry)}), import(${quote(componentId)})]); return { Component: componentModule.default, loader: routeModule.loader }; } const componentModule = await import(${quote(componentId)}); return { Component: componentModule.default, loader: ${browserLoaderExpression} }; }`;
+  const componentId = hydrationComponentId(entry, routeDefinition.hydration)
+
+  return `async () => { if (import.meta.env.SSR) { const [routeModule, componentModule] = await Promise.all([import(${quote(entry)}), import(${quote(componentId)})]); return { Component: componentModule.default, loader: routeModule.loader }; } const componentModule = await import(${quote(componentId)}); return { Component: componentModule.default, loader: ${browserLoaderExpression} }; }`
 }
 
 function generateConfigs(
-	configs: readonly RouteConfig[],
-	routing: NormalizedRoutingOptions,
-	depth = 1,
+  configs: readonly RouteConfig[],
+  routing: NormalizedRoutingOptions,
+  depth = 1,
 ): string {
-	const indent = '\t'.repeat(depth);
-	const childIndent = '\t'.repeat(depth + 1);
-	return configs
-		.map((config) => {
-			if ('children' in config) {
-				return `${indent}{\n${childIndent}lazy: ${lazyLayout(config.entry)},\n${childIndent}children: [\n${generateConfigs(config.children, routing, depth + 2)}\n${childIndent}],\n${indent}}`;
-			}
-			return `${indent}{\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: ${lazyRoute(config, routing)},\n${childIndent}handle: { flamefront: ${JSON.stringify({ render: config.render, hydration: config.hydration })} },\n${indent}}`;
-		})
-		.join(',\n');
+  const indent = "\t".repeat(depth)
+  const childIndent = "\t".repeat(depth + 1)
+
+  return configs
+    .map((config) => {
+      if ("children" in config) {
+        return `${indent}{\n${childIndent}lazy: ${lazyLayout(config.entry)},\n${childIndent}children: [\n${generateConfigs(config.children, routing, depth + 2)}\n${childIndent}],\n${indent}}`
+      }
+
+      return `${indent}{\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: ${lazyRoute(config, routing)},\n${childIndent}handle: { flamefront: ${JSON.stringify({ render: config.render, hydration: config.hydration })} },\n${indent}}`
+    })
+    .join(",\n")
 }
 
 export function generateRemixRoutes(
-	app: Pick<AppDefinition, 'shell' | 'routeTree' | 'routing'>,
+  app: Pick<AppDefinition, "shell" | "routeTree" | "routing">,
 ): string {
-	return `// Generated by Flamefront.\nimport Shell from ${quote(app.shell)};\nimport { loadRouteData, loadStaticRouteData } from 'flamefront/remix-router/data';\n\nexport const routing = ${JSON.stringify(app.routing)};\n\nexport const routes = [\n\t{\n\t\tComponent: Shell,\n\t\tchildren: [\n${generateConfigs(app.routeTree, app.routing, 3)}\n\t\t],\n\t},\n];\n\n${generateRoutePreloaders(app.routeTree)}`;
+  return `// Generated by Flamefront.\nimport Shell from ${quote(app.shell)};\nimport { loadRouteData, loadStaticRouteData } from 'flamefront/remix-router/data';\n\nexport const routing = ${JSON.stringify(app.routing)};\n\nexport const routes = [\n\t{\n\t\tComponent: Shell,\n\t\tchildren: [\n${generateConfigs(app.routeTree, app.routing, 3)}\n\t\t],\n\t},\n];\n\n${generateRoutePreloaders(app.routeTree)}`
 }
 
 /** Generate the server-only route-module importer used by loader endpoints. */
-export function generateServerRoutes(app: Pick<AppDefinition, 'routes'>): string {
-	const entries = [...new Set(app.routes.map((route) => route.entry))];
-	const imports = entries
-		.map((entry) => `\t${quote(entry)}: () => import(${quote(entry)})`)
-		.join(',\n');
+export function generateServerRoutes(
+  app: Pick<AppDefinition, "routes">,
+): string {
+  const entries = [...new Set(app.routes.map((route) => route.entry))]
+  const imports = entries
+    .map((entry) => `\t${quote(entry)}: () => import(${quote(entry)})`)
+    .join(",\n")
 
-	return `// Generated by Flamefront.\nconst routeModules = {\n${imports}\n};\n\nexport async function importRoute(entry) {\n\tconst importModule = routeModules[entry];\n\tif (!importModule) throw new Error(\`No Vite route module was generated for \${entry}.\`);\n\treturn importModule();\n}\n`;
+  return `// Generated by Flamefront.\nconst routeModules = {\n${imports}\n};\n\nexport async function importRoute(entry) {\n\tconst importModule = routeModules[entry];\n\tif (!importModule) throw new Error(\`No Vite route module was generated for \${entry}.\`);\n\treturn importModule();\n}\n`
 }
 
-function hydrationStrategy(hydration: GeneratedHydration | 'none'): {
-	readonly importName: string;
-	readonly expression: string;
+function hydrationStrategy(hydration: GeneratedHydration | "none"): {
+  readonly importName: string
+  readonly expression: string
 } {
-	if (hydration === 'none') {
-		return { importName: 'never', expression: 'never()' };
-	}
+  if (hydration === "none") {
+    return { importName: "never", expression: "never()" }
+  }
 
-	const { when, ...options } = hydration;
-	switch (when) {
-		case 'idle':
-			return {
-				importName: 'idle',
-				expression: `idle(${JSON.stringify(options)})`,
-			};
-		case 'visible':
-			return {
-				importName: 'visible',
-				expression: `visible(${JSON.stringify(options)})`,
-			};
-		case 'interaction':
-			return {
-				importName: 'interaction',
-				expression: `interaction(${JSON.stringify(options)})`,
-			};
-		case 'media':
-			return {
-				importName: 'media',
-				expression: `media(${quote(hydration.query)})`,
-			};
-	}
+  const { when, ...options } = hydration
+
+  switch (when) {
+    case "idle":
+      return {
+        importName: "idle",
+        expression: `idle(${JSON.stringify(options)})`,
+      }
+    case "visible":
+      return {
+        importName: "visible",
+        expression: `visible(${JSON.stringify(options)})`,
+      }
+    case "interaction":
+      return {
+        importName: "interaction",
+        expression: `interaction(${JSON.stringify(options)})`,
+      }
+    case "media":
+      return {
+        importName: "media",
+        expression: `media(${quote(hydration.query)})`,
+      }
+  }
 }
 
 export function generateHydrationRoute(
-	entry: string,
-	hydration: GeneratedHydration | 'none',
+  entry: string,
+  hydration: GeneratedHydration | "none",
 ): string {
-	const strategy = hydrationStrategy(hydration);
-	return `import { Hydrate } from 'octane';\nimport { ${strategy.importName} } from 'octane/hydration';\nimport Component from ${quote(entry)};\n\nexport default function HydrationRoute(props) @{\n\t<Hydrate when={${strategy.expression}}>\n\t\t<Component {...props} />\n\t</Hydrate>\n}\n`;
+  const strategy = hydrationStrategy(hydration)
+
+  return `import { Hydrate } from 'octane';\nimport { ${strategy.importName} } from 'octane/hydration';\nimport Component from ${quote(entry)};\n\nexport default function HydrationRoute(props) @{\n\t<Hydrate when={${strategy.expression}}>\n\t\t<Component {...props} />\n\t</Hydrate>\n}\n`
 }
 
 interface TransformOptions {
-	readonly ssr?: boolean;
+  readonly ssr?: boolean
 }
 
 interface ResolveOptions extends TransformOptions {
-	readonly scan?: boolean;
-	custom?: Record<string, unknown>;
+  readonly scan?: boolean
+  custom?: Record<string, unknown>
 }
 
 interface PluginContext {
-	readonly environment?: { readonly config?: { readonly consumer?: string } };
-	resolve(
-		id: string,
-		importer: string | undefined,
-		options: ResolveOptions,
-	): Promise<{ readonly id: string } | null>;
+  readonly environment?: { readonly config?: { readonly consumer?: string } }
+  resolve(
+    id: string,
+    importer: string | undefined,
+    options: ResolveOptions,
+  ): Promise<{ readonly id: string } | null>
 }
 
 interface OutputAsset {
-	readonly type: 'asset';
-	readonly fileName: string;
-	source: string | Uint8Array;
+  readonly type: "asset"
+  readonly fileName: string
+  source: string | Uint8Array
 }
 
 interface OutputChunk {
-	readonly type: 'chunk';
-	map?: SourceMapLike | null;
+  readonly type: "chunk"
+  map?: SourceMapLike | null
 }
 
-type OutputBundle = Record<string, OutputAsset | OutputChunk>;
+type OutputBundle = Record<string, OutputAsset | OutputChunk>
 
 interface SourceMapLike {
-	sources?: string[];
-	sourcesContent?: (string | null)[];
+  sources?: string[]
+  sourcesContent?: (string | null)[]
 }
 
 function cleanModuleId(id: string): string {
-	return id.split('?', 1)[0].replaceAll('\\', '/');
+  return id.split("?", 1)[0].replaceAll("\\", "/")
 }
 
-function isServerEnvironment(context: PluginContext, options?: TransformOptions): boolean {
-	return options?.ssr === true || context.environment?.config?.consumer === 'server';
+function isServerEnvironment(
+  context: PluginContext,
+  options?: TransformOptions,
+): boolean {
+  return (
+    options?.ssr === true || context.environment?.config?.consumer === "server"
+  )
 }
 
 function resolveRouteEntry(root: string, entry: string): string {
-	const relativeEntry = entry.startsWith('/') ? `.${entry}` : entry;
-	return cleanModuleId(path.resolve(root, relativeEntry));
+  const relativeEntry = entry.startsWith("/") ? `.${entry}` : entry
+
+  return cleanModuleId(path.resolve(root, relativeEntry))
 }
 
 function routeSourceSuffix(entry: string): string {
-	return cleanModuleId(entry).replace(/^\.?(?:\/|$)/, '');
+  return cleanModuleId(entry).replace(/^\.?(?:\/|$)/, "")
 }
 
 export function omitRouteSourceContent(
-	bundle: OutputBundle,
-	routes: readonly Pick<RouteDefinition, 'entry'>[],
+  bundle: OutputBundle,
+  routes: readonly Pick<RouteDefinition, "entry">[],
 ): void {
-	const routeSuffixes = new Set(routes.map((route) => routeSourceSuffix(route.entry)));
-	const omitFromSourceMap = (sourceMap: SourceMapLike): boolean => {
-		if (!sourceMap.sources || !sourceMap.sourcesContent) return false;
+  const routeSuffixes = new Set(
+    routes.map((route) => routeSourceSuffix(route.entry)),
+  )
+  const omitFromSourceMap = (sourceMap: SourceMapLike): boolean => {
+    if (!sourceMap.sources || !sourceMap.sourcesContent) {
+      return false
+    }
 
-		let changed = false;
-		for (let index = 0; index < sourceMap.sources.length; index += 1) {
-			const source = cleanModuleId(sourceMap.sources[index]).replace(/^(?:\.\.\/)+/, '');
-			if (!routeSuffixes.has(source)) continue;
-			if (sourceMap.sourcesContent[index] === null) continue;
-			sourceMap.sourcesContent[index] = null;
-			changed = true;
-		}
-		return changed;
-	};
+    let changed = false
 
-	for (const output of Object.values(bundle)) {
-		if (output.type === 'chunk') {
-			if (output.map) omitFromSourceMap(output.map);
-			continue;
-		}
-		if (output.type !== 'asset' || !output.fileName.endsWith('.map')) continue;
+    for (let index = 0; index < sourceMap.sources.length; index += 1) {
+      const source = cleanModuleId(sourceMap.sources[index]).replace(
+        /^(?:\.\.\/)+/,
+        "",
+      )
 
-		const serializedSourceMap =
-			typeof output.source === 'string'
-				? output.source
-				: new TextDecoder().decode(output.source);
-		const sourceMap = JSON.parse(serializedSourceMap) as SourceMapLike;
-		if (omitFromSourceMap(sourceMap)) output.source = JSON.stringify(sourceMap);
-	}
+      if (!routeSuffixes.has(source)) {
+        continue
+      }
+
+      if (sourceMap.sourcesContent[index] === null) {
+        continue
+      }
+
+      sourceMap.sourcesContent[index] = null
+      changed = true
+    }
+
+    return changed
+  }
+
+  for (const output of Object.values(bundle)) {
+    if (output.type === "chunk") {
+      if (output.map) {
+        omitFromSourceMap(output.map)
+      }
+
+      continue
+    }
+
+    if (output.type !== "asset" || !output.fileName.endsWith(".map")) {
+      continue
+    }
+
+    const serializedSourceMap =
+      typeof output.source === "string"
+        ? output.source
+        : new TextDecoder().decode(output.source)
+    const sourceMap = JSON.parse(serializedSourceMap) as SourceMapLike
+
+    if (omitFromSourceMap(sourceMap)) {
+      output.source = JSON.stringify(sourceMap)
+    }
+  }
 }
 
 function omitRouteSourceContentFromDirectory(
-	directory: string,
-	routes: readonly Pick<RouteDefinition, 'entry'>[],
+  directory: string,
+  routes: readonly Pick<RouteDefinition, "entry">[],
 ): void {
-	for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-		const entryPath = path.join(directory, entry.name);
-		if (entry.isDirectory()) {
-			omitRouteSourceContentFromDirectory(entryPath, routes);
-			continue;
-		}
-		if (!entry.name.endsWith('.map')) continue;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name)
 
-		const serializedSourceMap = fs.readFileSync(entryPath, 'utf8');
-		const asset: OutputAsset = {
-			type: 'asset',
-			fileName: entry.name,
-			source: serializedSourceMap,
-		};
-		const bundle = { [entry.name]: asset };
-		omitRouteSourceContent(bundle, routes);
-		if (typeof asset.source === 'string' && asset.source !== serializedSourceMap) {
-			fs.writeFileSync(entryPath, asset.source);
-		}
-	}
+    if (entry.isDirectory()) {
+      omitRouteSourceContentFromDirectory(entryPath, routes)
+      continue
+    }
+
+    if (!entry.name.endsWith(".map")) {
+      continue
+    }
+
+    const serializedSourceMap = fs.readFileSync(entryPath, "utf8")
+    const asset: OutputAsset = {
+      type: "asset",
+      fileName: entry.name,
+      source: serializedSourceMap,
+    }
+    const bundle = { [entry.name]: asset }
+
+    omitRouteSourceContent(bundle, routes)
+    if (
+      typeof asset.source === "string" &&
+      asset.source !== serializedSourceMap
+    ) {
+      fs.writeFileSync(entryPath, asset.source)
+    }
+  }
 }
 
-export function removeServerRouteExports(source: string, id = 'route.js') {
-	const ast = parse(source, { sourceType: 'module' });
-	if (!removeExports(ast, SERVER_ONLY_ROUTE_EXPORTS)) return null;
+export function removeServerRouteExports(source: string, id = "route.js") {
+  const ast = parse(source, { sourceType: "module" })
 
-	return generate(ast, {
-		sourceMaps: true,
-		filename: id,
-		sourceFileName: cleanModuleId(id),
-	});
+  if (!removeExports(ast, SERVER_ONLY_ROUTE_EXPORTS)) {
+    return null
+  }
+
+  return generate(ast, {
+    sourceMaps: true,
+    filename: id,
+    sourceFileName: cleanModuleId(id),
+  })
 }
 
 export function flamefront(options: FlamefrontOptions = {}) {
-	let root = process.cwd();
-	let serverBuild = false;
-	let appPromise: Promise<AppDefinition> | undefined;
-	let manifestRevision = 0;
-	const manifestId = options.routes ?? '/src/app.ts';
-	const manifestPath = () =>
-		path.resolve(root, manifestId.startsWith('/') ? `.${manifestId}` : manifestId);
-	const loadApp = async () => {
-		const manifestUrl = new URL(pathToFileURL(manifestPath()));
-		manifestUrl.searchParams.set('flamefront', String(manifestRevision));
-		appPromise ??= import(manifestUrl.href).then((module) => {
-			const app = module.app ?? module.default;
-			if (!app?.routeTree || typeof app.shell !== 'string') {
-				throw new TypeError(
-					`Flamefront route manifest ${manifestId} must export an app with a shell.`,
-				);
-			}
-			return app as AppDefinition;
-		});
-		return appPromise;
-	};
-	const loadRoutes = async () => (await loadApp()).routes;
-	const loadRouteModuleIds = async () =>
-		new Set((await loadRoutes()).map((route) => resolveRouteEntry(root, route.entry)));
-	const configureRoot = (config: { readonly root: string }) => {
-		root = config.root;
-	};
+  let root = process.cwd()
+  let serverBuild = false
+  let appPromise: Promise<AppDefinition> | undefined
+  let manifestRevision = 0
+  const manifestId = options.routes ?? "/src/app.ts"
+  const manifestPath = () =>
+    path.resolve(
+      root,
+      manifestId.startsWith("/") ? `.${manifestId}` : manifestId,
+    )
+  const loadApp = async () => {
+    const manifestUrl = new URL(pathToFileURL(manifestPath()))
 
-	const frameworkModulesPlugin = {
-		name: 'flamefront:framework-modules',
-		enforce: 'pre' as const,
-		configResolved: configureRoot,
-		handleHotUpdate(context: { file: string; server: { moduleGraph: { getModuleById(id: string): unknown; invalidateModule(module: unknown): void } } }) {
-			if (context.file !== manifestPath()) return;
-			manifestRevision += 1;
-			appPromise = undefined;
-			for (const moduleId of [resolvedRemixRoutesId, resolvedServerRoutesId]) {
-				const generatedModule = context.server.moduleGraph.getModuleById(moduleId);
-				if (generatedModule) context.server.moduleGraph.invalidateModule(generatedModule);
-			}
-		},
-		async resolveId(
-			this: PluginContext,
-			id: string,
-			importer?: string,
-			resolveOptions: ResolveOptions = {},
-		) {
-			if (id === remixRoutesId) return resolvedRemixRoutesId;
-			if (id === serverRoutesId) return resolvedServerRoutesId;
-			if (
-				id === './hydration-route.tsrx?octane-hydrate=0' &&
-				importer?.startsWith(resolvedHydrationRoutePrefix)
-			) {
-				const parameters = new URLSearchParams(importer.slice(importer.indexOf('?') + 1));
-				parameters.set('octane-hydrate', '0');
-				return `${hydrationRouteId}?${parameters}`;
-			}
-			if (id.startsWith(resolvedHydrationRoutePrefix)) {
-				return id;
-			}
+    manifestUrl.searchParams.set("flamefront", String(manifestRevision))
+    appPromise ??= import(manifestUrl.href).then((module) => {
+      const app = module.app ?? module.default
 
-			if (
-				resolveOptions.scan ||
-				isServerEnvironment(this, resolveOptions) ||
-				resolveOptions.custom?.['flamefront:server-module']
-			) {
-				return null;
-			}
+      if (!app?.routeTree || typeof app.shell !== "string") {
+        throw new TypeError(
+          `Flamefront route manifest ${manifestId} must export an app with a shell.`,
+        )
+      }
 
-			const nestedOptions: ResolveOptions = {
-				...resolveOptions,
-				custom: { ...resolveOptions.custom, 'flamefront:server-module': true },
-			};
-			const resolved = await this.resolve(id, importer, nestedOptions);
-			if (!resolved) return null;
+      return app as AppDefinition
+    })
+    return appPromise
+  }
 
-			const resolvedId = cleanModuleId(resolved.id);
-			if (!serverFilePattern.test(resolvedId) && !serverDirectoryPattern.test(resolvedId)) {
-				return null;
-			}
-			if (!importer || importer.endsWith('.html')) return null;
+  const loadRoutes = async () => (await loadApp()).routes
+  const loadRouteModuleIds = async () =>
+    new Set(
+      (await loadRoutes()).map((route) => resolveRouteEntry(root, route.entry)),
+    )
+  const configureRoot = (config: { readonly root: string }) => {
+    root = config.root
+  }
 
-			const importerId = cleanModuleId(importer);
-			const importerLabel = path.relative(root, importerId) || importerId;
-			const routeHint = (await loadRouteModuleIds()).has(importerId)
-				? ' Flamefront removes server imports used exclusively by `loader`, but this import is still referenced by client code.'
-				: '';
-			throw new Error(
-				`Server-only module ${JSON.stringify(id)} was referenced by client module ${JSON.stringify(importerLabel)}.${routeHint}`,
-			);
-		},
-		async load(id: string) {
-			if (id === resolvedRemixRoutesId) return generateRemixRoutes(await loadApp());
-			if (id === resolvedServerRoutesId) return generateServerRoutes(await loadApp());
-			if (id.startsWith(resolvedHydrationRoutePrefix)) {
-				const parameters = new URLSearchParams(id.slice(id.indexOf('?') + 1));
-				const entry = parameters.get('entry');
-				const serializedHydration = parameters.get('hydration');
-				if (!entry || !serializedHydration) {
-					throw new TypeError('Flamefront hydration route is missing its configuration.');
-				}
-				return generateHydrationRoute(
-					entry,
-					JSON.parse(serializedHydration) as GeneratedHydration | 'none',
-				);
-			}
-			return null;
-		},
-	};
+  const frameworkModulesPlugin = {
+    name: "flamefront:framework-modules",
+    enforce: "pre" as const,
+    configResolved: configureRoot,
+    handleHotUpdate(context: {
+      file: string
+      server: {
+        moduleGraph: {
+          getModuleById(id: string): unknown
+          invalidateModule(module: unknown): void
+        }
+      }
+    }) {
+      if (context.file !== manifestPath()) {
+        return
+      }
 
-	const routeModulePlugin = {
-		name: 'flamefront:route-modules',
-		enforce: 'post' as const,
-		configResolved(config: {
-			readonly root: string;
-			readonly build?: { readonly ssr?: unknown };
-		}) {
-			configureRoot(config);
-			serverBuild = Boolean(config.build?.ssr);
-		},
-		async generateBundle(_outputOptions: unknown, bundle: OutputBundle) {
-			if (!serverBuild) omitRouteSourceContent(bundle, await loadRoutes());
-		},
-		async writeBundle(outputOptions: { readonly dir?: string }) {
-			// Rollup serializes chunk maps after generateBundle, and other plugins can
-			// emit late client chunks. Scrub the completed output as the final guard.
-			if (!serverBuild && outputOptions.dir) {
-				omitRouteSourceContentFromDirectory(outputOptions.dir, await loadRoutes());
-			}
-		},
-		async transform(
-			this: PluginContext,
-			source: string,
-			id: string,
-			transformOptions?: TransformOptions,
-		) {
-			if (isServerEnvironment(this, transformOptions)) return null;
-			if (!(await loadRouteModuleIds()).has(cleanModuleId(id))) return null;
+      manifestRevision += 1
+      appPromise = undefined
+      for (const moduleId of [resolvedRemixRoutesId, resolvedServerRoutesId]) {
+        const generatedModule =
+          context.server.moduleGraph.getModuleById(moduleId)
 
-			const transformed = removeServerRouteExports(source, id);
-			if (!transformed) return null;
-			return { code: transformed.code, map: transformed.map };
-		},
-	};
+        if (generatedModule) {
+          context.server.moduleGraph.invalidateModule(generatedModule)
+        }
+      }
+    },
+    async resolveId(
+      this: PluginContext,
+      id: string,
+      importer?: string,
+      resolveOptions: ResolveOptions = {},
+    ) {
+      if (id === remixRoutesId) {
+        return resolvedRemixRoutesId
+      }
 
-	return [frameworkModulesPlugin, routeModulePlugin] as const;
+      if (id === serverRoutesId) {
+        return resolvedServerRoutesId
+      }
+
+      if (
+        id === "./hydration-route.tsrx?octane-hydrate=0" &&
+        importer?.startsWith(resolvedHydrationRoutePrefix)
+      ) {
+        const parameters = new URLSearchParams(
+          importer.slice(importer.indexOf("?") + 1),
+        )
+
+        parameters.set("octane-hydrate", "0")
+        return `${hydrationRouteId}?${parameters}`
+      }
+
+      if (id.startsWith(resolvedHydrationRoutePrefix)) {
+        return id
+      }
+
+      if (
+        resolveOptions.scan ||
+        isServerEnvironment(this, resolveOptions) ||
+        resolveOptions.custom?.["flamefront:server-module"]
+      ) {
+        return null
+      }
+
+      const nestedOptions: ResolveOptions = {
+        ...resolveOptions,
+        custom: { ...resolveOptions.custom, "flamefront:server-module": true },
+      }
+      const resolved = await this.resolve(id, importer, nestedOptions)
+
+      if (!resolved) {
+        return null
+      }
+
+      const resolvedId = cleanModuleId(resolved.id)
+
+      if (
+        !serverFilePattern.test(resolvedId) &&
+        !serverDirectoryPattern.test(resolvedId)
+      ) {
+        return null
+      }
+
+      if (!importer || importer.endsWith(".html")) {
+        return null
+      }
+
+      const importerId = cleanModuleId(importer)
+      const importerLabel = path.relative(root, importerId) || importerId
+      const routeHint = (await loadRouteModuleIds()).has(importerId)
+        ? " Flamefront removes server imports used exclusively by `loader`, but this import is still referenced by client code."
+        : ""
+
+      throw new Error(
+        `Server-only module ${JSON.stringify(id)} was referenced by client module ${JSON.stringify(importerLabel)}.${routeHint}`,
+      )
+    },
+    async load(id: string) {
+      if (id === resolvedRemixRoutesId) {
+        return generateRemixRoutes(await loadApp())
+      }
+
+      if (id === resolvedServerRoutesId) {
+        return generateServerRoutes(await loadApp())
+      }
+
+      if (id.startsWith(resolvedHydrationRoutePrefix)) {
+        const parameters = new URLSearchParams(id.slice(id.indexOf("?") + 1))
+        const entry = parameters.get("entry")
+        const serializedHydration = parameters.get("hydration")
+
+        if (!entry || !serializedHydration) {
+          throw new TypeError(
+            "Flamefront hydration route is missing its configuration.",
+          )
+        }
+
+        return generateHydrationRoute(
+          entry,
+          JSON.parse(serializedHydration) as GeneratedHydration | "none",
+        )
+      }
+
+      return null
+    },
+  }
+
+  const routeModulePlugin = {
+    name: "flamefront:route-modules",
+    enforce: "post" as const,
+    configResolved(config: {
+      readonly root: string
+      readonly build?: { readonly ssr?: unknown }
+    }) {
+      configureRoot(config)
+      serverBuild = Boolean(config.build?.ssr)
+    },
+    async generateBundle(_outputOptions: unknown, bundle: OutputBundle) {
+      if (!serverBuild) {
+        omitRouteSourceContent(bundle, await loadRoutes())
+      }
+    },
+    async writeBundle(outputOptions: { readonly dir?: string }) {
+      // Rollup serializes chunk maps after generateBundle, and other plugins can
+      // emit late client chunks. Scrub the completed output as the final guard.
+      if (!serverBuild && outputOptions.dir) {
+        omitRouteSourceContentFromDirectory(
+          outputOptions.dir,
+          await loadRoutes(),
+        )
+      }
+    },
+    async transform(
+      this: PluginContext,
+      source: string,
+      id: string,
+      transformOptions?: TransformOptions,
+    ) {
+      if (isServerEnvironment(this, transformOptions)) {
+        return null
+      }
+
+      if (!(await loadRouteModuleIds()).has(cleanModuleId(id))) {
+        return null
+      }
+
+      const transformed = removeServerRouteExports(source, id)
+
+      if (!transformed) {
+        return null
+      }
+
+      return { code: transformed.code, map: transformed.map }
+    },
+  }
+
+  return [frameworkModulesPlugin, routeModulePlugin] as const
 }

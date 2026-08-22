@@ -8,16 +8,16 @@ step or duplicate declaration surface.
 The app owns one explicit, centralized route manifest:
 
 ```ts
-import { defineApp, layout, route } from 'flamefront';
+import { defineApp, layout, route } from "flamefront"
 
 export const app = defineApp({
-	shell: '/src/AppShell.tsrx',
-	routes: [
-		layout('/src/ArticleShell.tsrx', [
-			route('/articles/:slug', '/src/Article.tsrx', { render: 'server' }),
-		]),
-	],
-});
+  shell: "/src/AppShell.tsrx",
+  routes: [
+    layout("/src/ArticleShell.tsrx", [
+      route("/articles/:slug", "/src/Article.tsrx", { render: "server" }),
+    ]),
+  ],
+})
 ```
 
 `layout(module, children)` creates a pathless layout group. `app.routeTree`
@@ -57,22 +57,22 @@ generated server route importer, then connects the route runtime, Octane
 document service, and srvx transport:
 
 ```ts
-import { importRoute } from 'virtual:flamefront/server-routes';
-import { createOctaneDocuments } from 'flamefront/octane';
-import { createRouteRuntime } from 'flamefront/server';
-import { createSrvxServerEntry } from 'flamefront/srvx';
-import { app } from './app.ts';
+import { importRoute } from "virtual:flamefront/server-routes"
+import { createOctaneDocuments } from "flamefront/octane"
+import { createRouteRuntime } from "flamefront/server"
+import { createSrvxServerEntry } from "flamefront/srvx"
+import { app } from "./app.ts"
 
-const runtime = createRouteRuntime({ app, importRoute });
-const documents = createOctaneDocuments({ app, runtime });
+const runtime = createRouteRuntime({ app, importRoute })
+const documents = createOctaneDocuments({ app, runtime })
 
 export default createSrvxServerEntry({
-	app,
-	documents,
-	assets: {
-		clientDirectory: new URL('../client/', import.meta.url),
-	},
-});
+  app,
+  documents,
+  assets: {
+    clientDirectory: new URL("../client/", import.meta.url),
+  },
+})
 ```
 
 The Vite plugin generates `virtual:flamefront/server-routes`; supplying its
@@ -115,16 +115,16 @@ routes, the server router, the data endpoint, and srvx use the same normalized
 values:
 
 ```ts
-import { defineApp, route } from 'flamefront';
+import { defineApp, route } from "flamefront"
 
 export const app = defineApp({
-	shell: '/src/AppShell.tsrx',
-	routing: {
-		basename: '/docs',
-		dataPath: '/docs/__flamefront/data',
-	},
-	routes: [route('/', '/src/HomePage.tsrx', { render: 'server' })],
-});
+  shell: "/src/AppShell.tsrx",
+  routing: {
+    basename: "/docs",
+    dataPath: "/docs/__flamefront/data",
+  },
+  routes: [route("/", "/src/HomePage.tsrx", { render: "server" })],
+})
 ```
 
 Hydration and data protocols remain framework-owned. The document composer may
@@ -140,14 +140,14 @@ A manifest entry is a route module. It may export a server loader alongside
 its default component:
 
 ```ts
-import type { LoaderArgs } from 'flamefront/server';
+import type { LoaderArgs } from "flamefront/server"
 
 export async function loader({ request, params }: LoaderArgs) {
-	return { pathname: new URL(request.url).pathname, id: params.id };
+  return { pathname: new URL(request.url).pathname, id: params.id }
 }
 
 export default function Route({ loaderData }) {
-	// Render with data resolved before the component renders.
+  // Render with data resolved before the component renders.
 }
 ```
 
@@ -162,9 +162,9 @@ For link-intent prefetching, `prefetchRoute()` combines that data request with
 the generated client module imports for the route and its pathless layouts:
 
 ```ts
-import { prefetchRoute } from 'flamefront/remix-router';
+import { prefetchRoute } from "flamefront/remix-router"
 
-void prefetchRoute(app, '/products/one');
+void prefetchRoute(app, "/products/one")
 ```
 
 This preloads client navigation data and JavaScript. It does not request
@@ -177,12 +177,12 @@ compiles TSRX first, then Flamefront removes loaders and their private
 dependency graph from client modules while retaining them in server modules:
 
 ```ts
-import { octane } from '@octanejs/vite-plugin';
-import { flamefront } from 'flamefront/vite';
+import { octane } from "@octanejs/vite-plugin"
+import { flamefront } from "flamefront/vite"
 
 export default {
-	plugins: [flamefront(), octane()],
-};
+  plugins: [flamefront(), octane()],
+}
 ```
 
 Files and directories named `.server` are rejected if they remain reachable
@@ -207,14 +207,14 @@ same graph:
 
 ```ts
 import {
-	createClientRouter,
-	createServerRouter,
-	routes,
-} from 'flamefront/remix-router';
+  createClientRouter,
+  createServerRouter,
+  routes,
+} from "flamefront/remix-router"
 
-const browserRouter = createClientRouter({ hydrationData });
-const serverResult = await createServerRouter(request);
-if (serverResult instanceof Response) return serverResult;
+const browserRouter = createClientRouter({ hydrationData })
+const serverResult = await createServerRouter(request)
+if (serverResult instanceof Response) return serverResult
 ```
 
 The server result contains `router`, `context`, and serializable
@@ -230,10 +230,10 @@ signals and HTTP error handling.
 Server routes can choose who owns hydration:
 
 ```ts
-route('/reviews/:productId', '/src/Reviews.tsrx', {
-	render: 'server',
-	hydration: { when: 'visible', rootMargin: '200px' },
-});
+route("/reviews/:productId", "/src/Reviews.tsrx", {
+  render: "server",
+  hydration: { when: "visible", rootMargin: "200px" },
+})
 ```
 
 - `full` (or an omitted value) hydrates with the shared shell.
