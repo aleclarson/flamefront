@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**"],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "jsPlugins": ["@stylistic/eslint-plugin"],
+  "plugins": ["react"],
+  "rules": {
+    "@stylistic/newline-per-chained-call": ["error", { "ignoreChainWithDepth": 5 }],
+    "@stylistic/object-property-newline": ["error", { "allowAllPropertiesOnSameLine": true }],
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      { "blankLine": "always", "prev": "import", "next": "*" },
+      { "blankLine": "any", "prev": "import", "next": "import" },
+      { "blankLine": "always", "prev": ["const", "let", "var"], "next": "*" },
+      { "blankLine": "any", "prev": ["const", "let", "var"], "next": ["const", "let", "var"] },
+      { "blankLine": "always", "prev": "block-like", "next": "*" },
+      { "blankLine": "always", "prev": ["function", "class"], "next": "*" },
+      { "blankLine": "always", "prev": "*", "next": ["function", "class"] }
+    ],
+    "curly": "error",
+    "react/react-compiler": "error"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "plugins": ["@tsrx/prettier-plugin"],
+  "semi": false,
+  "singleQuote": false
+}
