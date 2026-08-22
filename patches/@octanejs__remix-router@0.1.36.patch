@@ -1,0 +1,559 @@
+diff --git a/src/index.ts b/src/index.ts
+index 0816b3504e1c3583c31065d04316f65de595ebd0..eacfb1187b37695fb819a6ffcf610bf1f584e8ca 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -59,6 +59,8 @@ export type {
+ 	Router as DataRouter,
+ 	RouterState,
+ 	RouterInit,
++	RouterPrefetchFunction,
++	RouterPrefetchOptions,
+ 	RouterSubscriber,
+ 	RouterNavigateOptions,
+ 	RouterFetchOptions,
+@@ -121,7 +123,7 @@ export {
+ 	createRoutesFromChildren,
+ 	createRoutesFromElements,
+ } from './lib/components/routes-collector';
+-export type { NavigateFunction } from './lib/hooks';
++export type { NavigateFunction, PrefetchFunction } from './lib/hooks';
+ export {
+ 	useActionData,
+ 	useAsyncError,
+@@ -134,6 +136,7 @@ export {
+ 	useMatch,
+ 	useMatches,
+ 	useNavigate,
++	usePrefetch,
+ 	useNavigation,
+ 	useNavigationType,
+ 	useOutlet,
+diff --git a/src/lib/components/utils.ts b/src/lib/components/utils.ts
+index 44d1e79131595f4364ec48155efdd98320bbb373..43a1d1fd0fa247564b13e3d233d29fbf68416383 100644
+--- a/src/lib/components/utils.ts
++++ b/src/lib/components/utils.ts
+@@ -5,7 +5,11 @@
+ // the server runtime is out of scope).
+ import type { InitialEntry } from '../router/history';
+ import { createMemoryHistory } from '../router/history';
+-import type { Router as DataRouter, RouterState } from '../router/router';
++import type {
++	Router as DataRouter,
++	RouterPrefetchFunction,
++	RouterState,
++} from '../router/router';
+ import { createRouter } from '../router/router';
+ import type { RouteMatch, RouteObject } from '../router/utils';
+ import { defaultMapRouteProperties } from '../router/utils';
+@@ -42,6 +46,7 @@ export interface MemoryRouterOpts {
+ 	dataStrategy?: any;
+ 	patchRoutesOnNavigation?: any;
+ 	instrumentations?: any;
++	prefetch?: RouterPrefetchFunction;
+ }
+ 
+ export function createMemoryRouter(routes: RouteObject[], opts?: MemoryRouterOpts): DataRouter {
+@@ -59,6 +64,7 @@ export function createMemoryRouter(routes: RouteObject[], opts?: MemoryRouterOpt
+ 		mapRouteProperties: defaultMapRouteProperties,
+ 		dataStrategy: opts?.dataStrategy,
+ 		patchRoutesOnNavigation: opts?.patchRoutesOnNavigation,
++		prefetch: opts?.prefetch,
+ 		instrumentations: opts?.instrumentations,
+ 	}).initialize();
+ }
+diff --git a/src/lib/dom/Link.tsrx b/src/lib/dom/Link.tsrx
+index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e002077e577af 100644
+--- a/src/lib/dom/Link.tsrx
++++ b/src/lib/dom/Link.tsrx
+@@ -1,8 +1,5 @@
+ // Link — transcribed from react-router@8.2.0 lib/dom/lib.tsx onto octane.
+ // forwardRef → ref-as-prop (octane refs are props; documented divergence).
+-// Framework-mode prefetching (usePrefetchBehavior / PrefetchPageLinks) is
+-// inert outside a FrameworkContext upstream and is dropped here — the
+-// `prefetch` prop is accepted and ignored (framework mode is out of scope).
+ import { useContext } from 'octane';
+ import type { OctaneNode } from 'octane';
+ import { NavigationContext } from '../context.ts';
+@@ -11,12 +8,16 @@ import type { RelativeRoutingType } from '../router/router.ts';
+ import { ABSOLUTE_URL_REGEX } from '../router/url.ts';
+ import { parseToInfo, resolveTo, joinPaths } from '../router/utils.ts';
+ import { useHref, useLocation } from '../hooks.ts';
+-import { useLinkClickHandler } from './hooks.ts';
++import { useLinkClickHandler, usePrefetchBehavior } from './hooks.ts';
+ 
+ type LinkProps = {
+ 	to: To;
+ 	children?: OctaneNode;
+ 	onClick?: (event: MouseEvent) => void;
++	onFocus?: (event: FocusEvent) => void;
++	onMouseEnter?: (event: MouseEvent) => void;
++	onPointerEnter?: (event: PointerEvent) => void;
++	onTouchStart?: (event: TouchEvent) => void;
+ 	discover?: 'render' | 'none';
+ 	prefetch?: 'none' | 'intent' | 'render' | 'viewport';
+ 	relative?: RelativeRoutingType;
+@@ -28,6 +29,7 @@ type LinkProps = {
+ 	preventScrollReset?: boolean;
+ 	viewTransition?: boolean;
+ 	defaultShouldRevalidate?: boolean;
++	download?: string | boolean;
+ 	// `| null` (and the `ref = null` default below) because octane composes a
+ 	// forwarded ref with any `ref` inside the host spread as `ref={[a, b]}`, and
+ 	// an array member must be a ref — `undefined` is not one. `attachRef` treats
+@@ -39,6 +41,10 @@ type LinkProps = {
+ export function Link(props: LinkProps) @{
+ 	const {
+ 		onClick,
++		onFocus,
++		onMouseEnter,
++		onPointerEnter,
++		onTouchStart,
+ 		discover = 'render',
+ 		prefetch = 'none',
+ 		relative,
+@@ -51,6 +57,7 @@ export function Link(props: LinkProps) @{
+ 		preventScrollReset,
+ 		viewTransition,
+ 		defaultShouldRevalidate,
++		download,
+ 		ref = null,
+ 		children,
+ 		...rest
+@@ -97,6 +104,17 @@ export function Link(props: LinkProps) @{
+ 		defaultShouldRevalidate,
+ 		useTransitions,
+ 	});
++	const isSpaLink = !(parsed.isExternal || reloadDocument);
++	const prefetchBehavior = usePrefetchBehavior(to, {
++		mode: prefetch,
++		enabled: isSpaLink && (!target || target === '_self') && download == null,
++		relative,
++		ref,
++		onFocus,
++		onMouseEnter,
++		onPointerEnter,
++		onTouchStart,
++	});
+ 	function handleClick(event: MouseEvent) {
+ 		if (onClick) onClick(event);
+ 		if (!event.defaultPrevented) {
+@@ -105,14 +123,17 @@ export function Link(props: LinkProps) @{
+ 		}
+ 	}
+ 
+-	const isSpaLink = !(parsed.isExternal || reloadDocument);
+-
+ 	<a
+ 		{...rest}
+ 		href={(isSpaLink ? maskedHref : undefined) || parsed.absoluteURL || href}
+ 		onClick={isSpaLink ? handleClick : onClick}
+-		ref={ref}
++		onFocus={prefetchBehavior.onFocus}
++		onMouseEnter={prefetchBehavior.onMouseEnter}
++		onPointerEnter={prefetchBehavior.onPointerEnter}
++		onTouchStart={prefetchBehavior.onTouchStart}
++		ref={prefetchBehavior.ref}
+ 		target={target}
++		download={download}
+ 		data-discover={!isAbsolute && discover === 'render' ? 'true' : undefined}
+ 	>{children}</a>
+ }
+diff --git a/src/lib/dom/NavLink.tsrx b/src/lib/dom/NavLink.tsrx
+index e431ce310329a363b8a1b2290c4ca431b9e3c10b..838c2130daa309b62a669ae3d05dd99652d52f84 100644
+--- a/src/lib/dom/NavLink.tsrx
++++ b/src/lib/dom/NavLink.tsrx
+@@ -29,6 +29,10 @@ type NavLinkProps = {
+ 	end?: boolean;
+ 	style?: object | ((props: NavLinkRenderProps) => object | undefined);
+ 	onClick?: (event: MouseEvent) => void;
++	onFocus?: (event: FocusEvent) => void;
++	onMouseEnter?: (event: MouseEvent) => void;
++	onPointerEnter?: (event: PointerEvent) => void;
++	onTouchStart?: (event: TouchEvent) => void;
+ 	discover?: 'render' | 'none';
+ 	prefetch?: 'none' | 'intent' | 'render' | 'viewport';
+ 	relative?: RelativeRoutingType;
+diff --git a/src/lib/dom/hooks.ts b/src/lib/dom/hooks.ts
+index abbca9b12ea43962b26221c760663e249aa383a5..23b3956885e37e34999b30ba5adc7f4ce8312081 100644
+--- a/src/lib/dom/hooks.ts
++++ b/src/lib/dom/hooks.ts
+@@ -2,14 +2,173 @@
+ // octane. This PR ships useLinkClickHandler (Link's engine); the remaining DOM
+ // hooks (useSearchParams, useSubmit, useFetcher, …) land in later phases per
+ // docs/remix-router-port-plan.md.
+-import { startTransition, useCallback } from 'octane';
++import { startTransition, useCallback, useContext, useEffect, useRef } from 'octane';
+ import type { To } from '../router/history';
+ import { createPath } from '../router/history';
+ import type { RelativeRoutingType } from '../router/router';
++import { DataRouterContext } from '../context';
+ import { shouldProcessLinkClick } from './dom';
+-import { useLocation, useNavigate, useResolvedPath } from '../hooks';
++import { useLocation, useNavigate, usePrefetch, useResolvedPath } from '../hooks';
+ import { splitSlot, subSlot } from '../../internal';
+ 
++type LinkRef =
++	| { current: HTMLAnchorElement | null }
++	| ((node: HTMLAnchorElement | null) => void)
++	| null
++	| undefined;
++
++type PrefetchMode = 'none' | 'intent' | 'render' | 'viewport';
++
++type PrefetchBehaviorOptions = {
++	mode?: PrefetchMode;
++	enabled?: boolean;
++	relative?: RelativeRoutingType;
++	ref?: LinkRef;
++	onFocus?: (event: FocusEvent) => void;
++	onMouseEnter?: (event: MouseEvent) => void;
++	onPointerEnter?: (event: PointerEvent) => void;
++	onTouchStart?: (event: TouchEvent) => void;
++};
++
++function setRef(ref: LinkRef, node: HTMLAnchorElement | null): void {
++	if (typeof ref === 'function') {
++		ref(node);
++	} else if (ref) {
++		ref.current = node;
++	}
++}
++
++/** Connects a Link's prefetch mode to the data router without owning navigation. */
++export function usePrefetchBehavior(
++	to: To,
++	...rest: unknown[]
++): {
++	ref: LinkRef;
++	onFocus?: (event: FocusEvent) => void;
++	onMouseEnter?: (event: MouseEvent) => void;
++	onPointerEnter?: (event: PointerEvent) => void;
++	onTouchStart?: (event: TouchEvent) => void;
++} {
++	const [user, slot] = splitSlot(rest as any[]);
++	const options = (user[0] ?? {}) as PrefetchBehaviorOptions;
++	const {
++		mode = 'none',
++		enabled = true,
++		relative,
++		ref = null,
++		onFocus: userOnFocus,
++		onMouseEnter: userOnMouseEnter,
++		onPointerEnter: userOnPointerEnter,
++		onTouchStart: userOnTouchStart,
++	} = options;
++	const router = useContext(DataRouterContext)?.router;
++	const prefetch = usePrefetch(subSlot(slot, 'upb:prefetch'));
++	const shouldPrefetch = enabled && router != null && mode !== 'none';
++	const runPrefetch = useCallback(
++		() => (shouldPrefetch ? prefetch(to, { relative }) : Promise.resolve()),
++		[shouldPrefetch, prefetch, to, relative],
++		subSlot(slot, 'upb:run'),
++	);
++
++	useEffect(
++		() => {
++			if (shouldPrefetch && mode === 'render') {
++				void runPrefetch();
++			}
++		},
++		[mode, runPrefetch, shouldPrefetch],
++		subSlot(slot, 'upb:render'),
++	);
++
++	const intentOnFocus = useCallback(
++		(event: FocusEvent) => {
++			userOnFocus?.(event);
++			void runPrefetch();
++		},
++		[userOnFocus, runPrefetch],
++		subSlot(slot, 'upb:focus'),
++	);
++	const intentOnMouseEnter = useCallback(
++		(event: MouseEvent) => {
++			userOnMouseEnter?.(event);
++			void runPrefetch();
++		},
++		[userOnMouseEnter, runPrefetch],
++		subSlot(slot, 'upb:mouse'),
++	);
++	const intentOnPointerEnter = useCallback(
++		(event: PointerEvent) => {
++			userOnPointerEnter?.(event);
++			void runPrefetch();
++		},
++		[userOnPointerEnter, runPrefetch],
++		subSlot(slot, 'upb:pointer'),
++	);
++	const intentOnTouchStart = useCallback(
++		(event: TouchEvent) => {
++			userOnTouchStart?.(event);
++			void runPrefetch();
++		},
++		[userOnTouchStart, runPrefetch],
++		subSlot(slot, 'upb:touch'),
++	);
++
++	const observerRef = useRef<IntersectionObserver | null>(
++		null,
++		subSlot(slot, 'upb:observer'),
++	);
++	const viewportRef = useCallback(
++		(node: HTMLAnchorElement | null) => {
++			observerRef.current?.disconnect();
++			observerRef.current = null;
++			setRef(ref, node);
++
++			if (
++				!node ||
++				!shouldPrefetch ||
++				mode !== 'viewport' ||
++				typeof IntersectionObserver === 'undefined'
++			) {
++				return;
++			}
++
++			const observer = new IntersectionObserver((entries) => {
++				if (!entries.some((entry) => entry.isIntersecting)) {
++					return;
++				}
++
++				void runPrefetch();
++				observer.disconnect();
++				if (observerRef.current === observer) {
++					observerRef.current = null;
++				}
++			});
++			observerRef.current = observer;
++			observer.observe(node);
++		},
++		[mode, observerRef, ref, runPrefetch, shouldPrefetch],
++		subSlot(slot, 'upb:viewport'),
++	);
++
++	return {
++		ref: mode === 'viewport' ? viewportRef : ref,
++		onFocus:
++			mode === 'intent' && shouldPrefetch ? intentOnFocus : userOnFocus,
++		onMouseEnter:
++			mode === 'intent' && shouldPrefetch
++				? intentOnMouseEnter
++				: userOnMouseEnter,
++		onPointerEnter:
++			mode === 'intent' && shouldPrefetch
++				? intentOnPointerEnter
++				: userOnPointerEnter,
++		onTouchStart:
++			mode === 'intent' && shouldPrefetch
++				? intentOnTouchStart
++				: userOnTouchStart,
++	};
++}
++
+ /**
+  * Handles the click behavior for router `<Link>` components. This is useful if
+  * you need to create custom `<Link>` components with the same click behavior we
+diff --git a/src/lib/dom/lib.ts b/src/lib/dom/lib.ts
+index a0c66fc6f3fb6c12362072e56f75a63e72181a48..2209b119056111518b09ecb2faa0be66b6ca4dc6 100644
+--- a/src/lib/dom/lib.ts
++++ b/src/lib/dom/lib.ts
+@@ -31,7 +31,11 @@ import {
+ 	invariant,
+ 	warning,
+ } from '../router/history';
+-import type { HydrationState, Router as DataRouter } from '../router/router';
++import type {
++	HydrationState,
++	Router as DataRouter,
++	RouterPrefetchFunction,
++} from '../router/router';
+ import { IDLE_FETCHER, createRouter } from '../router/router';
+ import type { RelativeRoutingType } from '../router/router';
+ import type { RouteObject } from '../router/utils';
+@@ -67,6 +71,7 @@ export interface DOMRouterOpts {
+ 	dataStrategy?: any;
+ 	patchRoutesOnNavigation?: any;
+ 	instrumentations?: any;
++	prefetch?: RouterPrefetchFunction;
+ 	window?: Window;
+ }
+ 
+@@ -86,6 +91,7 @@ export function createBrowserRouter(routes: RouteObject[], opts?: DOMRouterOpts)
+ 		hydrationRouteProperties,
+ 		dataStrategy: opts?.dataStrategy,
+ 		patchRoutesOnNavigation: opts?.patchRoutesOnNavigation,
++		prefetch: opts?.prefetch,
+ 		window: opts?.window,
+ 		instrumentations: opts?.instrumentations,
+ 	}).initialize();
+@@ -107,6 +113,7 @@ export function createHashRouter(routes: RouteObject[], opts?: DOMRouterOpts): D
+ 		hydrationRouteProperties,
+ 		dataStrategy: opts?.dataStrategy,
+ 		patchRoutesOnNavigation: opts?.patchRoutesOnNavigation,
++		prefetch: opts?.prefetch,
+ 		window: opts?.window,
+ 		instrumentations: opts?.instrumentations,
+ 	}).initialize();
+diff --git a/src/lib/dom/server.tsrx b/src/lib/dom/server.tsrx
+index b8dba9ed1f6524b01b75d40bf722375ed4dc90b7..e53fd0d92daec84d7b795cb007c6608e116b0fc1 100644
+--- a/src/lib/dom/server.tsrx
++++ b/src/lib/dom/server.tsrx
+@@ -273,6 +273,9 @@ export function createStaticRouter(
+ 		navigate() {
+ 			throw msg('navigate');
+ 		},
++		prefetch() {
++			throw msg('prefetch');
++		},
+ 		fetch() {
+ 			throw msg('fetch');
+ 		},
+diff --git a/src/lib/hooks.ts b/src/lib/hooks.ts
+index 672b850e87cb7dcd9aa2954acaf21fafcd196a96..9ea2dd780fc9bfcfc4c1a58295edbfbacc1e9708 100644
+--- a/src/lib/hooks.ts
++++ b/src/lib/hooks.ts
+@@ -36,6 +36,7 @@ import type {
+ 	RelativeRoutingType,
+ 	Router as DataRouter,
+ 	NavigationStates,
++	RouterPrefetchOptions,
+ } from './router/router';
+ import { IDLE_BLOCKER } from './router/router';
+ // OCTANE: dropped — upstream also imports hasInvalidProtocol here; it serves
+@@ -220,6 +221,11 @@ export interface NavigateFunction {
+ 	(delta: number): void | Promise<void>;
+ }
+ 
++export type PrefetchFunction = (
++	to: To,
++	options?: RouterPrefetchOptions,
++) => Promise<void>;
++
+ const navigateEffectWarning =
+ 	`You should call navigate() in a useEffect(), not when ` + `your component is first rendered.`;
+ 
+@@ -378,6 +384,30 @@ export function useNavigate(...args: any[]): NavigateFunction {
+ 		: useNavigateUnstable(subSlot(slot, 'nav:unstable'));
+ }
+ 
++/** Returns a function that warms resources without starting navigation. */
++export function usePrefetch(...args: any[]): PrefetchFunction {
++	const [, slot] = splitSlot(args);
++	const dataRouterContext = useContext(DataRouterContext);
++	const routeContext = useContext(RouteContext);
++	const router = dataRouterContext?.router;
++	const routeId = routeContext.matches[routeContext.matches.length - 1]?.route.id;
++
++	return useCallback(
++		(to: To, options?: RouterPrefetchOptions) => {
++			if (!router) {
++				return Promise.resolve();
++			}
++
++			return router.prefetch(to, {
++				...options,
++				fromRouteId: routeId,
++			});
++		},
++		[router, routeId],
++		subSlot(slot, 'prefetch:cb'),
++	);
++}
++
+ function useNavigateUnstable(slot?: symbol): NavigateFunction {
+ 	invariant(
+ 		useInRouterContext(),
+diff --git a/src/lib/router/router.ts b/src/lib/router/router.ts
+index 3bb6fe673a70abbcc1305807238a76d345bfed29..e7e45873e4fcb28ad3d367cf3ad73a751e5d4f83 100644
+--- a/src/lib/router/router.ts
++++ b/src/lib/router/router.ts
+@@ -196,6 +196,12 @@ export interface Router {
+ 	 */
+ 	navigate(to: To | null, opts?: RouterNavigateOptions): Promise<void>;
+ 
++	/**
++	 * Prefetch resources for the given path without changing the current location
++	 * or navigation state.
++	 */
++	prefetch(to: To, opts?: RouterPrefetchOptions): Promise<void>;
++
+ 	/**
+ 	 * @private
+ 	 * PRIVATE - DO NOT USE
+@@ -447,6 +453,17 @@ export interface RouterInit {
+ 	window?: Window;
+ 	dataStrategy?: DataStrategyFunction;
+ 	patchRoutesOnNavigation?: PatchRoutesOnNavigationFunction;
++	prefetch?: RouterPrefetchFunction;
++}
++
++/** Callback supplied by a framework to warm resources for a resolved path. */
++export type RouterPrefetchFunction = (to: string) => MaybePromise<void>;
++
++/** Options used when resolving a programmatic prefetch destination. */
++export interface RouterPrefetchOptions {
++	relative?: RelativeRoutingType;
++	/** The route context used for route-relative destinations. */
++	fromRouteId?: string;
+ }
+ 
+ /**
+@@ -1021,6 +1038,7 @@ export function createRouter(init: RouterInit): Router {
+ 	if (!basename.startsWith('/')) {
+ 		basename = `/${basename}`;
+ 	}
++	let prefetchCache = new Map<string, Promise<void>>();
+ 	let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
+ 
+ 	// Config driven behavior flags
+@@ -1340,6 +1358,7 @@ export function createRouter(init: RouterInit): Router {
+ 			removePageHideEventListener();
+ 		}
+ 		subscribers.clear();
++		prefetchCache.clear();
+ 		pendingNavigationController && pendingNavigationController.abort();
+ 		state.fetchers.forEach((_, key) => deleteFetcher(state.fetchers, key));
+ 		state.blockers.forEach((_, key) => deleteBlocker(key));
+@@ -1597,6 +1616,34 @@ export function createRouter(init: RouterInit): Router {
+ 
+ 	// Trigger a navigation event, which can either be a numerical POP or a PUSH
+ 	// replace with an optional submission
++	function prefetch(to: To, opts?: RouterPrefetchOptions): Promise<void> {
++		if (!init.prefetch) {
++			return Promise.resolve();
++		}
++
++		const path = normalizeTo(
++			state.location,
++			state.matches,
++			basename,
++			to,
++			opts?.fromRouteId,
++			opts?.relative,
++		);
++		const cached = prefetchCache.get(path);
++		if (cached) {
++			return cached;
++		}
++
++		const pending = Promise.resolve().then(() => init.prefetch!(path));
++		prefetchCache.set(path, pending);
++		void pending.catch(() => {
++			if (prefetchCache.get(path) === pending) {
++				prefetchCache.delete(path);
++			}
++		});
++		return pending;
++	}
++
+ 	async function navigate(to: number | To | null, opts?: RouterNavigateOptions) {
+ 		// If another popstate is pending and we're about to interrupt it, resolve
+ 		// the promise since we'll never reach completeNavigation for *that* popstate
+@@ -3737,6 +3784,7 @@ export function createRouter(init: RouterInit): Router {
+ 		subscribe,
+ 		enableScrollRestoration,
+ 		navigate,
++		prefetch,
+ 		fetch,
+ 		revalidate,
+ 		// Passthrough to history-aware createHref used by useHref so we get proper

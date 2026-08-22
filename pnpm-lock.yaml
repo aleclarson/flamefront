@@ -4,12 +4,15 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  "@octanejs/remix-router@0.1.36": 394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2
+
 importers:
   .:
     dependencies:
       "@octanejs/remix-router":
         specifier: 0.1.36
-        version: 0.1.36(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
+        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
       "@octanejs/vite-plugin":
         specifier: 0.1.40
         version: 0.1.40(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
@@ -58,7 +61,7 @@ importers:
         version: 7.29.8
       "@octanejs/remix-router":
         specifier: 0.1.36
-        version: 0.1.36(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
+        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
       "@remix-run/route-pattern":
         specifier: 0.24.0
         version: 0.24.0
@@ -2569,7 +2572,7 @@ snapshots:
       esbuild: 0.28.1
       octane: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
 
-  "@octanejs/remix-router@0.1.36(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))":
+  "@octanejs/remix-router@0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))":
     dependencies:
       cookie-es: 3.1.1
       octane: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))

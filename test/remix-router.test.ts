@@ -16,7 +16,11 @@ function createRuntime() {
   return {
     createBrowserRouter(
       routes: TestRoute[],
-      options?: { hydrationData?: unknown },
+      options?: {
+        basename?: string
+        hydrationData?: unknown
+        prefetch?: (to: string) => void | Promise<void>
+      },
     ) {
       return { kind: "browser", routes, options, id: ++routerSequence }
     },
@@ -37,6 +41,20 @@ function createRuntime() {
     },
   }
 }
+
+test("forwards the browser prefetch callback through the adapter", () => {
+  const prefetch = async (_to: string) => {}
+  const adapter = createRemixRouterAdapter(
+    [{ path: "/", result: new Response() }],
+    createRuntime(),
+    { basename: "/app" },
+  )
+
+  const router = adapter.createClientRouter({ prefetch })
+
+  assert.equal(router.options?.prefetch, prefetch)
+  assert.equal(router.options?.basename, "/app")
+})
 
 test("creates request-scoped routers and exposes loader hydration state", async () => {
   const context = {
