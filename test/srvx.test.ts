@@ -20,6 +20,17 @@ test("composes transport concerns behind one basename-aware entry", async () => 
     resolve(clientDirectory, "static/index.html"),
     "<main>static artifact</main>",
   )
+  await writeFile(
+    resolve(clientDirectory, "static/index.fragment.json"),
+    JSON.stringify({
+      protocol: "flamefront-static-fragment-v1",
+      route: "/static",
+      boundary: "flamefront:route:static",
+      html: "<main>static fragment</main>",
+      routeData: { built: true },
+      boundaries: [],
+    }),
+  )
 
   const app = defineApp({
     shell,
@@ -105,6 +116,26 @@ test("composes transport concerns behind one basename-aware entry", async () => 
     )
 
     assert.equal(await staticDocument.text(), "<main>static artifact</main>")
+
+    const staticFragment = await server.fetch(
+      new Request(
+        "http://flamefront.test/docs/static?view=full&__flamefront_fragment=1&__flamefront_shell=1",
+      ),
+    )
+
+    assert.equal(staticFragment.status, 200)
+    assert.match(
+      staticFragment.headers.get("content-type") ?? "",
+      /text\/custom/,
+    )
+    assert.deepEqual(await staticFragment.json(), {
+      protocol: "flamefront-static-fragment-v1",
+      route: "/static",
+      boundary: "flamefront:route:static",
+      html: "<main>static fragment</main>",
+      routeData: { built: true },
+      boundaries: [],
+    })
 
     const asset = await server.fetch(
       new Request("http://flamefront.test/docs/assets/app.js"),

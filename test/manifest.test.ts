@@ -178,6 +178,20 @@ test("matches the most specific route and extracts parameters", () => {
   assert.equal(app.match("/elsewhere"), null)
 })
 
+test("strips framework protocol parameters before matching", () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/about", "/src/About.tsrx", { render: "static" })],
+  })
+
+  const match = app.match(
+    "/about?__flamefront_fragment=1&__flamefront_shell=1&view=full",
+  )
+
+  assert.equal(match?.data.path, "/about")
+  assert.equal(app.match("/about?__flamefront_fragment=0")?.data.path, "/about")
+})
+
 test("selects matches by render mode", () => {
   const app = defineApp({
     shell,

@@ -42,6 +42,30 @@ test("loads the matched route module with request parameters", async () => {
   })
 })
 
+test("strips fragment protocol parameters before invoking route loaders", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/about", "/src/About.tsrx")],
+  })
+  let loaderUrl = ""
+
+  await loadRoute(
+    app,
+    new Request(
+      "https://example.test/about?__flamefront_fragment=1&__flamefront_shell=1&view=full",
+    ),
+    async () => ({
+      default: null,
+      loader: ({ request }) => {
+        loaderUrl = request.url
+        return null
+      },
+    }),
+  )
+
+  assert.equal(loaderUrl, "https://example.test/about?view=full")
+})
+
 test("returns null when no route matches", async () => {
   const app = defineApp({ shell, routes: [route("/known", "/src/Known.tsrx")] })
   const loaded = await loadRoute(

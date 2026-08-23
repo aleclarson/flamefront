@@ -6,8 +6,8 @@ import type {
 
 /**
  * Resources that a route-aware prefetcher can warm without taking over
- * navigation. The static fragment callback is intentionally supplied by the
- * later fragment transport; this pass only defines the handoff.
+ * navigation. The framework adapter supplies the static fragment transport;
+ * callers can replace it when they own the transport.
  */
 export interface RoutePrefetchResources<
   Route extends RouteDefinition = RouteDefinition,

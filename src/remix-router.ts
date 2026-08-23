@@ -20,6 +20,7 @@ import {
   type RoutePrefetchCallback,
   type RoutePrefetchResources,
 } from "./route-prefetch.ts"
+import { prefetchStaticFragment } from "./fragment-client.ts"
 import {
   preloadRoute as preloadGeneratedRoute,
   routeMetadata,
@@ -63,6 +64,19 @@ const adapter = createRemixRouterAdapter(
 export const createClientRouter = adapter.createClientRouter
 export const createServerRouter = adapter.createServerRouter
 
+function withDefaultPrefetchResources<
+  Route extends RouteDefinition = RouteDefinition,
+>(
+  resources: RoutePrefetchResources<Route> = {},
+): RoutePrefetchResources<Route> {
+  return {
+    ...resources,
+    staticFragment:
+      resources.staticFragment ??
+      ((url, _route, options) => prefetchStaticFragment(url, routing, options)),
+  }
+}
+
 /** Prefetch route resources selected by the matched Flamefront route. */
 export async function prefetchRoute<
   Route extends RouteDefinition = RouteDefinition,
@@ -77,7 +91,7 @@ export async function prefetchRoute<
     preloadGeneratedRoute,
     url,
     options,
-    resources,
+    withDefaultPrefetchResources(resources),
   )
 }
 
@@ -88,5 +102,9 @@ export function createRoutePrefetcher<
   app: Pick<AppDefinition<Route>, "match" | "prefetch">,
   resources?: RoutePrefetchResources<Route>,
 ): RoutePrefetchCallback {
-  return createRoutePrefetchCallback(app, preloadGeneratedRoute, resources)
+  return createRoutePrefetchCallback(
+    app,
+    preloadGeneratedRoute,
+    withDefaultPrefetchResources(resources),
+  )
 }

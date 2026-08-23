@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { loadRouteData, loadStaticRouteData } from "../src/remix-route-data.ts"
+import {
+  loadRouteData,
+  loadStaticRouteData,
+  loadStaticRouteFragment,
+} from "../src/remix-route-data.ts"
 
 test("loads browser route data using the request URL and abort signal", async (context) => {
   const originalFetch = globalThis.fetch
@@ -119,6 +123,39 @@ test("reports unsuccessful static route-data responses", async (context) => {
     loadStaticRouteData({ request: new Request("https://example.test/about") }),
     /flamefront static route data request failed with 404/,
   )
+})
+
+test("loads static navigation fragments while returning only route data", async (context) => {
+  const originalFetch = globalThis.fetch
+
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  const request = new Request("https://example.test/about?view=full")
+
+  globalThis.fetch = async (input, init) => {
+    const endpoint = new URL(String(input))
+
+    assert.equal(endpoint.pathname, "/about")
+    assert.equal(endpoint.searchParams.get("view"), "full")
+    assert.equal(endpoint.searchParams.get("__flamefront_fragment"), "1")
+    assert.equal(
+      new Headers(init?.headers).get("accept"),
+      "application/vnd.flamefront.fragment+json",
+    )
+    return Response.json({
+      protocol: "flamefront-static-fragment-v1",
+      route: "/about",
+      boundary: "flamefront:route:about",
+      html: "<main>built</main>",
+      routeData: { source: "fragment" },
+      boundaries: [],
+    })
+  }
+
+  assert.deepEqual(await loadStaticRouteFragment({ request }), {
+    source: "fragment",
+  })
 })
 
 test("propagates browser route-data aborts", async (context) => {

@@ -169,4 +169,99 @@ test("supports explicit shell mode and preserves static route data extraction", 
   )
 
   assert.deepEqual(staticDocument.routeData, { value: 42 })
+
+  const fragment = await documents.renderFragment(
+    new Request("https://example.test/built?__flamefront_fragment=1"),
+  )
+
+  assert.equal(fragment.protocol, "flamefront-static-fragment-v1")
+  assert.equal(fragment.route, "/built")
+  assert.equal(fragment.html, "<article>200</article>")
+  assert.deepEqual(fragment.routeData, { value: 42 })
+})
+
+test("renders static fragment boundaries from the route hierarchy", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/built", "/src/Built.tsrx", { render: "static" })],
+  })
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({ default: null }),
+  })
+  const context = {
+    loaderData: { "flamefront:route:0": { value: 42 } },
+    actionData: null,
+    errors: null,
+    statusCode: 200,
+    matches: [{ route: { id: "flamefront:route:0" } }],
+  }
+  const router: DocumentRouter = {
+    routes: [{ id: "root" }],
+    routeMetadata: [
+      {
+        id: "flamefront:shell:root",
+        boundary: "shell-boundary",
+        kind: "shell",
+        entry: shell,
+        navigation: "router",
+      },
+      {
+        id: "flamefront:route:0",
+        boundary: "page-boundary",
+        kind: "route",
+        entry: "/src/Built.tsrx",
+        path: "/built",
+        render: "static",
+        navigation: "fragment",
+        parent: "flamefront:shell:root",
+      },
+    ],
+    async createServerRouter() {
+      return {
+        context,
+        hydrationData: {
+          loaderData: context.loaderData,
+          actionData: null,
+          errors: null,
+        },
+        router: { kind: "server" },
+      }
+    },
+  }
+  const boundaries: string[] = []
+  const renderer: OctaneRenderer = {
+    ...createTestRenderer(),
+    renderRouteFragment: (_router, _context, boundary) => {
+      boundaries.push(boundary)
+      return {
+        html: `<section data-boundary="${boundary}">fragment</section>`,
+        css: "",
+      }
+    },
+  }
+  const documents = createOctaneDocuments({ app, runtime, router, renderer })
+
+  const fragment = await documents.renderFragment(
+    new Request("https://example.test/built?__flamefront_fragment=1"),
+  )
+
+  assert.deepEqual(boundaries, ["shell-boundary", "page-boundary"])
+  assert.equal(
+    fragment.html,
+    '<section data-boundary="page-boundary">fragment</section>',
+  )
+  assert.deepEqual(
+    fragment.boundaries.map(({ boundary, html }) => ({ boundary, html })),
+    [
+      {
+        boundary: "shell-boundary",
+        html: '<section data-boundary="shell-boundary">fragment</section>',
+      },
+      {
+        boundary: "page-boundary",
+        html: '<section data-boundary="page-boundary">fragment</section>',
+      },
+    ],
+  )
 })

@@ -32,8 +32,8 @@ function quote(value: string): string {
   return JSON.stringify(value)
 }
 
-function lazyLayout(entry: string): string {
-  return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default }; }`
+function lazyLayout(entry: string, metadata: GeneratedRouteMetadata): string {
+  return `async () => { const routeModule = await import(${quote(entry)}); return { Component: createRouteBoundary(routeModule.default, ${JSON.stringify(metadata)}) }; }`
 }
 
 function generatesHydrationBoundary(
@@ -151,25 +151,32 @@ function generateRoutePreloaders(routeTree: readonly RouteConfig[]): string {
 function lazyRoute(
   routeDefinition: RouteDefinition,
   routing: NormalizedRoutingOptions,
+  metadata: GeneratedRouteMetadata,
 ): string {
   const { entry } = routeDefinition
   const browserLoader =
     routeDefinition.render === "static"
-      ? "loadStaticRouteData"
+      ? "loadStaticRouteFragment"
       : "loadRouteData"
   const browserLoaderExpression = `(args) => ${browserLoader}(args, ${JSON.stringify(routing)})`
 
+  if (routeDefinition.render === "static") {
+    const componentId = browserRouteModuleId(routeDefinition)
+
+    return `async () => { if (import.meta.env.SSR) { const [routeModule, componentModule] = await Promise.all([import(${quote(entry)}), import(${quote(componentId)})]); return { Component: createRouteBoundary(componentModule.default, ${JSON.stringify(metadata)}), loader: routeModule.loader }; } const componentModule = await import(${quote(componentId)}); return { Component: createStaticFragmentRoute({ metadata: ${JSON.stringify(metadata)}, routing: ${JSON.stringify(routing)}, fallbackComponent: componentModule.default }), loader: ${browserLoaderExpression} }; }`
+  }
+
   if (routeDefinition.render === "client") {
-    return `async () => { if (import.meta.env.SSR) return {}; const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: ${browserLoaderExpression} }; }`
+    return `async () => { if (import.meta.env.SSR) return {}; const routeModule = await import(${quote(entry)}); return { Component: createRouteBoundary(routeModule.default, ${JSON.stringify(metadata)}), loader: ${browserLoaderExpression} }; }`
   }
 
   if (!generatesHydrationBoundary(routeDefinition)) {
-    return `async () => { const routeModule = await import(${quote(entry)}); return { Component: routeModule.default, loader: import.meta.env.SSR ? routeModule.loader : ${browserLoaderExpression} }; }`
+    return `async () => { const routeModule = await import(${quote(entry)}); return { Component: createRouteBoundary(routeModule.default, ${JSON.stringify(metadata)}), loader: import.meta.env.SSR ? routeModule.loader : ${browserLoaderExpression} }; }`
   }
 
   const componentId = hydrationComponentId(entry, routeDefinition.hydration)
 
-  return `async () => { if (import.meta.env.SSR) { const [routeModule, componentModule] = await Promise.all([import(${quote(entry)}), import(${quote(componentId)})]); return { Component: componentModule.default, loader: routeModule.loader }; } const componentModule = await import(${quote(componentId)}); return { Component: componentModule.default, loader: ${browserLoaderExpression} }; }`
+  return `async () => { if (import.meta.env.SSR) { const [routeModule, componentModule] = await Promise.all([import(${quote(entry)}), import(${quote(componentId)})]); return { Component: createRouteBoundary(componentModule.default, ${JSON.stringify(metadata)}), loader: routeModule.loader }; } const componentModule = await import(${quote(componentId)}); return { Component: createRouteBoundary(componentModule.default, ${JSON.stringify(metadata)}), loader: ${browserLoaderExpression} }; }`
 }
 
 function collectRouteMetadata(
@@ -227,10 +234,10 @@ function generateConfigs(
       const metadata = generatedRouteMetadata(config, location, parent)
 
       if ("children" in config) {
-        return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}lazy: ${lazyLayout(config.entry)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${childIndent}children: [\n${generateConfigs(config.children, routing, depth + 2, metadata.id, location)}\n${childIndent}],\n${indent}}`
+        return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}lazy: ${lazyLayout(config.entry, metadata)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${childIndent}children: [\n${generateConfigs(config.children, routing, depth + 2, metadata.id, location)}\n${childIndent}],\n${indent}}`
       }
 
-      return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: ${lazyRoute(config, routing)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${indent}}`
+      return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: ${lazyRoute(config, routing, metadata)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${indent}}`
     })
     .join(",\n")
 }
@@ -241,7 +248,7 @@ export function generateRemixRoutes(
   const rootId = "flamefront:shell:root"
   const routeMetadata = collectRouteMetadata(app.routeTree, app.shell)
 
-  return `// Generated by Flamefront.\nimport Shell from ${quote(app.shell)};\nimport { loadRouteData, loadStaticRouteData } from 'flamefront/remix-router/data';\n\nexport const routing = ${JSON.stringify(app.routing)};\nexport const routeMetadata = ${JSON.stringify(routeMetadata)};\n\nexport const routes = [\n\t{\n\t\tid: ${quote(rootId)},\n\t\tComponent: Shell,\n\t\thandle: { flamefront: ${JSON.stringify(routeMetadata[0])} },\n\t\tchildren: [\n${generateConfigs(app.routeTree, app.routing, 3)}\n\t\t],\n\t},\n];\n\n${generateRoutePreloaders(app.routeTree)}`
+  return `// Generated by Flamefront.\nimport Shell from ${quote(app.shell)};\nimport { createRouteBoundary, createStaticFragmentRoute } from 'flamefront/fragment';\nimport { loadRouteData, loadStaticRouteFragment } from 'flamefront/remix-router/data';\n\nexport const routing = ${JSON.stringify(app.routing)};\nexport const routeMetadata = ${JSON.stringify(routeMetadata)};\n\nexport const routes = [\n\t{\n\t\tid: ${quote(rootId)},\n\t\tComponent: createRouteBoundary(Shell, ${JSON.stringify(routeMetadata[0])}),\n\t\thandle: { flamefront: ${JSON.stringify(routeMetadata[0])} },\n\t\tchildren: [\n${generateConfigs(app.routeTree, app.routing, 3)}\n\t\t],\n\t},\n];\n\n${generateRoutePreloaders(app.routeTree)}`
 }
 
 /** Generate the server-only route-module importer used by loader endpoints. */

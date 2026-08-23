@@ -43,7 +43,9 @@ ff preview
 ```
 
 `ff build` emits client assets and a srvx-compatible `dist/server/server.js`,
-then prerenders every static route. The server build default-exports one
+then prerenders every static route. Each static route gets its full
+`index.html`, explicit data-only `index.data.json`, and a stable
+`index.fragment.html`/`index.fragment.json` pair for in-app navigation. The server build default-exports one
 `FlamefrontServerEntry`: srvx server options plus the mode-aware document and
 route-data operations used by the lifecycle. `ff dev`, `ff build`, and
 `ff preview` consume that default object directly; named server exports are not
@@ -155,7 +157,9 @@ Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
 can call `app.load(url)` from their route loaders. `app.load(url)` and
 `app.prefetch(url)` share a browser-side `RouteDataClient` with generated route
 loaders, so a prefetched result is reused during client navigation. `app.load`
-remains the explicit data-only API for static `.data.json` artifacts.
+remains the explicit data-only API for static `.data.json` artifacts. Static
+route navigation and route-aware prefetching use the fragment JSON transport
+instead, so a navigation never renders a static route module from loader data.
 
 `prefetchRoute()` chooses resources from the matched route. Client and server
 routes warm live data plus their client route and pathless layout modules:
@@ -166,10 +170,10 @@ import { prefetchRoute } from "flamefront/remix-router"
 void prefetchRoute(app, "/products/one")
 ```
 
-Static routes use the optional `RoutePrefetchResources.staticFragment` callback
-instead of importing the static route module. The fragment transport supplies
-that callback in the static-navigation pass. Until then, an omitted callback
-leaves static fragment warming as a no-op.
+Static routes use the fragment transport instead of importing their route
+module as a normal navigation renderer. `createRoutePrefetcher(app)` wires the
+transport into the existing prefetch seam; custom
+`RoutePrefetchResources.staticFragment` callbacks can still replace it.
 
 Flamefront's Vite transform loads the centralized route manifest. Octane
 compiles TSRX first, then Flamefront removes loaders and their private
@@ -234,8 +238,12 @@ Generated route objects expose `handle.flamefront` metadata with stable `id`,
 `boundary`, and `parent` values. The adapter also exports the flat
 `routeMetadata` collection. Leaf routes include their `render` mode and
 `navigation` strategy. Static routes use `navigation: "fragment"`; client and
-server routes use `navigation: "router"`. The metadata is the handoff for the
-static-fragment boundary work.
+server routes use `navigation: "router"`. The metadata is also the
+static-fragment contract: the build records the shell, layout, and leaf
+boundary hierarchy in each fragment artifact. Browser navigation inserts the
+leaf HTML first, then applies the route's hydration policy. `hydration: 'none'`
+leaves inserted HTML inert; other policies may hydrate the inserted boundary
+with the generated wrapper or route module.
 
 Route modules and pathless layout modules use default component exports and are
 loaded lazily. Server routers call route modules' exported loaders directly;

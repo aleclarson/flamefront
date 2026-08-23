@@ -4,7 +4,12 @@ import { tmpdir } from "node:os"
 import { resolve } from "node:path"
 import test from "node:test"
 import { route } from "../src/index.ts"
-import { prerenderStaticRoutes, staticRouteDataFile } from "../src/lifecycle.ts"
+import {
+  prerenderStaticRoutes,
+  staticRouteDataFile,
+  staticRouteFragmentDataFile,
+  staticRouteFragmentFile,
+} from "../src/lifecycle.ts"
 
 test("prerenders every supplied static route", async () => {
   const root = await mkdtemp(resolve(tmpdir(), "flamefront-build-"))
@@ -45,6 +50,30 @@ test("prerenders every supplied static route", async () => {
         ),
       ),
       { pathname: "/about/team" },
+    )
+    assert.equal(
+      await readFile(
+        staticRouteFragmentFile(clientDirectory, routes[0]),
+        "utf8",
+      ),
+      "<main>/docs</main>",
+    )
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(
+          staticRouteFragmentDataFile(clientDirectory, routes[0]),
+          "utf8",
+        ),
+      ),
+      {
+        protocol: "flamefront-static-fragment-v1",
+        route: "/docs",
+        boundary: "/src/Docs.tsrx",
+        html: "<main>/docs</main>",
+        routeData: { pathname: "/docs" },
+        boundaries: [],
+        status: 200,
+      },
     )
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -131,6 +160,66 @@ test("uses the shared basename when prerendering route requests", async () => {
     assert.equal(
       await readFile(resolve(clientDirectory, "built/index.html"), "utf8"),
       "<main>built</main>",
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("writes a supplied hierarchy fragment artifact separately from the document", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "flamefront-build-"))
+  const clientDirectory = resolve(root, "dist/client")
+  const staticRoute = route("/nested", "/src/Nested.tsrx", {
+    render: "static",
+  })
+
+  try {
+    await prerenderStaticRoutes(
+      root,
+      clientDirectory,
+      [staticRoute],
+      async () => ({
+        html: '<html><div id="root"><main>document</main></div></html>',
+        routeData: { source: "document" },
+      }),
+      undefined,
+      undefined,
+      async () => ({
+        protocol: "flamefront-static-fragment-v1",
+        route: "/nested",
+        boundary: "flamefront:route:nested",
+        html: "<main>fragment</main>",
+        routeData: { source: "fragment" },
+        boundaries: [
+          {
+            id: "flamefront:route:nested",
+            boundary: "flamefront:route:nested",
+            kind: "route",
+            html: "<main>fragment</main>",
+          },
+        ],
+      }),
+    )
+
+    assert.equal(
+      await readFile(resolve(clientDirectory, "nested/index.html"), "utf8"),
+      '<html><div id="root"><main>document</main></div></html>',
+    )
+    assert.equal(
+      await readFile(
+        staticRouteFragmentFile(clientDirectory, staticRoute),
+        "utf8",
+      ),
+      "<main>fragment</main>",
+    )
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(
+          staticRouteFragmentDataFile(clientDirectory, staticRoute),
+          "utf8",
+        ),
+      ).routeData,
+      { source: "fragment" },
     )
   } finally {
     await rm(root, { recursive: true, force: true })

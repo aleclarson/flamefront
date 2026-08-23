@@ -1,4 +1,8 @@
-import type { AppDefinition, RouteDefinition } from "./index.ts"
+import type {
+  AppDefinition,
+  GeneratedRouteMetadata,
+  RouteDefinition,
+} from "./index.ts"
 import type {
   DocumentMode,
   RouteRuntime,
@@ -9,6 +13,12 @@ import type {
   ServerRouterOptions,
   ServerRouterResult,
 } from "./remix-router-core.ts"
+import { stripFlamefrontProtocolRequest } from "./fragment-protocol.ts"
+import {
+  staticFragmentProtocol,
+  type StaticFragmentArtifact,
+  type StaticFragmentBoundary,
+} from "./fragment-client.ts"
 
 export type { DocumentMode, RenderedDocument } from "./server.ts"
 
@@ -64,11 +74,18 @@ export interface OctaneRenderer {
     component: unknown,
     props: RouterDocumentProps,
   ) => OctaneRenderResult
+  /** Render one generated route boundary directly from the static router tree. */
+  readonly renderRouteFragment?: (
+    router: unknown,
+    context: unknown,
+    boundary: string,
+  ) => OctaneRenderResult
   readonly defaultRouterDocument: RouterDocument
 }
 
 export interface DocumentRouter {
   readonly routes: readonly unknown[]
+  readonly routeMetadata?: readonly GeneratedRouteMetadata[]
   readonly createServerRouter: (
     request: Request,
     options?: ServerRouterOptions,
@@ -96,6 +113,7 @@ export interface OctaneDocuments {
     options?: RenderDocumentOptions,
   ) => Promise<RenderedDocument>
   readonly loadRouteData: (request: Request) => Promise<Response>
+  readonly renderFragment: (request: Request) => Promise<StaticFragmentArtifact>
 }
 
 interface StaticDocumentContext {
@@ -211,22 +229,131 @@ async function loadDefaultRouter(): Promise<DocumentRouter> {
 
   return {
     routes: module.routes,
+    routeMetadata: module.routeMetadata,
     createServerRouter: module.createServerRouter,
   }
 }
 
 async function loadDefaultRenderer(): Promise<OctaneRenderer> {
-  const [remix, dom, octane] = await Promise.all([
+  const [remix, dom, octane, fragment] = await Promise.all([
     import("@octanejs/remix-router"),
     import("@octanejs/remix-router/dom"),
     import("octane/server"),
+    import("./fragment.ts"),
   ])
+
+  const createStaticNavigator = (router: {
+    readonly createHref: (to: unknown) => string
+    readonly encodeLocation: (to: unknown) => unknown
+  }) => ({
+    createHref: router.createHref,
+    encodeLocation: router.encodeLocation,
+    push() {
+      throw new Error(
+        "Static fragment rendering cannot navigate on the server.",
+      )
+    },
+    replace() {
+      throw new Error(
+        "Static fragment rendering cannot navigate on the server.",
+      )
+    },
+    go() {
+      throw new Error(
+        "Static fragment rendering cannot navigate on the server.",
+      )
+    },
+    back() {
+      throw new Error(
+        "Static fragment rendering cannot navigate on the server.",
+      )
+    },
+    forward() {
+      throw new Error(
+        "Static fragment rendering cannot navigate on the server.",
+      )
+    },
+  })
 
   return {
     createStaticRouter: (routes, context) =>
       remix.createStaticRouter(routes as any[], context as any),
     renderToString: (component, props) =>
       octane.renderToString(component as never, props as never),
+    renderRouteFragment: (router, context, boundary) => {
+      const dataRouter = router as {
+        readonly state: {
+          readonly location: unknown
+          readonly matches: readonly {
+            readonly route?: { readonly id?: string }
+          }[]
+        }
+        readonly createHref: (to: unknown) => string
+        readonly encodeLocation: (to: unknown) => unknown
+      }
+      const staticContext = context as { readonly basename?: string }
+      const state = dataRouter.state
+      const matchIndex = state.matches.findIndex(
+        (match) => match.route?.id === boundary,
+      )
+
+      if (matchIndex < 0) {
+        throw new Error(
+          `No static router match exists for fragment boundary ${JSON.stringify(boundary)}.`,
+        )
+      }
+
+      const navigator = createStaticNavigator(dataRouter)
+      const dataRouterContext = {
+        router: dataRouter,
+        navigator,
+        static: true,
+        staticContext: context,
+        basename: staticContext.basename ?? "/",
+      }
+      const fragmentTree = remix.renderMatches(
+        state.matches.slice(matchIndex) as never,
+      )
+      const fragmentRoot = octane.createElement(
+        remix.UNSAFE_DataRouterContext.Provider as never,
+        {
+          value: dataRouterContext,
+          children: octane.createElement(
+            remix.UNSAFE_DataRouterStateContext.Provider as never,
+            {
+              value: state,
+              children: octane.createElement(
+                remix.UNSAFE_FetchersContext.Provider as never,
+                {
+                  value: new Map(),
+                  children: octane.createElement(
+                    remix.UNSAFE_ViewTransitionContext.Provider as never,
+                    {
+                      value: { isTransitioning: false },
+                      children: octane.createElement(
+                        remix.StaticRouter as never,
+                        {
+                          basename: staticContext.basename ?? "/",
+                          location: state.location,
+                          children: octane.createElement(
+                            fragment.staticFragmentBoundaryTarget
+                              .Provider as never,
+                            { value: boundary, children: fragmentTree },
+                          ),
+                        },
+                      ),
+                    },
+                  ),
+                },
+              ),
+            },
+          ),
+        },
+      )
+      const FragmentRoot = () => fragmentRoot
+
+      return octane.renderToString(FragmentRoot, {})
+    },
     defaultRouterDocument: createDefaultRouterDocument(
       octane.createElement,
       dom.RouterProvider,
@@ -315,6 +442,82 @@ function routeData(context: StaticDocumentContext): unknown {
   return routeId ? (context.loaderData?.[routeId] ?? null) : null
 }
 
+function fragmentMetadataChain(
+  route: RouteDefinition,
+  metadata: readonly GeneratedRouteMetadata[] | undefined,
+): GeneratedRouteMetadata[] {
+  const leaf = metadata?.find(
+    (item) =>
+      item.kind === "route" &&
+      item.entry === route.entry &&
+      (item.path === route.path || item.path === undefined),
+  )
+
+  if (!leaf) {
+    return [
+      {
+        id: route.entry,
+        boundary: route.entry,
+        kind: "route",
+        entry: route.entry,
+        path: route.path,
+        render: route.render,
+        navigation: "fragment",
+        hydration: route.hydration,
+      },
+    ]
+  }
+
+  const byId = new Map((metadata ?? []).map((item) => [item.id, item]))
+  const chain: GeneratedRouteMetadata[] = []
+  let current: GeneratedRouteMetadata | undefined = leaf
+
+  while (current) {
+    chain.unshift(current)
+    current = current.parent ? byId.get(current.parent) : undefined
+  }
+
+  return chain
+}
+
+function createStaticFragmentArtifact(
+  route: RouteDefinition,
+  context: StaticDocumentContext,
+  router: unknown,
+  renderer: OctaneRenderer,
+  fallbackBody: string,
+  metadata: readonly GeneratedRouteMetadata[] | undefined,
+): StaticFragmentArtifact {
+  const chain = fragmentMetadataChain(route, metadata)
+  const boundaries: StaticFragmentBoundary[] = chain.map((item) => {
+    const rendered = renderer.renderRouteFragment?.(
+      router,
+      context,
+      item.boundary,
+    )
+
+    return {
+      id: item.id,
+      boundary: item.boundary,
+      kind: item.kind,
+      ...(item.parent ? { parent: item.parent } : {}),
+      html: rendered?.html ?? (item === chain.at(-1) ? fallbackBody : ""),
+    }
+  })
+  const fragmentHtml = boundaries.at(-1)?.html || fallbackBody
+
+  return {
+    protocol: staticFragmentProtocol,
+    route: route.path,
+    boundary: chain.at(-1)?.boundary ?? route.entry,
+    html: fragmentHtml,
+    routeData: routeData(context),
+    boundaries,
+    hydration: route.hydration,
+    status: context.statusCode ?? 200,
+  }
+}
+
 export function createOctaneDocuments<
   Context = unknown,
   Route extends RouteDefinition = RouteDefinition,
@@ -338,17 +541,16 @@ export function createOctaneDocuments<
     return (rendererPromise ??= loadDefaultRenderer())
   }
 
-  const renderDocument = async (
-    template: string,
+  const renderRoute = async (
     request: Request,
-    renderOptions: RenderDocumentOptions = {},
-  ): Promise<RenderedDocument> => {
-    const routeMatch = options.app.match(request.url)
-    const route = routeMatch?.data ?? null
-    const mode = resolveDocumentMode(request, renderOptions.mode, route)
-
-    assertRouteMode(route, mode)
-
+    mode: DocumentMode,
+  ): Promise<{
+    readonly router: DocumentRouter
+    readonly dataRouter: unknown
+    readonly renderer: OctaneRenderer
+    readonly context: StaticDocumentContext
+    readonly rendered: OctaneRenderResult
+  }> => {
     const contextOptions: RouteRuntimeContextOptions = {
       purpose: "document",
       mode,
@@ -372,14 +574,37 @@ export function createOctaneDocuments<
       throw result
     }
 
-    const staticContext = result.context as StaticDocumentContext
-    const rendered = renderer.renderToString(routerDocument, {
-      router: result.router,
-      context: result.context,
-    })
+    const context = result.context as StaticDocumentContext
+    return {
+      router,
+      dataRouter: result.router,
+      renderer,
+      context,
+      rendered: renderer.renderToString(routerDocument, {
+        router: result.router,
+        context: result.context,
+      }),
+    }
+  }
+
+  const renderDocument = async (
+    template: string,
+    request: Request,
+    renderOptions: RenderDocumentOptions = {},
+  ): Promise<RenderedDocument> => {
+    const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+    const routeMatch = options.app.match(sanitizedRequest.url)
+    const route = routeMatch?.data ?? null
+    const mode = resolveDocumentMode(request, renderOptions.mode, route)
+
+    assertRouteMode(route, mode)
+    const { context: staticContext, rendered } = await renderRoute(
+      sanitizedRequest,
+      mode,
+    )
     const status = staticContext.statusCode ?? 200
     const compositionContext: DocumentCompositionContext<Route> = {
-      request,
+      request: sanitizedRequest,
       mode,
       route,
       params: routeMatch?.params ?? {},
@@ -405,8 +630,33 @@ export function createOctaneDocuments<
       : { html, status }
   }
 
+  const renderFragment = async (
+    request: Request,
+  ): Promise<StaticFragmentArtifact> => {
+    const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+    const routeMatch = options.app.match(sanitizedRequest.url)
+    const route = routeMatch?.data ?? null
+
+    assertRouteMode(route, "static")
+    if (!route) {
+      throw new Response("Not found", { status: 404 })
+    }
+    const { router, dataRouter, renderer, rendered, context } =
+      await renderRoute(sanitizedRequest, "static")
+
+    return createStaticFragmentArtifact(
+      route,
+      context,
+      dataRouter,
+      renderer,
+      rendered.html,
+      router.routeMetadata,
+    )
+  }
+
   return {
     renderDocument,
     loadRouteData: options.runtime.loadRouteData,
+    renderFragment,
   }
 }

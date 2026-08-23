@@ -278,12 +278,15 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
   )
 
   assert.match(source, /import Shell from "\/src\/AppShell\.tsrx"/)
-  assert.match(source, /Component: Shell/)
+  assert.match(source, /Component: createRouteBoundary\(Shell/)
   assert.equal(
     source.match(/import Shell from "\/src\/AppShell\.tsrx"/g)?.length,
     1,
   )
-  assert.match(source, /Component: Shell,[\s\S]*children: \[/)
+  assert.match(
+    source,
+    /Component: createRouteBoundary\(Shell,[\s\S]*children: \[/,
+  )
   assert.match(
     source,
     /lazy: async \(\) => \{ const routeModule = await import\("\/src\/Shell\.tsrx"\)/,
@@ -292,7 +295,7 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
   assert.doesNotMatch(layoutSource, /loader:/)
   assert.match(
     source,
-    /import \{ loadRouteData, loadStaticRouteData \} from 'flamefront\/remix-router\/data'/,
+    /import \{ loadRouteData, loadStaticRouteFragment \} from 'flamefront\/remix-router\/data'/,
   )
   assert.match(
     source,
@@ -367,7 +370,7 @@ test("marks static routes for fragment navigation and excludes them from module 
   assert.match(source, /loader: routeModule\.loader/)
   assert.match(
     source,
-    /loader: \(args\) => loadStaticRouteData\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/,
+    /loader: \(args\) => loadStaticRouteFragment\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/,
   )
   assert.match(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx/)
   assert.doesNotMatch(

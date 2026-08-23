@@ -11,6 +11,12 @@ import {
 } from "./index.ts"
 import type { OctaneDocuments } from "./octane.ts"
 import type { DocumentMode, RenderedDocument } from "./server.ts"
+import {
+  isStaticFragmentRequest,
+  stripFlamefrontProtocolRequest,
+} from "./fragment-protocol.ts"
+import { staticRouteFragmentDataFile } from "./static-fragment-artifacts.ts"
+import type { StaticFragmentArtifact } from "./fragment-client.ts"
 
 export type SrvxMiddleware = ServerMiddleware
 
@@ -54,6 +60,7 @@ export type ResponseHeadersHook<
 export interface ServerEntryLifecycle {
   readonly renderDocument: OctaneDocuments["renderDocument"]
   readonly loadRouteData: OctaneDocuments["loadRouteData"]
+  readonly renderFragment?: OctaneDocuments["renderFragment"]
 }
 
 /** The single default-export value consumed by Flamefront's lifecycle. */
@@ -64,7 +71,11 @@ export interface SrvxServerEntryOptions<
   Route extends RouteDefinition = RouteDefinition,
 > {
   readonly app: AppDefinition<Route>
-  readonly documents: Pick<OctaneDocuments, "renderDocument" | "loadRouteData">
+  readonly documents: Pick<
+    OctaneDocuments,
+    "renderDocument" | "loadRouteData"
+  > &
+    Partial<Pick<OctaneDocuments, "renderFragment">>
   readonly assets: ServerAssets<Route>
   /** Applied outermost first, in declaration order, around framework transport. */
   readonly middleware?: readonly SrvxMiddleware[]
@@ -141,6 +152,10 @@ export function createSrvxServerEntry<
   const frameworkMiddleware: SrvxMiddleware = (request, next) => {
     const url = new URL(request.url)
 
+    if (isStaticFragmentRequest(url)) {
+      return next()
+    }
+
     if (url.pathname === options.app.routing.dataPath) {
       return next()
     }
@@ -184,6 +199,61 @@ export function createSrvxServerEntry<
 
       if (url.pathname === options.app.routing.dataPath) {
         return options.documents.loadRouteData(request)
+      }
+
+      if (isStaticFragmentRequest(url)) {
+        const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+        const fragmentMatch = options.app.match(sanitizedRequest.url)
+
+        if (!fragmentMatch || fragmentMatch.data.render !== "static") {
+          return new Response("Not found", { status: 404 })
+        }
+
+        let artifact: StaticFragmentArtifact | undefined
+        try {
+          artifact = JSON.parse(
+            await readFile(
+              staticRouteFragmentDataFile(clientDirectory, fragmentMatch.data),
+              "utf8",
+            ),
+          ) as StaticFragmentArtifact
+        } catch (error) {
+          if ((error as { code?: string }).code !== "ENOENT") {
+            throw error
+          }
+
+          if (!options.documents.renderFragment) {
+            return new Response("Not found", { status: 404 })
+          }
+
+          artifact = await options.documents.renderFragment(sanitizedRequest)
+        }
+
+        const responseHeaders = new Headers({
+          "Content-Type":
+            "application/vnd.flamefront.fragment+json; charset=utf-8",
+        })
+
+        if (options.headers) {
+          mergeHeaders(
+            responseHeaders,
+            await options.headers({
+              request: sanitizedRequest,
+              route: fragmentMatch.data,
+              mode: "static",
+              document: {
+                html: artifact.html,
+                routeData: artifact.routeData,
+                status: artifact.status,
+              },
+            }),
+          )
+        }
+
+        return new Response(JSON.stringify(artifact), {
+          status: artifact.status ?? 200,
+          headers: responseHeaders,
+        })
       }
 
       if (!match) {
@@ -238,5 +308,6 @@ export function createSrvxServerEntry<
     middleware: [...(options.middleware ?? []), frameworkMiddleware],
     renderDocument: options.documents.renderDocument,
     loadRouteData: options.documents.loadRouteData,
+    renderFragment: options.documents.renderFragment,
   }
 }

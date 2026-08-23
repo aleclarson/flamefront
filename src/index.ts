@@ -5,6 +5,7 @@ import {
 } from "@remix-run/route-pattern/match"
 import type { HydrationInteractionEvents } from "octane/hydration"
 import { createRouteDataClient } from "./route-data-client.ts"
+import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
 
 export type RenderMode = "client" | "server" | "static"
 
@@ -576,7 +577,7 @@ function matchRoutes<T extends RouteDefinition>(
     matchers.set(options.render, matcher as MultiMatcher<RouteDefinition>)
   }
 
-  const normalizedUrl = new URL(url, "http://flamefront.local")
+  const normalizedUrl = stripFlamefrontProtocolParams(url)
   const appPathname = stripBasename(normalizedUrl.pathname, basename)
 
   if (appPathname === null) {

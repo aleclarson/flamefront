@@ -5,6 +5,7 @@ import {
   type RenderMode,
   type RouteDefinition,
 } from "./index.ts"
+import { stripFlamefrontProtocolRequest } from "./fragment-protocol.ts"
 
 export interface LoaderArgs<Context = unknown> {
   readonly request: Request
@@ -159,7 +160,8 @@ export function createRouteRuntime<
     request: Request,
     loadOptions: RouteLoadOptions<Context> = {},
   ): Promise<LoadedRoute<unknown, Context, Route> | null> => {
-    const match = options.app.match(request.url)
+    const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+    const match = options.app.match(sanitizedRequest.url)
 
     if (!match) {
       return null
@@ -169,12 +171,17 @@ export function createRouteRuntime<
       "context" in loadOptions
         ? loadOptions.context
         : await createRequestContext(
-            request,
+            sanitizedRequest,
             { purpose: "data", mode: loadOptions.mode },
             match,
           )
 
-    return loadMatchedRoute(match, request, options.importRoute, context)
+    return loadMatchedRoute(
+      match,
+      sanitizedRequest,
+      options.importRoute,
+      context,
+    )
   }
 
   const loadRouteData = async (request: Request): Promise<Response> => {
@@ -185,11 +192,13 @@ export function createRouteRuntime<
     }
 
     const loaded = await loadRouteForRequest(
-      new Request(routeUrl, {
-        method: "GET",
-        headers: request.headers,
-        signal: request.signal,
-      }),
+      stripFlamefrontProtocolRequest(
+        new Request(routeUrl, {
+          method: "GET",
+          headers: request.headers,
+          signal: request.signal,
+        }),
+      ),
     )
 
     if (!loaded) {
@@ -220,11 +229,12 @@ export async function loadRoute<
   importRoute: (entry: string) => Promise<RouteModule<Data, Context>>,
   context?: Context,
 ): Promise<LoadedRoute<Data, Context, Route> | null> {
-  const match = app.match(request.url)
+  const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+  const match = app.match(sanitizedRequest.url)
 
   if (!match) {
     return null
   }
 
-  return loadMatchedRoute(match, request, importRoute, context)
+  return loadMatchedRoute(match, sanitizedRequest, importRoute, context)
 }

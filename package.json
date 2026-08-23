@@ -10,6 +10,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./fragment": "./src/fragment.ts",
     "./octane": "./src/octane.ts",
     "./remix-router": "./src/remix-router.ts",
     "./remix-router/data": "./src/remix-route-data.ts",

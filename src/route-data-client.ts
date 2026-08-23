@@ -1,3 +1,5 @@
+import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
+
 export type RouteDataSource = "live" | "static"
 
 export interface RouteDataRoutingOptions {
@@ -143,7 +145,7 @@ function createIsolatedRouteDataClient(routing: {
     source: RouteDataSource,
     options: RouteDataLoadOptions = {},
   ): Promise<Data> => {
-    const routeUrl = resolveRouteUrl(url)
+    const routeUrl = stripFlamefrontProtocolParams(resolveRouteUrl(url))
     const key = cacheKey(routeUrl, source)
 
     if (options.reload) {

@@ -4,7 +4,7 @@ import {
   type ServerResponse,
 } from "node:http"
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname, relative, resolve, sep } from "node:path"
+import { dirname, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { serve } from "srvx"
 import type { ServerMiddleware } from "srvx"
@@ -16,6 +16,23 @@ import type {
 import { joinBasename } from "./index.ts"
 import type { FlamefrontServerEntry } from "./srvx.ts"
 import type { RenderDocumentResult } from "./server.ts"
+import {
+  staticRouteFile,
+  staticRouteDataFile,
+  staticRouteFragmentFile,
+  staticRouteFragmentDataFile,
+} from "./static-fragment-artifacts.ts"
+import {
+  staticFragmentProtocol,
+  type StaticFragmentArtifact,
+} from "./fragment-client.ts"
+
+export {
+  staticRouteFile,
+  staticRouteDataFile,
+  staticRouteFragmentFile,
+  staticRouteFragmentDataFile,
+} from "./static-fragment-artifacts.ts"
 
 interface AppModule {
   app?: AppDefinition
@@ -122,63 +139,6 @@ async function sendFetchResponse(
     response.req.method === "HEAD"
       ? undefined
       : Buffer.from(await fetchResponse.arrayBuffer()),
-  )
-}
-
-function isWithin(directory: string, filePath: string): boolean {
-  const pathFromDirectory = relative(directory, filePath)
-
-  return (
-    pathFromDirectory === "" ||
-    (pathFromDirectory !== ".." &&
-      !pathFromDirectory.startsWith(`..${sep}`) &&
-      !pathFromDirectory.startsWith(sep))
-  )
-}
-
-function staticRouteFile(
-  clientDirectory: string,
-  route: RouteDefinition,
-): string {
-  if (/[:*]/.test(route.path)) {
-    throw new Error(
-      `Cannot prerender parameterized static route ${JSON.stringify(route.path)} without concrete paths.`,
-    )
-  }
-
-  const segments = route.path
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => decodeURIComponent(segment))
-
-  if (
-    segments.some(
-      (segment) => segment === "." || segment === ".." || segment.includes("/"),
-    )
-  ) {
-    throw new Error(
-      `Cannot write unsafe static route path ${JSON.stringify(route.path)}.`,
-    )
-  }
-
-  const filePath = resolve(clientDirectory, ...segments, "index.html")
-
-  if (!isWithin(clientDirectory, filePath)) {
-    throw new Error(
-      `Cannot write static route outside the client build: ${JSON.stringify(route.path)}.`,
-    )
-  }
-
-  return filePath
-}
-
-export function staticRouteDataFile(
-  clientDirectory: string,
-  route: RouteDefinition,
-): string {
-  return staticRouteFile(clientDirectory, route).replace(
-    /\.html$/,
-    ".data.json",
   )
 }
 
@@ -347,6 +307,9 @@ export async function buildProject(root = process.cwd()): Promise<void> {
       return response.json()
     },
     app.routing,
+    serverEntry.renderFragment
+      ? (request) => serverEntry.renderFragment!(request)
+      : undefined,
   )
 }
 
@@ -357,10 +320,16 @@ export async function prerenderStaticRoutes(
   render: (request: Request) => Promise<RenderDocumentResult>,
   loadData?: (request: Request) => Promise<unknown>,
   routing: Pick<NormalizedRoutingOptions, "basename"> = { basename: "/" },
+  renderFragment?: (request: Request) => Promise<StaticFragmentArtifact>,
 ): Promise<void> {
   for (const route of routes) {
     const outputFile = staticRouteFile(clientDirectory, route)
     const outputDataFile = staticRouteDataFile(clientDirectory, route)
+    const outputFragmentFile = staticRouteFragmentFile(clientDirectory, route)
+    const outputFragmentDataFile = staticRouteFragmentDataFile(
+      clientDirectory,
+      route,
+    )
     const request = new Request(
       new URL(joinRoutePath(routing, route.path), "http://flamefront.build"),
     )
@@ -370,10 +339,23 @@ export async function prerenderStaticRoutes(
       : loadData
         ? await loadData(request)
         : null
+    const fragment = renderFragment
+      ? await renderFragment(request)
+      : ({
+          protocol: staticFragmentProtocol,
+          route: route.path,
+          boundary: route.entry,
+          html: rendered.html,
+          routeData: data,
+          boundaries: [],
+          status: rendered.status,
+        } satisfies StaticFragmentArtifact)
 
     await mkdir(dirname(outputFile), { recursive: true })
     await writeFile(outputFile, rendered.html)
     await writeFile(outputDataFile, JSON.stringify(data ?? null))
+    await writeFile(outputFragmentFile, fragment.html)
+    await writeFile(outputFragmentDataFile, JSON.stringify(fragment))
     console.log(`Generated ${relative(root, outputFile)}.`)
   }
 }
