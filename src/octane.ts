@@ -217,13 +217,6 @@ export function composeDefaultDocument(
     .replace("</body>", `${hydrationScript}</body>`)
 }
 
-function createDefaultRouterDocument(
-  createElement: (component: any, props: Record<string, unknown>) => unknown,
-  RouterProvider: unknown,
-): RouterDocument {
-  return ({ router }) => createElement(RouterProvider, { router })
-}
-
 async function loadDefaultRouter(): Promise<DocumentRouter> {
   const module = await import("./remix-router.ts")
 
@@ -235,9 +228,9 @@ async function loadDefaultRouter(): Promise<DocumentRouter> {
 }
 
 async function loadDefaultRenderer(): Promise<OctaneRenderer> {
-  const [remix, dom, octane, fragment] = await Promise.all([
+  const [remix, routerDocument, octane, fragment] = await Promise.all([
     import("@octanejs/remix-router"),
-    import("@octanejs/remix-router/dom"),
+    import("./octane-router-document.ts"),
     import("octane/server"),
     import("./fragment.ts"),
   ])
@@ -354,10 +347,7 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
 
       return octane.renderToString(FragmentRoot, {})
     },
-    defaultRouterDocument: createDefaultRouterDocument(
-      octane.createElement,
-      dom.RouterProvider,
-    ),
+    defaultRouterDocument: routerDocument.RouterDocument,
   }
 }
 
@@ -575,6 +565,7 @@ export function createOctaneDocuments<
     }
 
     const context = result.context as StaticDocumentContext
+
     return {
       router,
       dataRouter: result.router,
@@ -641,6 +632,7 @@ export function createOctaneDocuments<
     if (!route) {
       throw new Response("Not found", { status: 404 })
     }
+
     const { router, dataRouter, renderer, rendered, context } =
       await renderRoute(sanitizedRequest, "static")
 

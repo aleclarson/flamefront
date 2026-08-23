@@ -23,12 +23,13 @@ import {
 import { prefetchStaticFragment } from "./fragment-client.ts"
 import {
   preloadRoute as preloadGeneratedRoute,
+  RouterDocument,
   routeMetadata,
   routes,
   routing,
 } from "virtual:flamefront/remix-routes"
 
-export { routeMetadata, routes, routing }
+export { RouterDocument, routeMetadata, routes, routing }
 export { createRemixRouterAdapter }
 export type { ServerRouterOptions, ServerRouterResult }
 export type {

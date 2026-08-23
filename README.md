@@ -77,6 +77,28 @@ export default createSrvxServerEntry({
 })
 ```
 
+## Octane browser entry
+
+Use the matching client adapter instead of assembling the browser router and
+root component separately:
+
+```ts
+import { startOctaneClient } from "flamefront/octane/client"
+import { app } from "./app.ts"
+
+await startOctaneClient({ app })
+```
+
+`startOctaneClient` mounts client-rendered routes and hydrates server or static
+routes after the browser router initializes. By default, it and
+`createOctaneDocuments` use the same `RouterDocument` exported by the generated
+Remix route module. This shared root is the `RouterProvider` itself, so Octane
+can adopt the server tree instead of recovering from a different client root.
+
+Applications that wrap the router in providers can still pass
+`routerDocument`. Export that component from one shared module and pass the same
+import to `createOctaneDocuments` and `startOctaneClient`.
+
 The Vite plugin generates `virtual:flamefront/server-routes`; supplying its
 `importRoute` function keeps bundler-specific route importing at the app
 boundary. The three layers have deliberately separate ownership:
@@ -89,8 +111,9 @@ boundary. The three layers have deliberately separate ownership:
   and its route loaders.
 - `createOctaneDocuments({ app, runtime, routerDocument?, composeDocument? })`
   owns shell versus full route rendering, the Remix static-router branch,
-  Octane rendering, and static route-data extraction. `routerDocument` can wrap
-  the default `RouterProvider` with application providers. `composeDocument`
+  Octane rendering, and static route-data extraction. Its generated default is
+  shared with `startOctaneClient`; `routerDocument` can replace it with a shared
+  application provider component. `composeDocument`
   receives the template, rendered body, CSS, framework hydration script, and
   request/mode metadata so the app can control HTML placement or add markup.
   `renderDocument` is the one mode-aware document operation; its mode is derived
@@ -213,6 +236,7 @@ import {
   createClientRouter,
   createRoutePrefetcher,
   createServerRouter,
+  RouterDocument,
   routeMetadata,
   routes,
 } from "flamefront/remix-router"

@@ -278,6 +278,11 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
   )
 
   assert.match(source, /import Shell from "\/src\/AppShell\.tsrx"/)
+  assert.match(
+    source,
+    /import \{ RouterDocument \} from 'flamefront\/octane\/router-document'/,
+  )
+  assert.match(source, /export \{ RouterDocument \}/)
   assert.match(source, /Component: createRouteBoundary\(Shell/)
   assert.equal(
     source.match(/import Shell from "\/src\/AppShell\.tsrx"/g)?.length,
