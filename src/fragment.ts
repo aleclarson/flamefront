@@ -185,6 +185,7 @@ export function createStaticFragmentRoute(
         }
 
         const host = hostRef.current
+
         if (!host) {
           return
         }
@@ -203,13 +204,22 @@ export function createStaticFragmentRoute(
 
         unmountNestedRoot(nestedRootRef.current)
         nestedRootRef.current = null
-        void import("octane").then(({ hydrateRoot }) => {
-          if (!active || hostRef.current !== host) {
-            return
-          }
+        void import("octane").then(
+          ({ hydrateRoot, setDangerouslySetInnerHTML, setHTML }) => {
+            if (!active || hostRef.current !== host) {
+              return
+            }
 
-          nestedRootRef.current = hydrateRoot(host, createElement(bridge, {}))
-        })
+            // The outer document root used dangerouslySetInnerHTML to adopt the
+            // static fragment. Release that ownership before the nested root
+            // starts reconciling the same children.
+            const html = host.innerHTML
+
+            setDangerouslySetInnerHTML(host, null)
+            setHTML(host, html)
+            nestedRootRef.current = hydrateRoot(host, createElement(bridge, {}))
+          },
+        )
 
         return () => {
           active = false

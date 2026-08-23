@@ -210,6 +210,7 @@ export function createSrvxServerEntry<
         }
 
         let artifact: StaticFragmentArtifact | undefined
+
         try {
           artifact = JSON.parse(
             await readFile(

@@ -1,0 +1,12 @@
+{
+  "name": "flamefront-consumer-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@octanejs/remix-router": "0.1.36",
+    "@octanejs/vite-plugin": "0.1.40",
+    "flamefront": "file:./flamefront.tgz",
+    "octane": "0.1.40",
+    "vite": "8.2.2"
+  }
+}

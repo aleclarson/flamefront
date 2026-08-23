@@ -75,7 +75,7 @@ const preview = command({
 
 const cli = subcommands({
   name: "ff",
-  version: "0.0.0",
+  version: "0.1.0-alpha.0",
   description: "Flamefront, a small compiler-oriented framework for Octane.",
   cmds: { build, dev, preview, routes },
 })

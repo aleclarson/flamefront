@@ -192,6 +192,7 @@ export function loadStaticFragment(
   }
 
   const cached = fragmentCache.get(key)
+
   if (cached) {
     return abortable(cached, options.signal)
   }

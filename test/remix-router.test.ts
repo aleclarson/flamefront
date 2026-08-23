@@ -44,6 +44,7 @@ function createRuntime() {
 
 test("forwards the browser prefetch callback through the adapter", () => {
   const prefetch = async (_to: string) => {}
+
   const adapter = createRemixRouterAdapter(
     [{ path: "/", result: new Response() }],
     createRuntime(),
