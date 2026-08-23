@@ -165,6 +165,15 @@ function assertAppLayout(html, label) {
   )
 }
 
+function assertDormantRoute(html, label) {
+  assert.match(
+    html,
+    /data-hydrated="false"/,
+    `${label} is missing its initial hydration status.`,
+  )
+  assert.match(html, /Not hydrated/)
+}
+
 try {
   await waitForPreview()
   const assetDirectory = await fetch(`${base}/assets`)
@@ -183,6 +192,7 @@ try {
   assert.match(home, /One graph, several ways to render/)
   assert.match(home, /Rendered \/ on the request server\./)
   assert.match(home, /data-render-mode="server"/)
+  assertDormantRoute(home, "The server landing document")
   assert.match(home, /window\.__staticRouterHydrationData/)
 
   const product = (await fetchHtml("/products/octane")).html
@@ -194,6 +204,7 @@ try {
   assert.match(product, /catalog-loaded-from-server-only-module/)
   assert.match(product, /data-render-mode="server"/)
   assert.match(product, /interaction/)
+  assertDormantRoute(product, "The product document")
 
   const alternateProduct = await loaderData("/products/flamefront")
 
@@ -205,6 +216,7 @@ try {
   assertAppLayout(hydration, "The hydration document")
   assert.match(hydration, /Four boundaries, one server response/)
   assert.match(hydration, /data-render-mode="server"/)
+  assertDormantRoute(hydration, "The hydration document")
   for (const strategy of ["idle", "visible", "interaction", "media"]) {
     assert.match(hydration, new RegExp(`data-probe="${strategy}"`))
   }
@@ -222,6 +234,7 @@ try {
   assert.match(serverStatic, /An inert page in an interactive shell/)
   assert.match(serverStatic, /data-render-mode="server"/)
   assert.match(serverStatic, /data-testid="server-static-proof"/)
+  assertDormantRoute(serverStatic, "The server-static document")
 
   const staticInteractive = (await fetchHtml("/static-interactive")).html
 
@@ -230,6 +243,7 @@ try {
   assert.match(staticInteractive, /Build-time HTML with a split child/)
   assert.match(staticInteractive, /data-render-mode="static"/)
   assert.match(staticInteractive, /data-testid="static-interactive-proof"/)
+  assertDormantRoute(staticInteractive, "The static interactive document")
   assert.match(staticInteractive, /data-probe="static"/)
   assert.match(staticInteractive, /data-octane-hydrate-when="idle"/)
   assert.match(staticInteractive, /Server HTML is dormant\./)
@@ -268,6 +282,7 @@ try {
   assert.match(staticHtml, /data-render-mode="static"/)
   assert.match(staticHtml, /Generated \/about during ff build\./)
   assert.match(staticHtml, /data-testid="about-static-proof"/)
+  assertDormantRoute(staticHtml, "The static document")
   assert.match(staticHtml, /type="module"/)
 
   const builtShell = await readFile(
