@@ -283,7 +283,7 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
     source.match(/import Shell from "\/src\/AppShell\.tsrx"/g)?.length,
     1,
   )
-  assert.match(source, /Component: Shell,\n\t\tchildren: \[/)
+  assert.match(source, /Component: Shell,[\s\S]*children: \[/)
   assert.match(
     source,
     /lazy: async \(\) => \{ const routeModule = await import\("\/src\/Shell\.tsrx"\)/,
@@ -311,13 +311,14 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
     source,
     /\/@flamefront\/hydration-route\.tsrx\?entry=%2Fsrc%2FVisible\.tsrx/,
   )
+  assert.match(source, /"boundary":"flamefront:layout:0"/)
   assert.match(
     source,
-    /handle: \{ flamefront: \{"render":"server","hydration":"deferred"\} \}/,
+    /"render":"server","navigation":"router","hydration":"deferred"/,
   )
   assert.match(
     source,
-    /handle: \{ flamefront: \{"render":"server","hydration":\{"when":"visible","rootMargin":"200px"\}\} \}/,
+    /"render":"server","navigation":"router","hydration":\{"when":"visible","rootMargin":"200px"\}/,
   )
   assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FServer/)
   assert.doesNotMatch(source, /hydration-route\.tsrx\?entry=%2Fsrc%2FClient/)
@@ -336,9 +337,10 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
     /"\/src\/Client\.tsrx": \(\) => Promise\.all\(\[import\("\/src\/Shell\.tsrx"\), import\("\/src\/Client\.tsrx"\)\]\)/,
   )
   assert.match(source, /export function preloadRoute\(entry\)/)
+  assert.match(source, /export const routeMetadata = \[/)
 })
 
-test("uses static artifacts for browser navigation and preserves static hydration boundaries", () => {
+test("marks static routes for fragment navigation and excludes them from module preloaders", () => {
   const app = defineApp({
     shell: "/src/AppShell.tsrx",
     routes: [
@@ -380,15 +382,10 @@ test("uses static artifacts for browser navigation and preserves static hydratio
     source,
     /hydration-route\.tsrx\?entry=%2Fsrc%2FBuiltVisible\.tsrx/,
   )
+  assert.match(source, /"render":"static","navigation":"fragment"/)
   assert.match(source, /export function preloadRoute\(entry\)/)
-  assert.match(
-    source,
-    /"\/src\/About\.tsrx": \(\) => Promise\.all\(\[import\("\/@flamefront\/hydration-route\.tsrx\?entry=%2Fsrc%2FAbout\.tsrx[^\]]*\)\]\)/,
-  )
-  assert.match(
-    source,
-    /"\/src\/BuiltFull\.tsrx": \(\) => Promise\.all\(\[import\("\/src\/BuiltFull\.tsrx"\)\]\)/,
-  )
+  assert.doesNotMatch(source, /"\/src\/About\.tsrx": \(\) =>/)
+  assert.doesNotMatch(source, /"\/src\/BuiltFull\.tsrx": \(\) =>/)
 })
 
 test("generates a server-only importer for every unique leaf route module", () => {

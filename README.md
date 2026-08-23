@@ -154,12 +154,11 @@ export default function Route({ loaderData }) {
 Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
 can call `app.load(url)` from their route loaders. `app.load(url)` and
 `app.prefetch(url)` share a browser-side `RouteDataClient` with generated route
-loaders, so a prefetched result is reused during client navigation. The data
-source follows the route mode: client and server routes use the live data
-endpoint, while static routes use their build-time `.data.json` artifact.
+loaders, so a prefetched result is reused during client navigation. `app.load`
+remains the explicit data-only API for static `.data.json` artifacts.
 
-For link-intent prefetching, `prefetchRoute()` combines that data request with
-the generated client module imports for the route and its pathless layouts:
+`prefetchRoute()` chooses resources from the matched route. Client and server
+routes warm live data plus their client route and pathless layout modules:
 
 ```ts
 import { prefetchRoute } from "flamefront/remix-router"
@@ -167,10 +166,10 @@ import { prefetchRoute } from "flamefront/remix-router"
 void prefetchRoute(app, "/products/one")
 ```
 
-This preloads client navigation data and JavaScript. It does not request
-server-rendered HTML because server-rendered routes also use client-side
-navigation after the initial document load. A full document reload still uses
-the route's server or static document policy.
+Static routes use the optional `RoutePrefetchResources.staticFragment` callback
+instead of importing the static route module. The fragment transport supplies
+that callback in the static-navigation pass. Until then, an omitted callback
+leaves static fragment warming as a no-op.
 
 Flamefront's Vite transform loads the centralized route manifest. Octane
 compiles TSRX first, then Flamefront removes loaders and their private
@@ -208,11 +207,16 @@ same graph:
 ```ts
 import {
   createClientRouter,
+  createRoutePrefetcher,
   createServerRouter,
+  routeMetadata,
   routes,
 } from "flamefront/remix-router"
 
-const browserRouter = createClientRouter({ hydrationData })
+const browserRouter = createClientRouter({
+  hydrationData,
+  prefetch: createRoutePrefetcher(app),
+})
 const serverResult = await createServerRouter(request)
 if (serverResult instanceof Response) return serverResult
 ```
@@ -221,6 +225,17 @@ The server result contains `router`, `context`, and serializable
 `hydrationData`. Redirect responses are returned directly and route errors stay
 in both the static context and hydration state. The exported `routes` collection
 is available when an application needs lower-level Remix Router APIs.
+
+Pass `createRoutePrefetcher(app)` to the browser router's `prefetch` option to
+connect `Link` and `NavLink` modes such as `prefetch="intent"`. Programmatic
+callers can use the same router cache with `router.prefetch(to)`.
+
+Generated route objects expose `handle.flamefront` metadata with stable `id`,
+`boundary`, and `parent` values. The adapter also exports the flat
+`routeMetadata` collection. Leaf routes include their `render` mode and
+`navigation` strategy. Static routes use `navigation: "fragment"`; client and
+server routes use `navigation: "router"`. The metadata is the handoff for the
+static-fragment boundary work.
 
 Route modules and pathless layout modules use default component exports and are
 loaded lazily. Server routers call route modules' exported loaders directly;

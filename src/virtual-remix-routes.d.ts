@@ -1,9 +1,13 @@
 declare module "virtual:flamefront/remix-routes" {
   import type { RouteObject } from "@octanejs/remix-router"
-  import type { NormalizedRoutingOptions } from "./index.ts"
+  import type {
+    GeneratedRouteMetadata,
+    NormalizedRoutingOptions,
+  } from "./index.ts"
 
   export const routes: RouteObject[]
   export const routing: NormalizedRoutingOptions
+  export const routeMetadata: readonly GeneratedRouteMetadata[]
   export function preloadRoute(entry: string): Promise<void>
 }
 

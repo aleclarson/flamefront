@@ -50,6 +50,24 @@ export type GeneratedHydration =
  */
 export type HydrationMode = "full" | "deferred" | "none" | GeneratedHydration
 
+export type RouteNavigationStrategy = "router" | "fragment"
+
+export type RouteBoundaryKind = "shell" | "layout" | "route"
+
+/** Metadata emitted on generated router nodes for route-aware navigation. */
+export interface GeneratedRouteMetadata {
+  readonly id: string
+  /** Stable token used by the static-fragment boundary pass. */
+  readonly boundary: string
+  readonly kind: RouteBoundaryKind
+  readonly entry: string
+  readonly parent?: string
+  readonly path?: string
+  readonly render?: RenderMode
+  readonly navigation: RouteNavigationStrategy
+  readonly hydration?: HydrationMode
+}
+
 export interface RouteOptions {
   readonly render?: RenderMode
   readonly hydration?: HydrationMode

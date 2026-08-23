@@ -15,14 +15,25 @@ import type {
   RouteDefinition,
 } from "./index.ts"
 import {
+  createRoutePrefetchCallback,
+  prefetchRouteResources,
+  type RoutePrefetchCallback,
+  type RoutePrefetchResources,
+} from "./route-prefetch.ts"
+import {
   preloadRoute as preloadGeneratedRoute,
+  routeMetadata,
   routes,
   routing,
 } from "virtual:flamefront/remix-routes"
 
-export { routes, routing }
+export { routeMetadata, routes, routing }
 export { createRemixRouterAdapter }
 export type { ServerRouterOptions, ServerRouterResult }
+export type {
+  RoutePrefetchCallback,
+  RoutePrefetchResources,
+} from "./route-prefetch.ts"
 
 export const staticRouterHydrationScriptId =
   "flamefront-static-router-hydration"
@@ -52,22 +63,30 @@ const adapter = createRemixRouterAdapter(
 export const createClientRouter = adapter.createClientRouter
 export const createServerRouter = adapter.createServerRouter
 
-/** Prefetch route data and the generated client modules used by navigation. */
+/** Prefetch route resources selected by the matched Flamefront route. */
 export async function prefetchRoute<
   Route extends RouteDefinition = RouteDefinition,
 >(
   app: Pick<AppDefinition<Route>, "match" | "prefetch">,
   url: string | URL,
   options?: LoadRouteOptions,
+  resources?: RoutePrefetchResources<Route>,
 ): Promise<void> {
-  const match = app.match(url)
+  await prefetchRouteResources(
+    app,
+    preloadGeneratedRoute,
+    url,
+    options,
+    resources,
+  )
+}
 
-  if (!match) {
-    return
-  }
-
-  await Promise.all([
-    app.prefetch(url, options),
-    preloadGeneratedRoute(match.data.entry),
-  ])
+/** Create the callback used by `createClientRouter({ prefetch })`. */
+export function createRoutePrefetcher<
+  Route extends RouteDefinition = RouteDefinition,
+>(
+  app: Pick<AppDefinition<Route>, "match" | "prefetch">,
+  resources?: RoutePrefetchResources<Route>,
+): RoutePrefetchCallback {
+  return createRoutePrefetchCallback(app, preloadGeneratedRoute, resources)
 }
