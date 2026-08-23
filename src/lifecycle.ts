@@ -360,10 +360,12 @@ export async function prerenderStaticRoutes(
   }
 }
 
-export async function devProject(root = process.cwd()): Promise<void> {
+export async function devProject(
+  root = process.cwd(),
+  port = Number(process.env.PORT ?? 5173),
+): Promise<void> {
   const { app } = await loadProject(root)
   const { createServer } = await import("vite")
-  const port = Number(process.env.PORT ?? 5173)
   const vite = await createServer({
     root,
     appType: "spa",

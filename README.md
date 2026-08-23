@@ -37,10 +37,12 @@ Run `ff routes` from an app with `src/app.ts` to inspect its route graph.
 Flamefront also owns the Vite lifecycle commands:
 
 ```sh
-ff dev
+ff dev --port 3000
 ff build
 ff preview
 ```
+
+Without `--port`, the development server uses `PORT` or defaults to `5173`.
 
 `ff build` emits client assets and a srvx-compatible `dist/server/server.js`,
 then prerenders every static route. Each static route gets its full

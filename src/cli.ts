@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 
-import { binary, command, flag, run, subcommands } from "@alloc/cmd-ts"
+import {
+  binary,
+  command,
+  flag,
+  number,
+  option,
+  optional,
+  run,
+  subcommands,
+} from "@alloc/cmd-ts"
 import {
   buildProject,
   devProject,
@@ -40,8 +49,14 @@ const routes = command({
 const dev = command({
   name: "dev",
   description: "Start the development server for every render mode.",
-  args: {},
-  handler: () => devProject(),
+  args: {
+    port: option({
+      long: "port",
+      type: optional(number),
+      description: "Port for the development server.",
+    }),
+  },
+  handler: ({ port }) => devProject(process.cwd(), port),
 })
 
 const build = command({
