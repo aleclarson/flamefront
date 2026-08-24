@@ -4,6 +4,16 @@ This guide describes a full migration of an existing web application to
 Flamefront. It is for teams replacing the application's routing, rendering,
 hydration, and route-data runtime in one cutover.
 
+The migration also assumes that the application's React or Preact component
+runtime is moving to Octane in the same cutover. The target route tree, shell,
+layouts, and document lifecycle must render through Octane before production
+switches to Flamefront.
+
+This guide does not cover changing component source files from `.tsx` to
+`.tsrx`. Octane can process `.tsx` through its Vite integration, so file
+extension conversion is not a prerequisite here. A later guide can cover the
+source-format and syntax migration separately.
+
 The old application may remain available locally for comparison and may be
 kept as a rollback artifact. This guide does not describe running two route
 systems in production, moving only one feature area, or gradually splitting
@@ -19,6 +29,7 @@ does not require a rewrite of the application's domain code.
 | Router, route registry, and route matching        | One `defineApp` manifest with the complete route tree                                        |
 | Server rendering entry and document lifecycle     | `entry-server.ts` composed from the Flamefront runtime, Octane documents, and srvx transport |
 | Browser router bootstrap and hydration            | `startOctaneClient` with the same router document used by the server                         |
+| React/Preact renderer, roots, and UI runtime      | Octane components, providers, rendering, and hydration                                       |
 | Route-level read data and server request plumbing | Route `loader` functions plus request-scoped context                                         |
 | Static generation and route-data transport        | `ff build` and Flamefront's generated static files and fragments                             |
 | Framework-specific build and preview commands     | `ff dev`, `ff build`, and `ff preview`                                                       |
@@ -26,14 +37,17 @@ does not require a rewrite of the application's domain code.
 
 Usually keep the following code:
 
-- domain components and business rules;
+- component markup, styles, and domain behavior that are compatible with
+  Octane;
 - database clients, service clients, and authentication providers;
 - CSS, images, fonts, and application-owned assets;
 - background jobs and non-HTTP services;
 - tests that verify business behavior rather than framework wiring.
 
-Move code only when it depends directly on the old router, server renderer,
-browser bootstrap, or route-data API.
+Adapt or replace code that depends on React, Preact, the old router, the old
+server renderer, the browser bootstrap, or the route-data API. The component
+runtime migration is part of this full cutover even when the files remain
+`.tsx`.
 
 ## Before starting
 
@@ -47,6 +61,10 @@ Confirm that the application can meet these alpha requirements:
 - its server build can provide `src/entry-server.ts` or an app-owned wrapper
   that reaches that convention;
 - every route can be assigned `client`, `server`, or `static` behavior;
+- every component reachable from the shell, layouts, and routes can render
+  through Octane at cutover;
+- React or Preact roots, provider implementations, router bindings, hooks,
+  refs, portals, and error boundaries have an Octane target;
 - read-side route data can be expressed as a loader;
 - write operations can remain in application-owned endpoints or services;
 - a Node process can serve server and client routes, unless the entire
@@ -80,6 +98,12 @@ Do not start the migration until the target column is complete. A route that
 is missing from the manifest is a migration defect, even if its component has
 already been ported.
 
+Make a companion component-runtime inventory. Find the current root creation
+and hydration calls, React or Preact imports, provider and context trees,
+hooks, refs, portals, router bindings, error boundaries, SSR adapters, and
+renderer-specific tests. Mark each item as keep, adapt for Octane, or remove.
+This is an API and ownership inventory, not a `.tsx` to `.tsrx` rename list.
+
 ## Define the target shape
 
 The target application has one explicit route manifest. The manifest owns the
@@ -91,15 +115,19 @@ and shared routing paths.
 import { defineApp, layout, route } from "flamefront"
 
 export const app = defineApp({
-  shell: "/src/AppShell.tsrx",
+  shell: "/src/AppShell.tsx",
   routes: [
-    route("/", "/src/HomePage.tsrx", { render: "server" }),
-    layout("/src/AccountShell.tsrx", [
-      route("/account", "/src/AccountPage.tsrx", { render: "client" }),
+    route("/", "/src/HomePage.tsx", { render: "server" }),
+    layout("/src/AccountShell.tsx", [
+      route("/account", "/src/AccountPage.tsx", { render: "client" }),
     ]),
   ],
 })
 ```
+
+These examples intentionally keep `.tsx` filenames. Convert the component
+runtime and framework APIs to Octane, but do not make a `.tsx` to `.tsrx`
+rename part of this migration's definition of done.
 
 Use the existing public URLs whenever possible. If the old application uses a
 prefix, set `routing.basename` and `routing.dataPath` on the app definition so
@@ -108,7 +136,7 @@ transport use the same values.
 
 Each route module keeps a default component export and may add a `loader` for
 read-side data. The route entry is a Vite project-root module ID, such as
-`/src/AccountPage.tsrx`.
+`/src/AccountPage.tsx`.
 
 Choose the render mode from the application's behavior, not from the current
 framework's terminology:
@@ -158,7 +186,7 @@ the script, payload, serialization, and identifier that the client expects.
 ## Replace the browser boundary
 
 Replace the old browser router initialization, root hydration call, and route
-loader wiring with `startOctaneClient({ app })`.
+loader wiring with the Octane browser entry, `startOctaneClient({ app })`.
 
 Keep the existing application providers when they are still needed. If the
 server and browser need a provider-wrapped router document, export that
@@ -176,6 +204,32 @@ Vite plugins must be installed in the documented order:
 ```ts
 plugins: [flamefront(), octane()]
 ```
+
+## Migrate the component runtime
+
+React or Preact to Octane is a required workstream in this migration. It is a
+runtime and component-contract migration, not a file-extension exercise.
+
+Replace or adapt these boundaries:
+
+| React/Preact boundary                                   | Octane migration work                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `ReactDOM` or Preact root creation                      | Let the Flamefront document and browser entries own rendering and hydration            |
+| React or Preact providers and context                   | Recreate the provider tree around the shared Octane router document                    |
+| Router-specific components and hooks                    | Use the Flamefront Remix Router adapter and Octane-compatible navigation APIs          |
+| Effect, memoization, ref, and lifecycle assumptions     | Review each component against Octane's hook and compiler behavior                      |
+| Portals, imperative DOM ownership, and error boundaries | Rebuild the ownership boundary explicitly and test server, client, and hydrated states |
+| Component tests tied to the old renderer                | Run them through the Octane renderer and add hydration coverage where needed           |
+
+Preserve markup, styling, service calls, and business rules when their
+semantics remain valid. Do not assume that a React or Preact component is
+drop-in compatible just because its function signature looks similar. Check
+hooks, context propagation, refs, event handling, portals, and server/client
+ownership.
+
+Keep the existing `.tsx` source layout if that is the chosen Octane input.
+The later source-format guide can cover `.tsx` to `.tsrx` conversion without
+mixing that concern into the Flamefront migration.
 
 ## Move route data without moving application ownership
 
@@ -213,6 +267,10 @@ build error.
 
 Make the current persistent application shell the Flamefront `shell`. Move
 route groups that share a pathless layout into `layout(...)` definitions.
+
+Port the shell, layouts, and route components to Octane as part of the same
+cutover. Keep their `.tsx` files when useful; the required change is their
+renderer, component APIs, and ownership model.
 
 Preserve these behaviors explicitly:
 
@@ -264,21 +322,25 @@ does not switch until the entire route inventory has a Flamefront target.
 1. Freeze the current URL, status, redirect, and data contracts in tests.
 2. Add the pinned Flamefront dependencies and configure ESM, Vite, and the
    matching Octane plugin.
-3. Create the complete `src/app.ts` manifest, including the shell, layouts,
+3. Replace the React or Preact roots, provider tree, router bindings, and
+   component runtime with Octane equivalents. Keep `.tsx` filenames unless a
+   separate source-format decision says otherwise.
+4. Create the complete `src/app.ts` manifest, including the shell, layouts,
    and every user-facing application route. Assign redirects, not-found
    responses, health checks, and other non-page endpoints to their documented
    server or external owners.
-4. Port route modules and move read-side data into loaders. Keep write paths
+5. Port route modules and move read-side data into loaders. Keep write paths
    on their existing application-owned interfaces.
-5. Create the server composition root and move request context, middleware,
+6. Create the server composition root and move request context, middleware,
    headers, templates, and asset locations.
-6. Replace browser bootstrap and hydration with the Flamefront client entry.
-7. Replace build, preview, static output, and deployment configuration.
-8. Remove the old router, SSR entry, hydration code, route-data transport,
-   and framework build dependencies.
-9. Run the complete acceptance suite against a production build and a clean
-   installation of the package.
-10. Cut over the full application and retain the old build only as a rollback
+7. Replace browser bootstrap and hydration with the Flamefront client entry.
+8. Replace build, preview, static output, and deployment configuration.
+9. Remove the old router, SSR entry, hydration code, route-data transport,
+   React or Preact root and renderer dependencies, and old framework build
+   dependencies.
+10. Run the complete acceptance suite against a production build and a clean
+    installation of the package.
+11. Cut over the full application and retain the old build only as a rollback
     artifact.
 
 ## Cutover checks
@@ -290,6 +352,7 @@ of routes.
 
 - every user-facing route appears in the Flamefront manifest, and every other
   public endpoint has a documented server or external owner;
+- every shell, layout, and route component renders through Octane;
 - direct loads and refreshes work for every route;
 - server, client, and static modes match the inventory decision;
 - route params are decoded and passed to loaders correctly;
@@ -301,6 +364,8 @@ of routes.
 
 - authenticated and unauthenticated requests receive the same intended
   policy;
+- no React or Preact root, hydration call, or router runtime remains on the
+  production path unless it has an explicitly documented interop boundary;
 - cookies, headers, locale, and request context reach every loader that needs
   them;
 - server-only modules do not enter client bundles;
@@ -323,6 +388,8 @@ of routes.
 
 - Migrating only the browser router while leaving the old server document
   lifecycle in place.
+- Treating React or Preact components as drop-in compatible without reviewing
+  hooks, context, refs, portals, event behavior, and hydration ownership.
 - Registering a route in the old router and forgetting to add it to the
   Flamefront manifest.
 - Treating a loader as an action or putting a database write in it.
@@ -334,6 +401,8 @@ of routes.
   as a separate product change.
 - Removing the old build before the complete Flamefront build and deployment
   have passed in a clean environment.
+- Renaming `.tsx` files to `.tsrx` and treating that filename change as the
+  React/Preact-to-Octane migration.
 
 For the exact package setup, server composition, browser entry, deployment
 shape, and current alpha limitations, use the main [Flamefront README](../README.md).
