@@ -1,9 +1,302 @@
 # Flamefront
 
-Flamefront is the small, compiler-oriented framework layer being explored for
-the Octane playground. Its package sources, CLI, and tests run directly as
-TypeScript through Node's built-in type stripping; there is no package build
-step or duplicate declaration surface.
+Flamefront is a pre-1.0 framework layer for Octane. Version
+`0.1.0-alpha.0` is the first alpha intended for external app evaluation.
+The package keeps its TypeScript sources and exposes the `ff` CLI. Node's
+built-in type stripping runs the CLI, while Vite bundles the application.
+
+Pin the alpha to an exact version. Alpha releases may change the route,
+hydration, build, or peer dependency contracts before `1.0.0`.
+
+## Install the alpha
+
+Flamefront's package name is the unscoped `flamefront`. A minimal app uses
+Flamefront with the matching Octane packages and Vite version:
+
+```sh
+pnpm add \
+  flamefront@0.1.0-alpha.0 \
+  @octanejs/remix-router@0.1.36 \
+  @octanejs/vite-plugin@0.1.40 \
+  octane@0.1.40 \
+  vite@8.2.2
+```
+
+`@octanejs/remix-router` is an optional peer of Flamefront, but the
+quickstart uses it for `Outlet`, `Link`, and loader data. The
+`@octanejs/vite-plugin` package compiles TSRX and must be installed alongside
+the Flamefront Vite plugin.
+
+The app must use ESM and keep its route manifest at `src/app.ts`. The
+server entry and browser entry can be placed elsewhere, but the commands
+below assume the conventional paths shown here.
+
+## Supported versions
+
+| Package or runtime       | Supported version | Notes                                                                   |
+| ------------------------ | ----------------- | ----------------------------------------------------------------------- |
+| Node.js                  | `>=22.22.2`       | CI runs Node 22.22.2, 24.x, and 26.x.                                   |
+| Vite                     | `^8.0.16`         | The repository and consumer check currently use Vite 8.2.2.             |
+| Octane                   | `0.1.40`          | Flamefront declares this as an exact peer.                              |
+| `@octanejs/vite-plugin`  | `0.1.40`          | Use the matching TSRX compiler plugin.                                  |
+| `@octanejs/remix-router` | `0.1.36`          | Optional to Flamefront, required by the router and quickstart examples. |
+
+The release checks use pnpm 11.21.0. Other package managers may work, but
+they are not part of this alpha's verification contract.
+
+## Minimal app quickstart
+
+Create this small project after installing the packages above:
+
+```
+.
+├── index.html
+├── vite.config.ts
+└── src
+    ├── AboutPage.tsrx
+    ├── AppShell.tsrx
+    ├── HomePage.tsrx
+    ├── app.ts
+    ├── entry-server.ts
+    └── main.ts
+```
+
+Set `"type": "module"` in the app's `package.json`, then add the Vite
+configuration:
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite"
+import { octane } from "@octanejs/vite-plugin"
+import { flamefront } from "flamefront/vite"
+
+export default defineConfig({
+  plugins: [flamefront(), octane()],
+})
+```
+
+The route manifest declares the persistent shell and two routes. The home
+route renders on the server and has a loader. The about route is pre-rendered
+as a static route:
+
+```ts
+// src/app.ts
+import { defineApp, route } from "flamefront"
+
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  routes: [
+    route("/", "/src/HomePage.tsrx", { render: "server" }),
+    route("/about", "/src/AboutPage.tsrx", { render: "static" }),
+  ],
+})
+```
+
+```tsx
+// src/AppShell.tsrx
+import { Outlet } from "@octanejs/remix-router"
+
+export default function AppShell() @{
+  <div>
+    <Outlet />
+  </div>
+}
+```
+
+```tsx
+// src/HomePage.tsrx
+import { useLoaderData } from "@octanejs/remix-router"
+import type { LoaderArgs } from "flamefront/server"
+
+export async function loader({ request }: LoaderArgs) {
+  return { pathname: new URL(request.url).pathname }
+}
+
+export default function HomePage() @{
+  const data = useLoaderData<{ pathname: string }>()
+
+  <main>
+    Flamefront loader: {data.pathname}
+  </main>
+}
+```
+
+```tsx
+// src/AboutPage.tsrx
+export default function AboutPage() @{
+  <main>About this app</main>
+}
+```
+
+The server entry connects the generated route importer, route runtime, Octane
+document service, and srvx transport. It must default-export the composed
+entry:
+
+```ts
+// src/entry-server.ts
+import { importRoute } from "virtual:flamefront/server-routes"
+import { createOctaneDocuments } from "flamefront/octane"
+import { createRouteRuntime } from "flamefront/server"
+import { createSrvxServerEntry } from "flamefront/srvx"
+import { app } from "./app.ts"
+
+const runtime = createRouteRuntime({ app, importRoute })
+const documents = createOctaneDocuments({ app, runtime })
+
+export default createSrvxServerEntry({
+  app,
+  documents,
+  assets: {
+    clientDirectory: new URL("../client/", import.meta.url),
+  },
+})
+```
+
+The browser entry starts the generated Octane router and adopts the server
+hydration payload:
+
+```ts
+// src/main.ts
+import { startOctaneClient } from "flamefront/octane/client"
+import { app } from "./app.ts"
+
+await startOctaneClient({ app })
+```
+
+The HTML template only needs a module entry for the browser:
+
+```html
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flamefront app</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+```
+
+Run the app and inspect its graph:
+
+```sh
+pnpm exec ff dev --port 3000
+pnpm exec ff routes
+```
+
+The CLI reads `src/app.ts` from the current working directory. The
+development server uses the `--port` value, then `PORT`, and otherwise
+defaults to 5173. Build and serve the production output with:
+
+```sh
+pnpm exec ff build
+PORT=4173 pnpm exec ff preview
+```
+
+`ff routes --json` prints the normalized route collection. A route loader
+receives a standard `Request` and decoded `params`; the result is available
+through the matching Remix Router loader-data hook.
+
+## Deployment shape
+
+`ff build` produces one application artifact under `dist`:
+
+- `dist/client` contains browser assets, the application template, and
+  pre-rendered static route files.
+- `dist/client/<route>/index.data.json` contains build-time route data for
+  each static route.
+- `dist/client/<route>/index.fragment.html` and
+  `index.fragment.json` contain the static navigation artifacts.
+- `dist/server/server.js` default-exports the srvx-compatible
+  `FlamefrontServerEntry`.
+- `dist/server/index.html` is the server template copied from the client
+  build.
+
+For a Node deployment, build in the build stage and run the packaged CLI in
+the runtime stage:
+
+```sh
+pnpm exec ff build
+PORT=3000 pnpm exec ff preview
+```
+
+Keep `dist/client` and `dist/server` together. The preview process serves
+browser assets and static fragments, renders server and client routes through
+the built entry, and handles the route-data endpoint. A custom Node host can
+load the default export from `dist/server/server.js` and pass it to srvx;
+the host must preserve the entry's middleware and lifecycle fields.
+
+An app with only concrete `static` routes can serve `dist/client` from a
+static host after the build. Server and client routes, live loaders, redirects,
+and server-rendered error responses need the Node handler.
+
+## Common failure guidance
+
+| Symptom                                                    | Fix                                                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `Could not find .../src/app.ts`                            | Run `ff` from the app root and export `app` from `src/app.ts`.                                                            |
+| The server entry validation fails                          | Default-export the value returned by `createSrvxServerEntry`; named exports are not consumed by `ff`.                     |
+| `virtual:flamefront/server-routes` cannot resolve          | Add `flamefront()` and `octane()` to the app's Vite plugins, in that order, and keep the import in the server entry.      |
+| `ff preview` cannot find `dist/server/server.js`           | Run `ff build` first and start preview from the same app root.                                                            |
+| A static link performs a full document load or returns 404 | Serve the complete `dist/client` tree, including the `.fragment.html` and `.fragment.json` files generated by `ff build`. |
+| Hydration fails at startup                                 | Keep one `#root` element in the HTML template and let `startOctaneClient` use the same router document as the server.     |
+| A dependency resolution error mentions a peer version      | Install the versions in the support matrix. Do not mix the alpha with a different Octane or Remix Router minor.           |
+
+## Known limitations
+
+- This is an alpha. Pin exact package versions and expect breaking changes
+  before `1.0.0`. There is no alpha-to-public compatibility promise yet.
+- Flamefront exports raw TypeScript files. The CLI depends on Node's built-in
+  type stripping, and consumers need a toolchain that can resolve TypeScript
+  package exports.
+- The CLI expects `src/app.ts` and `src/entry-server.ts` at the project
+  paths described above. Custom project layouts need an app-owned wrapper or a
+  future lifecycle extension.
+- Static pre-rendering accepts concrete paths only. A static route containing
+  `:` or `*` cannot be generated without adding concrete route entries.
+- Route modules have a default component export and may export a `loader`.
+  Flamefront does not currently define an action or mutation API.
+- Flamefront removes `loader` and its server-only dependency graph from
+  client route modules. A `.server` module that remains reachable from
+  client code is a build error.
+- A custom document composer may move or wrap the framework-provided hydration
+  script, but it must keep the script, payload, serialization, and identifier
+  intact.
+- Client source maps omit embedded `sourcesContent` for mixed route sources
+  so removed server implementations are not republished in browser maps.
+- Node is required for server and client routes. A static host is suitable
+  only for an app whose deployed behavior is fully covered by the generated
+  static output.
+
+## License terms
+
+Flamefront remains licensed under the Functional Source License, Version 1.1,
+MIT Future License (`FSL-1.1-MIT`). The complete terms are in
+[LICENSE.md](./LICENSE.md), and they control if this summary differs from the
+license.
+
+The current FSL grant permits use, copying, modification, derivative works,
+public performance, public display, and redistribution for any Permitted
+Purpose. A Competing Use is excluded. The license specifically lists internal
+use and access, non-commercial education, non-commercial research, and
+professional services provided to a licensee as Permitted Purposes.
+
+Redistributions must include the license terms or a link to them and retain
+the copyright notices. The software is provided without warranties or
+liability. The license does not grant rights to use Flamefront trademarks,
+trade names, service marks, or product names beyond identifying the software's
+origin.
+
+The license includes an irrevocable MIT grant that becomes effective on the
+second anniversary of the date the software is made available. The current
+`FSL-1.1-MIT` terms and the future MIT grant are part of the release
+contract; this documentation does not change either one.
+
+## Route manifest
 
 The app owns one explicit, centralized route manifest:
 
@@ -29,34 +322,20 @@ The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
 
 Use `app.match(url)` to select the most specific route and read decoded
-parameters. Pass `{ render: 'client' }` to select only routes with a particular
-render mode. Flamefront delegates route grammar and specificity to
+parameters. Pass `{ render: "client" }` to select only routes with a
+particular render mode. Flamefront delegates route grammar and specificity to
 `@remix-run/route-pattern` rather than maintaining its own matcher.
 
-Run `ff routes` from an app with `src/app.ts` to inspect its route graph.
-Flamefront also owns the Vite lifecycle commands:
-
-```sh
-ff dev --port 3000
-ff build
-ff preview
-```
-
-Without `--port`, the development server uses `PORT` or defaults to `5173`.
-
-`ff build` emits client assets and a srvx-compatible `dist/server/server.js`,
-then prerenders every static route. Each static route gets its full
-`index.html`, explicit data-only `index.data.json`, and a stable
-`index.fragment.html`/`index.fragment.json` pair for in-app navigation. The server build default-exports one
-`FlamefrontServerEntry`: srvx server options plus the mode-aware document and
-route-data operations used by the lifecycle. `ff dev`, `ff build`, and
-`ff preview` consume that default object directly; named server exports are not
-part of the contract. `ff preview` runs the built handler through srvx, while
-`srvx/static` serves static output and client assets.
+`ff build` emits client assets and a srvx-compatible
+`dist/server/server.js`, then pre-renders every static route. The server
+build default-exports one `FlamefrontServerEntry`: srvx server options plus
+the mode-aware document and route-data operations used by the lifecycle.
+`ff dev`, `ff build`, and `ff preview` consume that default object
+directly; named server exports are not part of the contract.
 
 ## Composable server entry
 
-The app's `src/entry-server.ts` is a small composition root. It supplies the
+The app's `src/entry-server.ts` is a composition root. It supplies the
 generated server route importer, then connects the route runtime, Octane
 document service, and srvx transport:
 
@@ -79,67 +358,37 @@ export default createSrvxServerEntry({
 })
 ```
 
-## Octane browser entry
-
-Use the matching client adapter instead of assembling the browser router and
-root component separately:
-
-```ts
-import { startOctaneClient } from "flamefront/octane/client"
-import { app } from "./app.ts"
-
-await startOctaneClient({ app })
-```
-
-`startOctaneClient` mounts client-rendered routes and hydrates server or static
-routes after the browser router initializes. By default, it and
-`createOctaneDocuments` use the same `RouterDocument` exported by the generated
-Remix route module. This shared root is the `RouterProvider` itself, so Octane
-can adopt the server tree instead of recovering from a different client root.
-
-Applications that wrap the router in providers can still pass
-`routerDocument`. Export that component from one shared module and pass the same
-import to `createOctaneDocuments` and `startOctaneClient`.
-
-The Vite plugin generates `virtual:flamefront/server-routes`; supplying its
-`importRoute` function keeps bundler-specific route importing at the app
-boundary. The three layers have deliberately separate ownership:
+The three layers have separate ownership:
 
 - `createRouteRuntime({ app, importRoute, requestContext? })` owns route
   matching, route-module loading, loader execution, and the request-data
   response. `requestContext` receives the request, matched route and params,
   the purpose (`data` or `document`), and the document mode when applicable.
-  For a document request, the resulting context is passed to the server router
-  and its route loaders.
+  For a document request, the resulting context is passed to the server
+  router and its route loaders.
 - `createOctaneDocuments({ app, runtime, routerDocument?, composeDocument? })`
   owns shell versus full route rendering, the Remix static-router branch,
   Octane rendering, and static route-data extraction. Its generated default is
-  shared with `startOctaneClient`; `routerDocument` can replace it with a shared
-  application provider component. `composeDocument`
-  receives the template, rendered body, CSS, framework hydration script, and
-  request/mode metadata so the app can control HTML placement or add markup.
-  `renderDocument` is the one mode-aware document operation; its mode is derived
-  from the matched route, with explicit `shell` mode for build-time shell
-  generation.
+  shared with `startOctaneClient`. `routerDocument` can replace it with a
+  shared application provider component. `composeDocument` receives the
+  template, rendered body, CSS, framework hydration script, and request/mode
+  metadata so the app can control HTML placement or add markup.
 - `createSrvxServerEntry({ app, documents, assets, middleware?, headers? })`
   owns the srvx `fetch` handler, static asset middleware, template lookup,
-  route-data dispatch, render-mode dispatch, and default response headers. The
-  required `assets.clientDirectory` locates client files; `loadTemplate` can
-  replace the default template lookup. Application middleware runs in
-  declaration order around the framework transport, and `headers` can merge
-  application policy with the default and document headers; its context also
-  exposes the rendered document's status.
+  route-data dispatch, render-mode dispatch, and default response headers.
+  The required `assets.clientDirectory` locates client files. Application
+  middleware runs in declaration order around the framework transport, and
+  `headers` can merge application policy with the default and document
+  headers.
 
-The app owns these composition seams: the route importer and request-scoped
-services such as authentication or database handles; router providers and
-document composition; template and asset locations; middleware and response
-headers; and the shared routing paths. Flamefront continues to own render-mode
-branching, loader and router semantics, the srvx adapter, and the default
-redirect and asset behavior. The app does not need to duplicate those rules.
+The app owns the route importer and request-scoped services such as
+authentication or database handles, router providers and document composition,
+template and asset locations, middleware and response headers, and shared
+routing paths. Flamefront owns render-mode branching, loader and router
+semantics, the srvx adapter, and default redirect and asset behavior.
 
 Configure shared paths on the app definition so matching, generated browser
-routes, the server router, the data endpoint, and srvx use the same normalized
-values:
+routes, the server router, the data endpoint, and srvx use the same values:
 
 ```ts
 import { defineApp, route } from "flamefront"
@@ -158,8 +407,35 @@ Hydration and data protocols remain framework-owned. The document composer may
 place or surround the supplied hydration script, but it cannot replace its
 payload, serialization, or identifier. Likewise, the route-data JSON response,
 static `.data.json` artifacts, and their browser loading behavior are not
-application codecs. Custom templates and document markup must preserve the
-framework-generated protocol pieces.
+application codecs.
+
+## Octane browser entry
+
+Use the matching client adapter instead of assembling the browser router and
+root component separately:
+
+```ts
+import { startOctaneClient } from "flamefront/octane/client"
+import { app } from "./app.ts"
+
+await startOctaneClient({ app })
+```
+
+`startOctaneClient` mounts client-rendered routes and hydrates server or
+static routes after the browser router initializes. By default, it and
+`createOctaneDocuments` use the same `RouterDocument` exported by the
+generated Remix route module. This shared root is the `RouterProvider` itself,
+so Octane can adopt the server tree instead of recovering from a different
+client root.
+
+Applications that wrap the router in providers can pass `routerDocument`.
+Export that component from one shared module and pass the same import to
+`createOctaneDocuments` and `startOctaneClient`.
+
+The Vite plugin generates `virtual:flamefront/server-routes`; supplying its
+`importRoute` function keeps bundler-specific route importing at the app
+boundary. It also generates `virtual:flamefront/remix-routes` for the
+Remix Router adapter.
 
 ## Route loaders
 
@@ -180,11 +456,12 @@ export default function Route({ loaderData }) {
 
 Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
 can call `app.load(url)` from their route loaders. `app.load(url)` and
-`app.prefetch(url)` share a browser-side `RouteDataClient` with generated route
-loaders, so a prefetched result is reused during client navigation. `app.load`
-remains the explicit data-only API for static `.data.json` artifacts. Static
-route navigation and route-aware prefetching use the fragment JSON transport
-instead, so a navigation never renders a static route module from loader data.
+`app.prefetch(url)` share a browser-side `RouteDataClient` with generated
+route loaders, so a prefetched result is reused during client navigation.
+`app.load` remains the explicit data-only API for static `.data.json`
+artifacts. Static route navigation and route-aware prefetching use the
+fragment JSON transport instead, so a navigation never renders a static route
+module from loader data.
 
 `prefetchRoute()` chooses resources from the matched route. Client and server
 routes warm live data plus their client route and pathless layout modules:
@@ -196,9 +473,9 @@ void prefetchRoute(app, "/products/one")
 ```
 
 Static routes use the fragment transport instead of importing their route
-module as a normal navigation renderer. `createRoutePrefetcher(app)` wires the
-transport into the existing prefetch seam; custom
-`RoutePrefetchResources.staticFragment` callbacks can still replace it.
+module as a normal navigation renderer. `createRoutePrefetcher(app)` wires
+the transport into the existing prefetch seam; custom
+`RoutePrefetchResources.staticFragment` callbacks can replace it.
 
 Flamefront's Vite transform loads the centralized route manifest. Octane
 compiles TSRX first, then Flamefront removes loaders and their private
@@ -214,13 +491,13 @@ export default {
 ```
 
 Files and directories named `.server` are rejected if they remain reachable
-from client code after loader removal. This turns accidental server imports into
-compile-time errors in both development and production.
+from client code after loader removal. This turns accidental server imports
+into compile-time errors in development and production.
 
 When client source maps are emitted, mixed route sources omit embedded
-`sourcesContent` so removed server implementations are not republished in map
-files. The generated client code remains mapped, but developer tools need local
-source access to display those route sources.
+`sourcesContent` so removed server implementations are not republished in
+map files. The generated client code remains mapped, but developer tools need
+local source access to display those route sources.
 
 ## Remix Router adapter
 
@@ -228,19 +505,11 @@ Applications that install `@octanejs/remix-router` can opt into Flamefront's
 Remix adapter. Flamefront keeps that package as an optional peer, so core route
 configuration and matching remain router-agnostic.
 
-The Vite plugin generates the application's nested, lazy route-object graph at
-`virtual:flamefront/remix-routes`. Most applications can use the stable adapter
-instead; it creates a browser router or a request-scoped static router over the
-same graph:
-
 ```ts
 import {
   createClientRouter,
   createRoutePrefetcher,
   createServerRouter,
-  RouterDocument,
-  routeMetadata,
-  routes,
 } from "flamefront/remix-router"
 
 const browserRouter = createClientRouter({
@@ -252,29 +521,29 @@ if (serverResult instanceof Response) return serverResult
 ```
 
 The server result contains `router`, `context`, and serializable
-`hydrationData`. Redirect responses are returned directly and route errors stay
-in both the static context and hydration state. The exported `routes` collection
-is available when an application needs lower-level Remix Router APIs.
+`hydrationData`. Redirect responses are returned directly and route errors
+stay in both the static context and hydration state. The exported `routes`
+collection is available when an application needs lower-level Remix Router
+APIs.
 
-Pass `createRoutePrefetcher(app)` to the browser router's `prefetch` option to
-connect `Link` and `NavLink` modes such as `prefetch="intent"`. Programmatic
-callers can use the same router cache with `router.prefetch(to)`.
+Pass `createRoutePrefetcher(app)` to the browser router's `prefetch`
+option to connect `Link` and `NavLink` modes such as `prefetch="intent"`.
+Programmatic callers can use the same router cache with
+`router.prefetch(to)`.
 
-Generated route objects expose `handle.flamefront` metadata with stable `id`,
-`boundary`, and `parent` values. The adapter also exports the flat
+Generated route objects expose `handle.flamefront` metadata with stable
+`id`, `boundary`, and `parent` values. The adapter also exports the flat
 `routeMetadata` collection. Leaf routes include their `render` mode and
-`navigation` strategy. Static routes use `navigation: "fragment"`; client and
-server routes use `navigation: "router"`. The metadata is also the
+`navigation` strategy. Static routes use `navigation: "fragment"`; client
+and server routes use `navigation: "router"`. The metadata is also the
 static-fragment contract: the build records the shell, layout, and leaf
 boundary hierarchy in each fragment artifact. Browser navigation inserts the
-leaf HTML first, then applies the route's hydration policy. `hydration: 'none'`
-leaves inserted HTML inert; other policies may hydrate the inserted boundary
-with the generated wrapper or route module.
+leaf HTML first, then applies the route's hydration policy.
 
-Route modules and pathless layout modules use default component exports and are
-loaded lazily. Server routers call route modules' exported loaders directly;
-browser routers use Flamefront's route-data endpoint with navigation abort
-signals and HTTP error handling.
+Route modules and pathless layout modules use default component exports and
+are loaded lazily. Server routers call route modules' exported loaders
+directly; browser routers use Flamefront's route-data endpoint with navigation
+abort signals and HTTP error handling.
 
 Server routes can choose who owns hydration:
 
@@ -285,16 +554,83 @@ route("/reviews/:productId", "/src/Reviews.tsrx", {
 })
 ```
 
-- `full` (or an omitted value) hydrates with the shared shell.
+- `full` or an omitted value hydrates with the shared shell.
 - `deferred` means the route authors its own Octane `<Hydrate>` boundaries.
 - `none` generates a permanent `never()` boundary around server output.
-- `{ when: 'idle' }`, `{ when: 'visible' }`,
-  `{ when: 'interaction' }`, and `{ when: 'media' }` generate one route-level
-  Octane boundary with the corresponding strategy options.
+- `{ when: "idle" }`, `{ when: "visible" }`,
+  `{ when: "interaction" }`, and `{ when: "media" }` generate one
+  route-level Octane boundary with the corresponding strategy options.
 
-Generated boundaries defer only DOM that came from server rendering. If the same route is
-first mounted by client navigation, Octane renders it immediately. This makes
-the route component a deferred server-rendered region within the interactive shared
-layout without delaying later in-app navigation. Static routes accept `none`, and
-client routes accept `full`; trigger objects are server-only because they need
-existing server HTML to defer.
+Generated boundaries defer only DOM that came from server rendering. If the
+same route is first mounted by client navigation, Octane renders it
+immediately. Static routes accept `none`, and client routes accept `full`;
+trigger objects are server-only because they need existing server HTML to
+defer.
+
+## Alpha release notes
+
+### 0.1.0-alpha.0
+
+This release is the first external-consumer alpha of the owned `flamefront`
+package. It includes:
+
+- the unscoped `flamefront` package and `ff` executable;
+- raw TypeScript exports for the route manifest, Vite integration, server
+  runtime, srvx entry, Octane browser entry, and Remix Router adapter;
+- `client`, `server`, and `static` render modes with route layouts,
+  loaders, hydration policies, static route data, and static fragments;
+- `ff dev`, `ff build`, `ff preview`, and `ff routes`;
+- packed-package consumer verification across development, build, preview, and
+  route-data flows;
+- browser acceptance coverage for hydration, client navigation, static
+  fragments, loaders, errors, redirects, basenames, and history traversal.
+
+Pin `flamefront@0.1.0-alpha.0` and the matching peer versions while
+evaluating the alpha. Before upgrading, read the release notes, rebuild the
+application, and rerun the full release checks. Alpha releases can change
+public APIs, generated artifacts, or the supported version matrix without a
+migration guarantee.
+
+This documentation records the release candidate. Publishing the package and
+making public announcements remain separate, supervisor-controlled actions.
+
+## Public-release promotion checklist
+
+Promote the alpha only when every item below is complete and recorded.
+
+### Clean checkout
+
+- [ ] Start from the intended release commit in a clean checkout.
+- [ ] Confirm the package is still named `flamefront`, has the intended
+      pre-1.0 version, exposes `ff`, and contains only intentional packed files.
+- [ ] Run `pnpm install --frozen-lockfile` with pnpm 11.21.0.
+- [ ] Run the release checks on Node 22.22.2, 24.x, and 26.x.
+- [ ] Confirm `pnpm lint`, `pnpm format:check`, `pnpm typecheck`,
+      `pnpm test`, `pnpm build`, `pnpm check:routes`,
+      `pnpm check:consumer`, and `pnpm check:browser` all pass.
+- [ ] Confirm `pnpm check` passes as the single aggregate gate.
+- [ ] Inspect the packed tarball and verify that it contains the license,
+      README, CLI files, and source exports, with no workspace-only files.
+
+### Published-package verification
+
+- [ ] Publish the exact candidate under the approved prerelease tag or
+      registry policy. Do not replace the candidate after verification.
+- [ ] Install that exact published version in a fresh consumer outside the
+      workspace. Confirm the resolved package is not a workspace link.
+- [ ] Run the consumer through development, production build, preview, route
+      inspection, static navigation, and route-data flows.
+- [ ] Run the browser acceptance path against the published package and verify
+      initial hydration, client routes, static fragments, loaders, errors,
+      redirects, basenames, and back/forward navigation.
+- [ ] Repeat the supported Node matrix against the published package.
+
+### Public-release decision
+
+- [ ] Record the final package version, support matrix, deployment shape,
+      known limitations, and upgrade expectations.
+- [ ] Confirm no known release-blocking failures remain in the issue tracker
+      or release notes.
+- [ ] Confirm the FSL-1.1-MIT file and its future MIT grant are unchanged.
+- [ ] Obtain release-owner approval for the package publication and any
+      announcement.
