@@ -44,6 +44,13 @@ below assume the conventional paths shown here.
 The release checks use pnpm 11.21.0. Other package managers may work, but
 they are not part of this alpha's verification contract.
 
+## Migration guide
+
+The [brownfield migration guide](./docs/brownfield-migration.md) covers a
+full application cutover from an existing routing and rendering stack. It
+maps the framework-owned boundaries to Flamefront while preserving application
+code where possible.
+
 ## Minimal app quickstart
 
 Create this small project after installing the packages above:
