@@ -1,6 +1,7 @@
 import type { DataRouter } from "@octanejs/remix-router"
-import { createRoot, hydrateRoot, type Root } from "octane"
+import { createRoot, hydrateRoot, type ComponentBody, type Root } from "octane"
 import type { RouteDefinition } from "./index.ts"
+import type { RouterDocumentProps } from "./octane.tsx"
 import {
   startOctaneClientWithRuntime,
   type StartOctaneClientOptions,
@@ -33,10 +34,10 @@ export function startOctaneClient<Route extends RouteDefinition>(
     renderRoot(root, component, props) {
       const clientRoot = createRoot(root)
 
-      clientRoot.render(component as never, props)
+      clientRoot.render(component as ComponentBody<RouterDocumentProps>, props)
       return clientRoot
     },
     hydrateRoot: (root, component, props) =>
-      hydrateRoot(root, component as never, props),
+      hydrateRoot(root, component as ComponentBody<RouterDocumentProps>, props),
   })
 }

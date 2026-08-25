@@ -182,7 +182,7 @@ async function loadMatchedRoute<
   const loaderData = routeModule.loader
     ? await routeModule.loader({
         request,
-        params: match.params as never,
+        params: match.params as LoaderArgs<Context, string>["params"],
         context: context as LoaderContext<Context, string>,
       })
     : undefined

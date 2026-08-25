@@ -1,4 +1,10 @@
 import type {
+  DataRouter,
+  Navigator,
+  RouteObject,
+  StaticHandlerContext,
+} from "@octanejs/remix-router"
+import type {
   AppDefinition,
   GeneratedRouteMetadata,
   RouteDefinition,
@@ -72,7 +78,7 @@ export interface OctaneRenderer {
     context: unknown,
   ) => unknown
   readonly renderToString: (
-    component: unknown,
+    component: RouterDocument,
     props: RouterDocumentProps,
   ) => OctaneRenderResult
   /** Render one generated route boundary directly from the static router tree. */
@@ -236,10 +242,12 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
     import("./fragment.tsx"),
   ])
 
-  const createStaticNavigator = (router: {
-    readonly createHref: (to: unknown) => string
-    readonly encodeLocation: (to: unknown) => unknown
-  }) => ({
+  type StaticNavigator = Navigator & {
+    back(): never
+    forward(): never
+  }
+
+  const createStaticNavigator = (router: DataRouter): StaticNavigator => ({
     createHref: router.createHref,
     encodeLocation: router.encodeLocation,
     push() {
@@ -271,21 +279,18 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
 
   return {
     createStaticRouter: (routes, context) =>
-      remix.createStaticRouter(routes as any[], context as any),
+      remix.createStaticRouter(
+        routes as RouteObject[],
+        context as StaticHandlerContext,
+      ),
     renderToString: (component, props) =>
-      octane.renderToString(component as never, props as never),
+      octane.renderToString(
+        component as Parameters<typeof octane.renderToString>[0],
+        props,
+      ),
     renderRouteFragment: (router, context, boundary) => {
-      const dataRouter = router as {
-        readonly state: {
-          readonly location: unknown
-          readonly matches: readonly {
-            readonly route?: { readonly id?: string }
-          }[]
-        }
-        readonly createHref: (to: unknown) => string
-        readonly encodeLocation: (to: unknown) => unknown
-      }
-      const staticContext = context as { readonly basename?: string }
+      const dataRouter = router as DataRouter
+      const staticContext = context as StaticHandlerContext
       const state = dataRouter.state
       const matchIndex = state.matches.findIndex(
         (match) => match.route?.id === boundary,
@@ -302,12 +307,10 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
         router: dataRouter,
         navigator,
         static: true,
-        staticContext: context,
+        staticContext,
         basename: staticContext.basename ?? "/",
       }
-      const fragmentTree = remix.renderMatches(
-        state.matches.slice(matchIndex) as never,
-      )
+      const fragmentTree = remix.renderMatches(state.matches.slice(matchIndex))
       const FragmentBoundaryProvider =
         fragment.staticFragmentBoundaryTarget.Provider
       const DataRouterProvider = remix.UNSAFE_DataRouterContext.Provider
@@ -318,10 +321,10 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
       const StaticRouter = remix.StaticRouter
       const FragmentRoot = () => (
         <DataRouterProvider
-          value={dataRouterContext as never}
+          value={dataRouterContext}
           children={
             <DataRouterStateProvider
-              value={state as never}
+              value={state}
               children={
                 <FetchersProvider
                   value={new Map()}
@@ -331,7 +334,7 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
                       children={
                         <StaticRouter
                           basename={staticContext.basename ?? "/"}
-                          location={state.location as never}
+                          location={state.location}
                           children={
                             <FragmentBoundaryProvider
                               value={boundary}

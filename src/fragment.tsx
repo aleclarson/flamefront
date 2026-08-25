@@ -1,4 +1,5 @@
 import { createContext, useContext, useLayoutEffect, useRef } from "octane"
+import type { Context } from "octane"
 import {
   UNSAFE_DataRouterContext,
   UNSAFE_DataRouterStateContext,
@@ -42,8 +43,14 @@ export interface StaticFragmentRouteOptions {
   >
   readonly routing: StaticFragmentRoutingOptions
   /** Used only for initial document hydration and post-insertion hydration. */
-  readonly fallbackComponent: unknown
+  readonly fallbackComponent: RenderableComponent
 }
+
+type RenderableComponent<Props = Record<string, unknown>> = (
+  props: Props,
+) => unknown
+
+type ContextValue<Value> = Value extends Context<infer Result> ? Result : never
 
 const rootSlot = Symbol.for("flamefront:static-fragment:root")
 const hydrationSlot = Symbol.for("flamefront:static-fragment:hydrate")
@@ -64,15 +71,12 @@ function boundaryProps(
 
 /** Add a stable DOM boundary around every generated shell/layout/route node. */
 export function createRouteBoundary(
-  Component: unknown,
+  Component: RenderableComponent,
   metadata: Pick<GeneratedRouteMetadata, "boundary" | "kind">,
 ): (props: Record<string, unknown>) => unknown {
   return (props) => {
     const target = useContext(staticFragmentBoundaryTarget)
-    const RouteComponent = Component as (
-      props: Record<string, unknown>,
-    ) => unknown
-    const children = <RouteComponent {...props} />
+    const children = <Component {...props} />
 
     return target === metadata.boundary ? (
       children
@@ -83,18 +87,17 @@ export function createRouteBoundary(
 }
 
 function createContextBridge(
-  Component: unknown,
+  Component: RenderableComponent,
   contexts: {
-    readonly dataRouter: unknown
-    readonly dataRouterState: unknown
-    readonly fetchers: unknown
-    readonly location: unknown
-    readonly navigation: unknown
-    readonly route: unknown
-    readonly viewTransition: unknown
+    readonly dataRouter: ContextValue<typeof UNSAFE_DataRouterContext>
+    readonly dataRouterState: ContextValue<typeof UNSAFE_DataRouterStateContext>
+    readonly fetchers: ContextValue<typeof UNSAFE_FetchersContext>
+    readonly location: ContextValue<typeof UNSAFE_LocationContext>
+    readonly navigation: ContextValue<typeof UNSAFE_NavigationContext>
+    readonly route: ContextValue<typeof UNSAFE_RouteContext>
+    readonly viewTransition: ContextValue<typeof UNSAFE_ViewTransitionContext>
   },
 ): (props: Record<string, unknown>) => unknown {
-  const ContextComponent = Component as () => unknown
   const DataRouterProvider = UNSAFE_DataRouterContext.Provider
   const DataRouterStateProvider = UNSAFE_DataRouterStateContext.Provider
   const FetchersProvider = UNSAFE_FetchersContext.Provider
@@ -104,16 +107,14 @@ function createContextBridge(
   const ViewTransitionProvider = UNSAFE_ViewTransitionContext.Provider
 
   return () => (
-    <DataRouterProvider value={contexts.dataRouter as never}>
-      <DataRouterStateProvider value={contexts.dataRouterState as never}>
-        <FetchersProvider value={contexts.fetchers as never}>
-          <LocationProvider value={contexts.location as never}>
-            <NavigationProvider value={contexts.navigation as never}>
-              <RouteProvider value={contexts.route as never}>
-                <ViewTransitionProvider
-                  value={contexts.viewTransition as never}
-                >
-                  <ContextComponent />
+    <DataRouterProvider value={contexts.dataRouter}>
+      <DataRouterStateProvider value={contexts.dataRouterState}>
+        <FetchersProvider value={contexts.fetchers}>
+          <LocationProvider value={contexts.location}>
+            <NavigationProvider value={contexts.navigation}>
+              <RouteProvider value={contexts.route}>
+                <ViewTransitionProvider value={contexts.viewTransition}>
+                  <Component />
                 </ViewTransitionProvider>
               </RouteProvider>
             </NavigationProvider>
