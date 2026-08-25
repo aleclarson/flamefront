@@ -23,8 +23,8 @@ import {
   staticRouteFragmentDataFile,
 } from "./static-fragment-artifacts.ts"
 import {
-  staticFragmentProtocol,
-  type StaticFragmentArtifact,
+  routeFragmentProtocol,
+  type RouteFragmentArtifact,
 } from "./fragment-client.ts"
 
 export {
@@ -320,7 +320,7 @@ export async function prerenderStaticRoutes(
   render: (request: Request) => Promise<RenderDocumentResult>,
   loadData?: (request: Request) => Promise<unknown>,
   routing: Pick<NormalizedRoutingOptions, "basename"> = { basename: "/" },
-  renderFragment?: (request: Request) => Promise<StaticFragmentArtifact>,
+  renderFragment?: (request: Request) => Promise<RouteFragmentArtifact>,
 ): Promise<void> {
   for (const route of routes) {
     const outputFile = staticRouteFile(clientDirectory, route)
@@ -342,14 +342,14 @@ export async function prerenderStaticRoutes(
     const fragment = renderFragment
       ? await renderFragment(request)
       : ({
-          protocol: staticFragmentProtocol,
+          protocol: routeFragmentProtocol,
           route: route.path,
           boundary: route.entry,
           html: rendered.html,
           routeData: data,
           boundaries: [],
           status: rendered.status,
-        } satisfies StaticFragmentArtifact)
+        } satisfies RouteFragmentArtifact)
 
     await mkdir(dirname(outputFile), { recursive: true })
     await writeFile(outputFile, rendered.html)

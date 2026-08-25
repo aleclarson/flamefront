@@ -63,7 +63,7 @@ export type RouteBoundaryKind = "shell" | "layout" | "route"
 /** Metadata emitted on generated router nodes for route-aware navigation. */
 export interface GeneratedRouteMetadata {
   readonly id: string
-  /** Stable token used by the static-fragment boundary pass. */
+  /** Stable token used by the route-fragment boundary pass. */
   readonly boundary: string
   readonly kind: RouteBoundaryKind
   readonly entry: string

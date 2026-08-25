@@ -3,7 +3,7 @@ import test from "node:test"
 import {
   loadRouteData,
   loadStaticRouteData,
-  loadStaticRouteFragment,
+  loadRouteFragment,
 } from "../src/remix-route-data.ts"
 
 test("loads browser route data using the request URL and abort signal", async (context) => {
@@ -144,7 +144,7 @@ test("loads static navigation fragments while returning only route data", async 
       "application/vnd.flamefront.fragment+json",
     )
     return Response.json({
-      protocol: "flamefront-static-fragment-v1",
+      protocol: "flamefront-route-fragment-v1",
       route: "/about",
       boundary: "flamefront:route:about",
       html: "<main>built</main>",
@@ -153,7 +153,7 @@ test("loads static navigation fragments while returning only route data", async 
     })
   }
 
-  assert.deepEqual(await loadStaticRouteFragment({ request }), {
+  assert.deepEqual(await loadRouteFragment({ request }), {
     source: "fragment",
   })
 })

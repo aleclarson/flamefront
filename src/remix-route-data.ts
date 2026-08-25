@@ -5,9 +5,10 @@ import {
 } from "./route-data-client.ts"
 import type { RouteDataForPath } from "./index.ts"
 import {
-  loadStaticFragment,
-  type StaticFragmentLoadOptions,
-  type StaticFragmentRoutingOptions,
+  loadRouteFragment as loadFragmentArtifact,
+  type RouteFragmentCachePolicy,
+  type RouteFragmentLoadOptions,
+  type RouteFragmentRoutingOptions,
 } from "./fragment-client.ts"
 
 export {
@@ -55,19 +56,19 @@ export async function loadStaticRouteData<const Path extends string = string>(
   >
 }
 
-/** Load a static fragment and expose only its route data to the router. */
-export async function loadStaticRouteFragment<
-  const Path extends string = string,
->(
+/** Load a route fragment and expose only its route data to the router. */
+export async function loadRouteFragment<const Path extends string = string>(
   { request }: ClientLoaderArgs<Path>,
   options: RouteDataOptions = {},
+  policy: RouteFragmentCachePolicy = "static",
 ): Promise<RouteDataForPath<Path>> {
-  const fragmentOptions: StaticFragmentLoadOptions = {
+  const fragmentOptions: RouteFragmentLoadOptions = {
+    policy,
     signal: request.signal,
   }
-  const artifact = await loadStaticFragment(
+  const artifact = await loadFragmentArtifact(
     request.url,
-    options satisfies StaticFragmentRoutingOptions,
+    options satisfies RouteFragmentRoutingOptions,
     fragmentOptions,
   )
 

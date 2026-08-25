@@ -280,6 +280,39 @@ async function checkBasenameFixture(page, base) {
     "Shell count: 1",
   )
 
+  const navigationEntries = await page.evaluate(
+    () => performance.getEntriesByType("navigation").length,
+  )
+
+  await clickRoute(page, "Server", "/guide/server")
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-data"]',
+    "Server loader: /guide/server default request 1",
+  )
+  await waitForText(
+    page,
+    '[data-testid="fixture-shell-counter"]',
+    "Shell count: 1",
+  )
+  await page.getByTestId("fixture-server-counter").click()
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-counter"]',
+    "Server count: 1",
+  )
+  assert.equal(
+    await page.evaluate(
+      () => performance.getEntriesByType("navigation").length,
+    ),
+    navigationEntries,
+    "Server fragment navigation performed a document navigation.",
+  )
+  assert.ok(
+    fragmentRequests.some((url) => url.startsWith(`${base}/guide/server?`)),
+    "Server navigation did not request a fragment response.",
+  )
+
   await clickRoute(page, "Static", "/guide/static")
   await waitForText(
     page,
@@ -296,12 +329,54 @@ async function checkBasenameFixture(page, base) {
     "Basename static navigation did not request its fragment artifact.",
   )
 
-  const errorResponse = await goto(page, `${base}/guide/error`, 418)
+  await clickRoute(page, "Server", "/guide/server")
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-data"]',
+    "Server loader: /guide/server default request 2",
+  )
 
-  assert.equal(errorResponse?.status(), 418)
+  await clickRoute(page, "Static", "/guide/static")
+  await clickRoute(page, "Server compact", "/guide/server")
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-data"]',
+    "Server loader: /guide/server compact request 3",
+  )
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-location"]',
+    "Router location: /server?view=compact",
+  )
 
-  await goto(page, `${base}/guide/redirect`)
-  assert.equal(new URL(page.url()).pathname, "/guide/destination")
+  const errorFragment = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+
+    return (
+      url.pathname === "/guide/error" &&
+      url.searchParams.get("__flamefront_fragment") === "1"
+    )
+  })
+
+  await clickRoute(page, "Error", "/guide/error")
+  assert.equal((await errorFragment).status(), 418)
+  await waitForText(
+    page,
+    '[data-testid="fixture-shell-counter"]',
+    "Shell count: 1",
+  )
+
+  const redirectFragment = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+
+    return (
+      url.pathname === "/guide/redirect" &&
+      url.searchParams.get("__flamefront_fragment") === "1"
+    )
+  })
+
+  await clickRoute(page, "Redirect", "/guide/destination")
+  assert.equal((await redirectFragment).status(), 302)
   await waitForText(
     page,
     '[data-testid="fixture-destination"]',
@@ -343,5 +418,5 @@ try {
 }
 
 console.log(
-  "Browser acceptance passed for hydration, client and static navigation, loaders, errors, redirects, basenames, and history.",
+  "Browser acceptance passed for hydration, client and fragment navigation, loaders, errors, redirects, basenames, and history.",
 )

@@ -66,7 +66,7 @@ test("prerenders every supplied static route", async () => {
         ),
       ),
       {
-        protocol: "flamefront-static-fragment-v1",
+        protocol: "flamefront-route-fragment-v1",
         route: "/docs",
         boundary: "/src/Docs.tsrx",
         html: "<main>/docs</main>",
@@ -185,7 +185,7 @@ test("writes a supplied hierarchy fragment artifact separately from the document
       undefined,
       undefined,
       async () => ({
-        protocol: "flamefront-static-fragment-v1",
+        protocol: "flamefront-route-fragment-v1",
         route: "/nested",
         boundary: "flamefront:route:nested",
         html: "<main>fragment</main>",

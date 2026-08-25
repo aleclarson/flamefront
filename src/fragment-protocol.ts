@@ -11,7 +11,7 @@ export function stripFlamefrontProtocolParams(input: string | URL): URL {
   return url
 }
 
-export function isStaticFragmentRequest(input: string | URL): boolean {
+export function isRouteFragmentRequest(input: string | URL): boolean {
   const url = new URL(input, "http://flamefront.local")
 
   return (
@@ -20,8 +20,8 @@ export function isStaticFragmentRequest(input: string | URL): boolean {
   )
 }
 
-/** Mark a route URL for the static-fragment transport. */
-export function withStaticFragmentProtocol(input: string | URL): URL {
+/** Mark a route URL for the fragment transport. */
+export function withRouteFragmentProtocol(input: string | URL): URL {
   const url = stripFlamefrontProtocolParams(input)
 
   url.searchParams.set(

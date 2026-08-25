@@ -12,11 +12,11 @@ import {
 import type { OctaneDocuments } from "./octane.tsx"
 import type { DocumentMode, RenderedDocument } from "./server.ts"
 import {
-  isStaticFragmentRequest,
+  isRouteFragmentRequest,
   stripFlamefrontProtocolRequest,
 } from "./fragment-protocol.ts"
 import { staticRouteFragmentDataFile } from "./static-fragment-artifacts.ts"
-import type { StaticFragmentArtifact } from "./fragment-client.ts"
+import type { RouteFragmentArtifact } from "./fragment-client.ts"
 
 export type SrvxMiddleware = ServerMiddleware
 
@@ -152,7 +152,7 @@ export function createSrvxServerEntry<
   const frameworkMiddleware: SrvxMiddleware = (request, next) => {
     const url = new URL(request.url)
 
-    if (isStaticFragmentRequest(url)) {
+    if (isRouteFragmentRequest(url)) {
       return next()
     }
 
@@ -201,33 +201,40 @@ export function createSrvxServerEntry<
         return options.documents.loadRouteData(request)
       }
 
-      if (isStaticFragmentRequest(url)) {
+      if (isRouteFragmentRequest(url)) {
         const sanitizedRequest = stripFlamefrontProtocolRequest(request)
         const fragmentMatch = options.app.match(sanitizedRequest.url)
 
-        if (!fragmentMatch || fragmentMatch.data.render !== "static") {
+        if (!fragmentMatch || fragmentMatch.data.render === "client") {
           return new Response("Not found", { status: 404 })
         }
 
-        let artifact: StaticFragmentArtifact | undefined
+        let artifact: RouteFragmentArtifact | undefined
 
-        try {
-          artifact = JSON.parse(
-            await readFile(
-              staticRouteFragmentDataFile(clientDirectory, fragmentMatch.data),
-              "utf8",
-            ),
-          ) as StaticFragmentArtifact
-        } catch (error) {
-          if ((error as { code?: string }).code !== "ENOENT") {
-            throw error
+        if (fragmentMatch.data.render === "static") {
+          try {
+            artifact = JSON.parse(
+              await readFile(
+                staticRouteFragmentDataFile(
+                  clientDirectory,
+                  fragmentMatch.data,
+                ),
+                "utf8",
+              ),
+            ) as RouteFragmentArtifact
+          } catch (error) {
+            if ((error as { code?: string }).code !== "ENOENT") {
+              throw error
+            }
           }
+        }
 
-          if (!options.documents.renderFragment) {
-            return new Response("Not found", { status: 404 })
-          }
-
+        if (!artifact && options.documents.renderFragment) {
           artifact = await options.documents.renderFragment(sanitizedRequest)
+        }
+
+        if (!artifact) {
+          return new Response("Not found", { status: 404 })
         }
 
         const responseHeaders = new Headers({
@@ -241,7 +248,7 @@ export function createSrvxServerEntry<
             await options.headers({
               request: sanitizedRequest,
               route: fragmentMatch.data,
-              mode: "static",
+              mode: fragmentMatch.data.render,
               document: {
                 html: artifact.html,
                 routeData: artifact.routeData,

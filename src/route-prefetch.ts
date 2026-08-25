@@ -7,13 +7,13 @@ import type {
 
 /**
  * Resources that a route-aware prefetcher can warm without taking over
- * navigation. The framework adapter supplies the static fragment transport;
+ * navigation. The framework adapter supplies the route fragment transport;
  * callers can replace it when they own the transport.
  */
 export interface RoutePrefetchResources<
   Route extends RouteDefinition = RouteDefinition,
 > {
-  readonly staticFragment?: (
+  readonly routeFragment?: (
     url: string | URL,
     route: Route,
     options?: LoadRouteOptions,
@@ -36,9 +36,9 @@ type RoutePrefetchApp<Route extends RouteDefinition> = {
 }
 
 /**
- * Warm the resources used by a matched route. Live routes share route data
- * and client-module caches. Static routes hand off to the fragment resource
- * seam and never import their route module as a rendering path.
+ * Warm the resources used by a matched route. Client routes share route data
+ * and module caches. Server and static routes use the fragment resource and
+ * never import their route module as a browser rendering path.
  */
 export async function prefetchRouteResources<
   Route extends RouteDefinition = RouteDefinition,
@@ -55,8 +55,8 @@ export async function prefetchRouteResources<
     return
   }
 
-  if (match.data.render === "static") {
-    await resources.staticFragment?.(url, match.data, options)
+  if (match.data.render !== "client") {
+    await resources.routeFragment?.(url, match.data, options)
     return
   }
 

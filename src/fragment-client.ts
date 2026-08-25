@@ -1,17 +1,14 @@
-import type {
-  GeneratedHydration,
-  GeneratedRouteMetadata,
-  HydrationMode,
-  RouteBoundaryKind,
-} from "./index.ts"
+import type { HydrationMode, RouteBoundaryKind } from "./index.ts"
 import {
   stripFlamefrontProtocolParams,
-  withStaticFragmentProtocol,
+  withRouteFragmentProtocol,
 } from "./fragment-protocol.ts"
 
-export const staticFragmentProtocol = "flamefront-static-fragment-v1" as const
+export const routeFragmentProtocol = "flamefront-route-fragment-v1" as const
 
-export interface StaticFragmentBoundary {
+export type RouteFragmentCachePolicy = "server" | "static"
+
+export interface RouteFragmentBoundary {
   readonly id: string
   readonly boundary: string
   readonly kind: RouteBoundaryKind
@@ -19,33 +16,36 @@ export interface StaticFragmentBoundary {
   readonly html: string
 }
 
-export interface StaticFragmentArtifact {
-  readonly protocol: typeof staticFragmentProtocol
+export interface RouteFragmentArtifact {
+  readonly protocol: typeof routeFragmentProtocol
   readonly route: string
   readonly boundary: string
   readonly html: string
   readonly routeData: unknown
-  readonly boundaries: readonly StaticFragmentBoundary[]
+  readonly boundaries: readonly RouteFragmentBoundary[]
   readonly hydration?: HydrationMode
   readonly status?: number
 }
 
-export interface StaticFragmentLoadOptions {
+export interface RouteFragmentLoadOptions {
+  readonly policy: RouteFragmentCachePolicy
   readonly signal?: AbortSignal
   readonly reload?: boolean
 }
 
-export interface StaticFragmentRoutingOptions {
+export interface RouteFragmentRoutingOptions {
   readonly basename?: string
 }
 
-export function shouldHydrateStaticFragment(
+export function shouldHydrateRouteFragment(
   hydration: HydrationMode | undefined,
 ): boolean {
   return hydration !== "none"
 }
 
-const fragmentCache = new Map<string, Promise<StaticFragmentArtifact>>()
+const staticFragmentRequests = new Map<string, Promise<RouteFragmentArtifact>>()
+const serverFragmentRequests = new Map<string, Promise<RouteFragmentArtifact>>()
+const latestRouteFragments = new Map<string, RouteFragmentArtifact>()
 
 function resolveRouteUrl(input: string | URL): URL {
   const browserOrigin =
@@ -53,11 +53,11 @@ function resolveRouteUrl(input: string | URL): URL {
 
   if (!browserOrigin && typeof input === "string" && !URL.canParse(input)) {
     throw new TypeError(
-      "flamefront static fragments require an absolute URL outside the browser.",
+      "flamefront route fragments require an absolute URL outside the browser.",
     )
   }
 
-  return new URL(input, browserOrigin)
+  return stripFlamefrontProtocolParams(new URL(input, browserOrigin))
 }
 
 function basenamePath(pathname: string, basename: string): string | null {
@@ -76,11 +76,16 @@ function basenamePath(pathname: string, basename: string): string | null {
   return pathname.slice(basename.length) || "/"
 }
 
-function fragmentKey(input: string | URL, basename = "/"): string {
-  const url = stripFlamefrontProtocolParams(resolveRouteUrl(input))
+function staticFragmentKey(url: URL, basename: string): string {
   const pathname = basenamePath(url.pathname, basename) ?? url.pathname
 
   return `${url.origin}${pathname}`
+}
+
+function routeFragmentKey(url: URL, basename = "/"): string {
+  const pathname = basenamePath(url.pathname, basename) ?? url.pathname
+
+  return `${url.origin}${pathname}${url.search}${url.hash}`
 }
 
 function abortable<Data>(
@@ -112,17 +117,17 @@ function abortable<Data>(
   })
 }
 
-export function isStaticFragmentArtifact(
+export function isRouteFragmentArtifact(
   value: unknown,
-): value is StaticFragmentArtifact {
+): value is RouteFragmentArtifact {
   if (!value || typeof value !== "object") {
     return false
   }
 
-  const artifact = value as Partial<StaticFragmentArtifact>
+  const artifact = value as Partial<RouteFragmentArtifact>
 
   return (
-    artifact.protocol === staticFragmentProtocol &&
+    artifact.protocol === routeFragmentProtocol &&
     typeof artifact.route === "string" &&
     typeof artifact.boundary === "string" &&
     typeof artifact.html === "string" &&
@@ -130,98 +135,133 @@ export function isStaticFragmentArtifact(
   )
 }
 
-export function assertStaticFragmentArtifact(
+export function assertRouteFragmentArtifact(
   value: unknown,
-): StaticFragmentArtifact {
-  if (!isStaticFragmentArtifact(value)) {
+): RouteFragmentArtifact {
+  if (!isRouteFragmentArtifact(value)) {
     throw new Error(
-      "flamefront static fragment response has an invalid protocol.",
+      "flamefront route fragment response has an invalid protocol.",
     )
   }
 
   return value
 }
 
-export function getStaticFragment(
+export function getRouteFragment(
   url: string | URL,
-  routing: StaticFragmentRoutingOptions = {},
-): StaticFragmentArtifact | undefined {
-  const pending = fragmentCache.get(fragmentKey(url, routing.basename ?? "/"))
-
-  return pending && "value" in pending
-    ? (
-        pending as Promise<StaticFragmentArtifact> & {
-          value?: StaticFragmentArtifact
-        }
-      ).value
-    : undefined
+  routing: RouteFragmentRoutingOptions = {},
+): RouteFragmentArtifact | undefined {
+  return latestRouteFragments.get(
+    routeFragmentKey(resolveRouteUrl(url), routing.basename ?? "/"),
+  )
 }
 
-function rememberArtifact(
-  key: string,
-  pending: Promise<StaticFragmentArtifact>,
-): Promise<StaticFragmentArtifact> {
-  const tracked = pending.then((artifact) => {
-    ;(
-      tracked as Promise<StaticFragmentArtifact> & {
-        value?: StaticFragmentArtifact
-      }
-    ).value = artifact
-    return artifact
-  })
+function fetchRouteFragment(
+  routeUrl: URL,
+  basename: string,
+  signal: AbortSignal | undefined,
+): Promise<RouteFragmentArtifact> {
+  const endpoint = withRouteFragmentProtocol(routeUrl)
 
-  fragmentCache.set(key, tracked)
-  void tracked.catch(() => {
-    if (fragmentCache.get(key) === tracked) {
-      fragmentCache.delete(key)
-    }
-  })
-  return tracked
-}
-
-export function loadStaticFragment(
-  url: string | URL,
-  routing: StaticFragmentRoutingOptions = {},
-  options: StaticFragmentLoadOptions = {},
-): Promise<StaticFragmentArtifact> {
-  const routeUrl = resolveRouteUrl(url)
-  const key = fragmentKey(routeUrl, routing.basename ?? "/")
-
-  if (options.reload) {
-    fragmentCache.delete(key)
-  }
-
-  const cached = fragmentCache.get(key)
-
-  if (cached) {
-    return abortable(cached, options.signal)
-  }
-
-  const endpoint = withStaticFragmentProtocol(routeUrl)
-  const pending = globalThis
+  return globalThis
     .fetch(endpoint, {
       headers: { Accept: "application/vnd.flamefront.fragment+json" },
-      ...(options.signal ? { signal: options.signal } : {}),
+      ...(signal ? { signal } : {}),
     })
     .then(async (response) => {
-      if (!response.ok) {
+      if (response.redirected) {
+        const location = stripFlamefrontProtocolParams(response.url)
+        const pathname =
+          basenamePath(location.pathname, basename) ?? location.pathname
+
+        throw new Response(null, {
+          status: 302,
+          headers: {
+            Location: `${pathname}${location.search}${location.hash}`,
+          },
+        })
+      }
+
+      if (response.status >= 300 && response.status < 400) {
+        throw response
+      }
+
+      let value: unknown
+
+      try {
+        value = await response.json()
+      } catch {
+        if (!response.ok) {
+          throw new Error(
+            `flamefront route fragment request failed with ${response.status}.`,
+          )
+        }
+
         throw new Error(
-          `flamefront static fragment request failed with ${response.status}.`,
+          "flamefront route fragment response has an invalid protocol.",
         )
       }
 
-      return assertStaticFragmentArtifact(await response.json())
+      return assertRouteFragmentArtifact(value)
     })
-
-  return abortable(rememberArtifact(key, pending), options.signal)
 }
 
-export async function prefetchStaticFragment(
+export function loadRouteFragment(
   url: string | URL,
-  routing: StaticFragmentRoutingOptions = {},
-  options?: StaticFragmentLoadOptions,
+  routing: RouteFragmentRoutingOptions = {},
+  options: RouteFragmentLoadOptions,
+): Promise<RouteFragmentArtifact> {
+  const routeUrl = resolveRouteUrl(url)
+  const handoffKey = routeFragmentKey(routeUrl, routing.basename ?? "/")
+  const requests =
+    options.policy === "static"
+      ? staticFragmentRequests
+      : serverFragmentRequests
+  const requestKey =
+    options.policy === "static"
+      ? staticFragmentKey(routeUrl, routing.basename ?? "/")
+      : routeUrl.href
+
+  if (options.reload) {
+    requests.delete(requestKey)
+  }
+
+  let pending = requests.get(requestKey)
+
+  if (!pending) {
+    pending = fetchRouteFragment(
+      routeUrl,
+      routing.basename ?? "/",
+      options.signal,
+    )
+    requests.set(requestKey, pending)
+
+    const evict = () => {
+      if (requests.get(requestKey) === pending) {
+        requests.delete(requestKey)
+      }
+    }
+
+    if (options.policy === "static") {
+      void pending.catch(evict)
+    } else {
+      void pending.then(evict, evict)
+    }
+  }
+
+  return abortable(pending, options.signal).then((artifact) => {
+    latestRouteFragments.set(handoffKey, artifact)
+    return artifact
+  })
+}
+
+export async function prefetchRouteFragment(
+  url: string | URL,
+  policy: RouteFragmentCachePolicy,
+  routing: RouteFragmentRoutingOptions = {},
+  options: Omit<RouteFragmentLoadOptions, "policy"> = {},
 ): Promise<void> {
-  await loadStaticFragment(url, routing, options)
+  await loadRouteFragment(url, routing, { ...options, policy })
 }
 
 export type {

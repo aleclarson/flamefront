@@ -174,13 +174,76 @@ test("supports explicit shell mode and preserves static route data extraction", 
     new Request("https://example.test/built?__flamefront_fragment=1"),
   )
 
-  assert.equal(fragment.protocol, "flamefront-static-fragment-v1")
+  assert.equal(fragment.protocol, "flamefront-route-fragment-v1")
   assert.equal(fragment.route, "/built")
   assert.equal(fragment.html, "<article>200</article>")
   assert.deepEqual(fragment.routeData, { value: 42 })
 })
 
-test("renders static fragment boundaries from the route hierarchy", async () => {
+test("renders server fragments with sanitized request-time URL and context", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/live", "/src/Live.tsrx", { render: "server" })],
+  })
+  let routerRequest: Request | undefined
+  let routerContext: unknown
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({ default: null }),
+    requestContext: ({ request, mode, purpose }) => ({
+      cookie: request.headers.get("cookie"),
+      mode,
+      purpose,
+    }),
+  })
+  const context = {
+    loaderData: { live: { value: "fresh" } },
+    actionData: null,
+    errors: null,
+    statusCode: 203,
+    matches: [{ route: { id: "live" } }],
+  }
+  const router: DocumentRouter = {
+    routes: [{ id: "root" }],
+    async createServerRouter(request, options) {
+      routerRequest = request
+      routerContext = options?.requestContext
+      return {
+        context,
+        hydrationData: {
+          loaderData: context.loaderData,
+          actionData: null,
+          errors: null,
+        },
+        router: { kind: "server" },
+      }
+    },
+  }
+  const documents = createOctaneDocuments({
+    app,
+    runtime,
+    router,
+    renderer: createTestRenderer(),
+  })
+
+  const fragment = await documents.renderFragment(
+    new Request(
+      "https://example.test/live?view=full&__flamefront_fragment=1&__flamefront_shell=1",
+      { headers: { Cookie: "session=abc" } },
+    ),
+  )
+
+  assert.equal(routerRequest?.url, "https://example.test/live?view=full")
+  assert.deepEqual(routerContext, {
+    cookie: "session=abc",
+    mode: "server",
+    purpose: "document",
+  })
+  assert.equal(fragment.status, 203)
+  assert.deepEqual(fragment.routeData, { value: "fresh" })
+})
+
+test("renders route fragment boundaries from the route hierarchy", async () => {
   const app = defineApp({
     shell,
     routes: [route("/built", "/src/Built.tsrx", { render: "static" })],

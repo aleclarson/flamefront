@@ -8,7 +8,7 @@ import {
 
 const shell = "/src/AppShell.tsrx"
 
-test("live route prefetch warms data and client modules", async () => {
+test("client route prefetch warms data and its module", async () => {
   const app = defineApp({
     shell,
     routes: [
@@ -31,24 +31,11 @@ test("live route prefetch warms data and client modules", async () => {
   )
 
   await callback("/client")
-  await prefetchRouteResources(
-    {
-      match: app.match,
-      prefetch: async (url) => {
-        prefetched.push(String(url))
-      },
-    },
-    async (entry) => {
-      loadedModules.push(entry)
-    },
-    "/server",
-  )
-
-  assert.deepEqual(prefetched, ["/client", "/server"])
-  assert.deepEqual(loadedModules, ["/src/Client.tsrx", "/src/Server.tsrx"])
+  assert.deepEqual(prefetched, ["/client"])
+  assert.deepEqual(loadedModules, ["/src/Client.tsrx"])
 })
 
-test("static route prefetch uses the fragment seam without loading its module", async () => {
+test("server and static route prefetch use the fragment seam", async () => {
   const app = defineApp({
     shell,
     routes: [
@@ -56,11 +43,12 @@ test("static route prefetch uses the fragment seam without loading its module", 
         render: "static",
         hydration: { when: "visible" },
       }),
+      route("/server", "/src/Server.tsrx", { render: "server" }),
     ],
   })
   const prefetched: string[] = []
   const loadedModules: string[] = []
-  let fragmentRoute = ""
+  const fragmentRoutes: string[] = []
 
   await prefetchRouteResources(
     {
@@ -75,13 +63,30 @@ test("static route prefetch uses the fragment seam without loading its module", 
     "/static",
     {},
     {
-      staticFragment: async (url, routeDefinition) => {
-        fragmentRoute = `${String(url)}:${JSON.stringify(routeDefinition.hydration)}`
+      routeFragment: async (url, routeDefinition) => {
+        fragmentRoutes.push(
+          `${String(url)}:${routeDefinition.render}:${JSON.stringify(routeDefinition.hydration)}`,
+        )
       },
     },
   )
 
-  assert.equal(fragmentRoute, '/static:{"when":"visible"}')
+  await prefetchRouteResources(
+    { match: app.match, prefetch: async () => {} },
+    async () => {},
+    "/server",
+    {},
+    {
+      routeFragment: async (url, routeDefinition) => {
+        fragmentRoutes.push(`${String(url)}:${routeDefinition.render}`)
+      },
+    },
+  )
+
+  assert.deepEqual(fragmentRoutes, [
+    '/static:static:{"when":"visible"}',
+    "/server:server",
+  ])
   assert.deepEqual(prefetched, [])
   assert.deepEqual(loadedModules, [])
 })

@@ -20,7 +20,7 @@ import {
   type RoutePrefetchCallback,
   type RoutePrefetchResources,
 } from "./route-prefetch.ts"
-import { prefetchStaticFragment } from "./fragment-client.ts"
+import { prefetchRouteFragment } from "./fragment-client.ts"
 import {
   preloadRoute as preloadGeneratedRoute,
   RouterDocument,
@@ -72,9 +72,15 @@ function withDefaultPrefetchResources<
 ): RoutePrefetchResources<Route> {
   return {
     ...resources,
-    staticFragment:
-      resources.staticFragment ??
-      ((url, _route, options) => prefetchStaticFragment(url, routing, options)),
+    routeFragment:
+      resources.routeFragment ??
+      ((url, route, options) => {
+        if (route.render === "client") {
+          return
+        }
+
+        return prefetchRouteFragment(url, route.render, routing, options)
+      }),
   }
 }
 

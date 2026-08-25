@@ -16,6 +16,8 @@ export default function BrowserShell() @{
     </button>
     <nav aria-label="Fixture routes">
       <Link to="/client">Client</Link>
+      <Link to="/server">Server</Link>
+      <Link to="/server?view=compact">Server compact</Link>
       <Link to="/static">Static</Link>
       <Link to="/error">Error</Link>
       <Link to="/redirect">Redirect</Link>

@@ -23,10 +23,10 @@ test("composes transport concerns behind one basename-aware entry", async () => 
   await writeFile(
     resolve(clientDirectory, "static/index.fragment.json"),
     JSON.stringify({
-      protocol: "flamefront-static-fragment-v1",
+      protocol: "flamefront-route-fragment-v1",
       route: "/static",
       boundary: "flamefront:route:static",
-      html: "<main>static fragment</main>",
+      html: "<main>route fragment</main>",
       routeData: { built: true },
       boundaries: [],
     }),
@@ -42,6 +42,7 @@ test("composes transport concerns behind one basename-aware entry", async () => 
     ],
   })
   const renderedModes: string[] = []
+  const renderedFragmentUrls: string[] = []
   const loadedDataUrls: string[] = []
   const middlewareEvents: string[] = []
   const entry = createSrvxServerEntry({
@@ -59,6 +60,18 @@ test("composes transport concerns behind one basename-aware entry", async () => 
           html: `<main>${mode}</main>`,
           status: mode === "server" ? 201 : 200,
           headers: { "X-Document": "document" },
+        }
+      },
+      renderFragment: async (request) => {
+        renderedFragmentUrls.push(request.url)
+        return {
+          protocol: "flamefront-route-fragment-v1",
+          route: "/server",
+          boundary: "flamefront:route:server",
+          html: `<main>${new URL(request.url).searchParams.get("view")}</main>`,
+          routeData: { live: true },
+          boundaries: [],
+          status: 202,
         }
       },
     },
@@ -117,25 +130,46 @@ test("composes transport concerns behind one basename-aware entry", async () => 
 
     assert.equal(await staticDocument.text(), "<main>static artifact</main>")
 
-    const staticFragment = await server.fetch(
+    const routeFragment = await server.fetch(
       new Request(
         "http://flamefront.test/docs/static?view=full&__flamefront_fragment=1&__flamefront_shell=1",
       ),
     )
 
-    assert.equal(staticFragment.status, 200)
+    assert.equal(routeFragment.status, 200)
     assert.match(
-      staticFragment.headers.get("content-type") ?? "",
+      routeFragment.headers.get("content-type") ?? "",
       /text\/custom/,
     )
-    assert.deepEqual(await staticFragment.json(), {
-      protocol: "flamefront-static-fragment-v1",
+    assert.deepEqual(await routeFragment.json(), {
+      protocol: "flamefront-route-fragment-v1",
       route: "/static",
       boundary: "flamefront:route:static",
-      html: "<main>static fragment</main>",
+      html: "<main>route fragment</main>",
       routeData: { built: true },
       boundaries: [],
     })
+
+    const serverFragment = await server.fetch(
+      new Request(
+        "http://flamefront.test/docs/server?view=fresh&__flamefront_fragment=1&__flamefront_shell=1",
+      ),
+    )
+
+    assert.equal(serverFragment.status, 202)
+    assert.equal(serverFragment.headers.get("x-policy"), "server:202")
+    assert.deepEqual(await serverFragment.json(), {
+      protocol: "flamefront-route-fragment-v1",
+      route: "/server",
+      boundary: "flamefront:route:server",
+      html: "<main>fresh</main>",
+      routeData: { live: true },
+      boundaries: [],
+      status: 202,
+    })
+    assert.deepEqual(renderedFragmentUrls, [
+      "http://flamefront.test/docs/server?view=fresh",
+    ])
 
     const asset = await server.fetch(
       new Request("http://flamefront.test/docs/assets/app.js"),

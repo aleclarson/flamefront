@@ -11,37 +11,38 @@ import {
   useLocation as useRouterLocation,
 } from "@octanejs/remix-router"
 import type { GeneratedRouteMetadata } from "./index.ts"
-import { isStaticFragmentRequest } from "./fragment-protocol.ts"
 
 import {
-  getStaticFragment,
-  shouldHydrateStaticFragment,
-  type StaticFragmentArtifact,
-  type StaticFragmentRoutingOptions,
+  getRouteFragment,
+  shouldHydrateRouteFragment,
+  type RouteFragmentCachePolicy,
+  type RouteFragmentRoutingOptions,
 } from "./fragment-client.ts"
 
 export {
-  assertStaticFragmentArtifact,
-  getStaticFragment,
-  isStaticFragmentArtifact,
-  loadStaticFragment,
-  prefetchStaticFragment,
-  shouldHydrateStaticFragment,
-  staticFragmentProtocol,
+  assertRouteFragmentArtifact,
+  getRouteFragment,
+  isRouteFragmentArtifact,
+  loadRouteFragment,
+  prefetchRouteFragment,
+  shouldHydrateRouteFragment,
+  routeFragmentProtocol,
 } from "./fragment-client.ts"
 export type {
-  StaticFragmentArtifact,
-  StaticFragmentBoundary,
-  StaticFragmentLoadOptions,
-  StaticFragmentRoutingOptions,
+  RouteFragmentArtifact,
+  RouteFragmentBoundary,
+  RouteFragmentCachePolicy,
+  RouteFragmentLoadOptions,
+  RouteFragmentRoutingOptions,
 } from "./fragment-client.ts"
 
-export interface StaticFragmentRouteOptions {
+export interface RouteFragmentRouteOptions {
   readonly metadata: Pick<
     GeneratedRouteMetadata,
     "id" | "boundary" | "kind" | "parent" | "path" | "hydration"
   >
-  readonly routing: StaticFragmentRoutingOptions
+  readonly routing: RouteFragmentRoutingOptions
+  readonly policy: RouteFragmentCachePolicy
   /** Used only for initial document hydration and post-insertion hydration. */
   readonly fallbackComponent: RenderableComponent
 }
@@ -52,12 +53,12 @@ type RenderableComponent<Props = Record<string, unknown>> = (
 
 type ContextValue<Value> = Value extends Context<infer Result> ? Result : never
 
-const rootSlot = Symbol.for("flamefront:static-fragment:root")
-const hydrationSlot = Symbol.for("flamefront:static-fragment:hydrate")
-const hostSlot = Symbol.for("flamefront:static-fragment:host")
+const rootSlot = Symbol.for("flamefront:route-fragment:root")
+const hydrationSlot = Symbol.for("flamefront:route-fragment:hydrate")
+const hostSlot = Symbol.for("flamefront:route-fragment:host")
 
 /** Server fragment renders omit the selected boundary's outer host element. */
-export const staticFragmentBoundaryTarget = createContext<string | null>(null)
+export const routeFragmentBoundaryTarget = createContext<string | null>(null)
 
 function boundaryProps(
   metadata: Pick<GeneratedRouteMetadata, "boundary" | "kind">,
@@ -75,7 +76,7 @@ export function createRouteBoundary(
   metadata: Pick<GeneratedRouteMetadata, "boundary" | "kind">,
 ): (props: Record<string, unknown>) => unknown {
   return (props) => {
-    const target = useContext(staticFragmentBoundaryTarget)
+    const target = useContext(routeFragmentBoundaryTarget)
     const children = <Component {...props} />
 
     return target === metadata.boundary ? (
@@ -151,8 +152,8 @@ function hasServerBoundary(boundary: string): boolean {
  * hydrate that boundary. The fallback component is used for direct-document
  * hydration when no fragment was fetched by the browser router.
  */
-export function createStaticFragmentRoute(
-  options: StaticFragmentRouteOptions,
+export function createRouteFragmentRoute(
+  options: RouteFragmentRouteOptions,
 ): (props: Record<string, unknown>) => unknown {
   const fallbackComponent = options.fallbackComponent
   const fallbackBoundary = createRouteBoundary(
@@ -161,9 +162,9 @@ export function createStaticFragmentRoute(
   )
   const basename = options.routing.basename ?? "/"
 
-  return function StaticFragmentRoute(props) {
+  return function RouteFragmentRoute(props) {
     const routeUrl = routeLocationUrl()
-    const artifact = getStaticFragment(routeUrl, { basename })
+    const artifact = getRouteFragment(routeUrl, { basename })
     const hostRef = useRef<HTMLDivElement | null>(null, hostSlot)
     const nestedRootRef = useRef<{ unmount(): void } | null>(null, rootSlot)
     const dataRouter = useContext(UNSAFE_DataRouterContext)
@@ -178,7 +179,7 @@ export function createStaticFragmentRoute(
       () => {
         if (
           !artifact ||
-          !shouldHydrateStaticFragment(options.metadata.hydration)
+          !shouldHydrateRouteFragment(options.metadata.hydration)
         ) {
           return
         }
@@ -210,13 +211,14 @@ export function createStaticFragmentRoute(
             }
 
             // The outer document root used dangerouslySetInnerHTML to adopt the
-            // static fragment. Release that ownership before the nested root
+            // route fragment. Release that ownership before the nested root
             // starts reconciling the same children.
             const html = host.innerHTML
 
             setDangerouslySetInnerHTML(host, null)
             setHTML(host, html)
             const Bridge = bridge
+
             nestedRootRef.current = hydrateRoot(host, <Bridge />)
           },
         )
@@ -236,7 +238,6 @@ export function createStaticFragmentRoute(
         navigation,
         route,
         viewTransition,
-        options.metadata.hydration,
       ],
       hydrationSlot,
     )
@@ -259,4 +260,9 @@ export function createStaticFragmentRoute(
   }
 }
 
-export { isStaticFragmentRequest }
+export {
+  isRouteFragmentRequest,
+  stripFlamefrontProtocolParams,
+  stripFlamefrontProtocolRequest,
+  withRouteFragmentProtocol,
+} from "./fragment-protocol.ts"
