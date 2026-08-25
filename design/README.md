@@ -9,8 +9,8 @@ on the corresponding part of the system:
 
 - [Architecture](./architecture.md) defines ownership and dependency boundaries.
 - [Lifecycles](./lifecycles.md) follows requests, navigation, and builds over time.
-- [Static fragments](./static-fragments.md) explains fragment artifacts, nested
-  hydration, and the router context bridge.
+- [Route fragments](./fragments.md) explains the shared navigation transport,
+  its cache policies, nested hydration, and the router context bridge.
 - [Invariants](./invariants.md) lists the properties that changes must preserve.
 
 The package [README](../README.md) remains the user-facing API and setup guide.

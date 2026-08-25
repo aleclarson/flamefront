@@ -11,7 +11,7 @@ The srvx adapter classifies requests in this order:
 | -------------------------- | -------------------------------------------------- |
 | App basename with no match | Redirect to the first client route when one exists |
 | Configured data path       | Route runtime data response                        |
-| Static fragment protocol   | Built artifact or document service fallback        |
+| Route fragment protocol    | Live renderer or static artifact, selected by mode |
 | Matched route              | Mode-aware document rendering                      |
 | Unmatched path             | Static middleware, then a 404                      |
 
@@ -55,10 +55,10 @@ become HTTP responses unchanged.
 
 ## Route-data request
 
-Generated browser loaders call the configured data endpoint with the original
-route URL in a query parameter. The srvx adapter delegates directly to the route
-runtime. The runtime sanitizes the URL, matches it, creates request context with
-purpose `data`, imports the route module, and runs its loader.
+Client-route browser loaders call the configured data endpoint with the
+original route URL in a query parameter. The srvx adapter delegates directly to
+the route runtime. The runtime sanitizes the URL, matches it, creates request
+context with purpose `data`, imports the route module, and runs its loader.
 
 The browser data client deduplicates in-flight loads. Prefetch and later
 navigation therefore share one promise and one response. A failed request leaves
@@ -82,33 +82,43 @@ state that produced its HTML.
 
 ## Browser navigation and prefetch
 
-Live navigation and static navigation use different resources:
+Client navigation and fragment navigation use different resources:
 
 ```mermaid
 flowchart TD
   Match[Match destination]
-  Kind{Static route?}
-  LiveData[Warm live route data]
+  Kind{Client route?}
+  LiveData[Warm route data]
   Module[Preload route module]
-  Fragment[Fetch fragment artifact]
+  Policy{Fragment policy}
+  Server[Fetch live fragment]
+  Static[Fetch built fragment]
   Navigate[Router navigation]
 
   Match --> Kind
-  Kind -- No --> LiveData
+  Kind -- Yes --> LiveData
   LiveData --> Module
-  Kind -- Yes --> Fragment
+  Kind -- No --> Policy
+  Policy -- Server --> Server
+  Policy -- Static --> Static
   Module --> Navigate
-  Fragment --> Navigate
+  Server --> Navigate
+  Static --> Navigate
 ```
 
 Prefetch never performs navigation. It only warms the resources that navigation
-will consume. Static prefetch deliberately avoids importing the authored route
+will consume. Server and static prefetch avoid importing the authored route
 module because fragment HTML is the rendering source.
 
-On static navigation, the generated route loader fetches the versioned fragment
-artifact. The route component reads that cached artifact, inserts its HTML, and
-hydrates it only when the route policy requires hydration. The full ownership
-handoff is documented in [static fragments](./static-fragments.md).
+For a server destination, the generated route loader fetches a request-time
+fragment. Concurrent loads for the full sanitized URL share one request. The
+entry leaves the in-flight map when it settles, so a later navigation renders
+again. For a static destination, the loader retains the fulfilled build
+artifact by origin and normalized pathname.
+
+The route component reads a separate artifact handoff, inserts its HTML, and
+hydrates it only when the route policy permits hydration. The cache and DOM
+ownership rules are documented in [route fragments](./fragments.md).
 
 ## Production build
 

@@ -63,15 +63,20 @@ It is a targeted ownership boundary, not a general minifier.
 
 Primary coverage: `vite.test.ts`.
 
-## Static navigation uses artifacts
+## Fragment navigation stays HTML-first
 
-A static route's browser rendering path is its fragment artifact. Prefetch and
-navigation must not import the authored route module as the normal rendering
-path. Static route data comes from built data artifacts rather than the live
-data endpoint.
+A server or static route's browser rendering path is its fragment response.
+Prefetch and navigation must not import the authored route module as the normal
+rendering path. Client routes keep their route-data and module path. Static
+route data comes from built artifacts rather than the live data endpoint.
 
 Fragment artifacts must carry the current protocol identifier and stable
 boundary metadata. Invalid protocols fail before insertion.
+
+Static fragments remain reusable by origin and normalized pathname. Server
+fragments use the full sanitized route URL, share concurrent work only, and
+leave no settled response in the request cache. Keep the latest-artifact render
+handoff separate from both request caches.
 
 Primary coverage: `route-prefetch.test.ts`, `fragment.test.ts`,
 `remix-route-data.test.ts`, `octane.test.ts`, and `vite.test.ts`.
@@ -88,13 +93,15 @@ retain their library types through the bridge. Do not hide mismatches with
 `never` assertions.
 
 Primary coverage: `fragment.test.ts`, plus browser fixture checks for hydrated
-static routes.
+server and static routes.
 
 ## Render mode and hydration policy remain separate
 
-Render mode selects the source of initial and navigated HTML. Hydration policy
-selects whether and when existing HTML becomes interactive. Validation rejects
-combinations that cannot affect the selected render mode.
+Render mode selects whether fragment HTML comes from request-time rendering or
+build output. Navigation strategy selects fragment transport or client module
+rendering. Hydration policy selects whether and when existing HTML becomes
+interactive. Validation rejects combinations that cannot affect the selected
+render mode.
 
 Do not infer render mode from a hydration policy or silently reinterpret legacy
 mode names.

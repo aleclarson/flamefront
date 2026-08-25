@@ -513,14 +513,17 @@ export default function Route() {
 Server adapters call `loadRoute()` from `flamefront/server`. Browser routers
 can call `app.load(url)` from their route loaders. `app.load(url)` and
 `app.prefetch(url)` share a browser-side `RouteDataClient` with generated
-route loaders, so a prefetched result is reused during client navigation.
-`app.load` remains the explicit data-only API for static `.data.json`
-artifacts. Static route navigation and route-aware prefetching use the
-fragment JSON transport instead, so a navigation never renders a static route
-module from loader data.
+client-route loaders, so a prefetched result is reused during client
+navigation. `app.load` remains the explicit data-only API for static
+`.data.json` artifacts.
 
-`prefetchRoute()` chooses resources from the matched route. Client and server
-routes warm live data plus their client route and pathless layout modules:
+Server and static route navigation use the route-fragment JSON transport.
+Server fragments render for the incoming request. Static fragments come from
+build output. Neither mode renders the authored route module from loader data
+as its normal browser navigation path.
+
+`prefetchRoute()` chooses resources from the matched route. Client routes warm
+route data plus their client route and pathless layout modules:
 
 ```ts
 import { prefetchRoute } from "flamefront/remix-router"
@@ -528,10 +531,16 @@ import { prefetchRoute } from "flamefront/remix-router"
 void prefetchRoute(app, "/products/one")
 ```
 
-Static routes use the fragment transport instead of importing their route
-module as a normal navigation renderer. `createRoutePrefetcher(app)` wires
-the transport into the existing prefetch seam; custom
-`RoutePrefetchResources.staticFragment` callbacks can replace it.
+Server and static routes use the fragment transport instead of importing their
+route module as a normal navigation renderer. `createRoutePrefetcher(app)`
+wires the transport into the existing prefetch seam. A custom
+`RoutePrefetchResources.routeFragment` callback can replace it.
+
+The public `flamefront/fragment` entry exports the route-oriented fragment API,
+including `RouteFragmentArtifact`, `RouteFragmentBoundary`,
+`RouteFragmentCachePolicy`, `loadRouteFragment`, `prefetchRouteFragment`, and
+`createRouteFragmentRoute`. The v1 discriminator is
+`flamefront-route-fragment-v1`. The old static-fragment names have no aliases.
 
 Flamefront's Vite transform loads the centralized route manifest. Octane
 compiles TSRX first, then Flamefront removes loaders and their private
@@ -590,16 +599,16 @@ Programmatic callers can use the same router cache with
 Generated route objects expose `handle.flamefront` metadata with stable
 `id`, `boundary`, and `parent` values. The adapter also exports the flat
 `routeMetadata` collection. Leaf routes include their `render` mode and
-`navigation` strategy. Static routes use `navigation: "fragment"`; client
-and server routes use `navigation: "router"`. The metadata is also the
-static-fragment contract: the build records the shell, layout, and leaf
-boundary hierarchy in each fragment artifact. Browser navigation inserts the
-leaf HTML first, then applies the route's hydration policy.
+`navigation` strategy. Server and static routes use
+`navigation: "fragment"`; client routes use `navigation: "router"`. The
+metadata is also part of the route-fragment contract. Each artifact records the
+shell, layout, and leaf boundary hierarchy. Browser navigation inserts the leaf
+HTML first, then applies the route's hydration policy.
 
 Route modules and pathless layout modules use default component exports and
 are loaded lazily. Server routers call route modules' exported loaders
-directly; browser routers use Flamefront's route-data endpoint with navigation
-abort signals and HTTP error handling.
+directly. Client-route browser loaders use Flamefront's route-data endpoint with
+navigation abort signals and HTTP error handling.
 
 Server routes can choose who owns hydration:
 
@@ -617,11 +626,9 @@ route("/reviews/:productId", "/src/Reviews.tsrx", {
   `{ when: "interaction" }`, and `{ when: "media" }` generate one
   route-level Octane boundary with the corresponding strategy options.
 
-Generated boundaries defer only DOM that came from server rendering. If the
-same route is first mounted by client navigation, Octane renders it
-immediately. Static routes accept `none`, and client routes accept `full`;
-trigger objects are server-only because they need existing server HTML to
-defer.
+Generated boundaries defer HTML inserted by a document or fragment render.
+Server and static routes accept `full`, `deferred`, `none`, and trigger objects.
+Client routes accept `full` only.
 
 ## Alpha release notes
 
@@ -634,12 +641,13 @@ package. It includes:
 - raw TypeScript exports for the route manifest, Vite integration, server
   runtime, srvx entry, Octane browser entry, and Remix Router adapter;
 - `client`, `server`, and `static` render modes with route layouts,
-  loaders, hydration policies, static route data, and static fragments;
+  loaders, hydration policies, static route data, and route fragments;
 - `ff dev`, `ff build`, `ff preview`, and `ff routes`;
 - packed-package consumer verification across development, build, preview, and
   route-data flows;
-- browser acceptance coverage for hydration, client navigation, static
-  fragments, loaders, errors, redirects, basenames, and history traversal.
+- browser acceptance coverage for hydration, client navigation, server and
+  static fragments, loaders, errors, redirects, basenames, and history
+  traversal.
 
 Pin `flamefront@0.1.0-alpha.0` and the matching peer versions while
 evaluating the alpha. Before upgrading, read the release notes, rebuild the
@@ -675,10 +683,10 @@ Promote the alpha only when every item below is complete and recorded.
 - [ ] Install that exact published version in a fresh consumer outside the
       workspace. Confirm the resolved package is not a workspace link.
 - [ ] Run the consumer through development, production build, preview, route
-      inspection, static navigation, and route-data flows.
+      inspection, server and static fragment navigation, and route-data flows.
 - [ ] Run the browser acceptance path against the published package and verify
-      initial hydration, client routes, static fragments, loaders, errors,
-      redirects, basenames, and back/forward navigation.
+      initial hydration, client routes, server and static fragments, loaders,
+      errors, redirects, basenames, and back/forward navigation.
 - [ ] Repeat the supported Node matrix against the published package.
 
 ### Public-release decision

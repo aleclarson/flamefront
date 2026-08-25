@@ -14,11 +14,11 @@ route model.
 An application supplies a persistent shell and a tree of pathless layouts and
 leaf routes. Every leaf selects one render mode:
 
-| Mode     | Initial document                           | Later browser navigation                         |
-| -------- | ------------------------------------------ | ------------------------------------------------ |
-| `client` | A generated shell document                 | Import and render the route module               |
-| `server` | Render the matched router tree per request | Load live route data and import the route module |
-| `static` | Serve a document generated at build time   | Fetch and insert a static fragment artifact      |
+| Mode     | Initial document                           | Later browser navigation                     |
+| -------- | ------------------------------------------ | -------------------------------------------- |
+| `client` | A generated shell document                 | Load data, then import and render the module |
+| `server` | Render the matched router tree per request | Fetch and insert a live route fragment       |
+| `static` | Serve a document generated at build time   | Fetch and insert a built route fragment      |
 
 Hydration is a separate decision. `full`, `deferred`, `none`, and the
 trigger-based `idle`, `visible`, `interaction`, and `media` policies control when
@@ -47,7 +47,7 @@ Flamefront divides work among five parts:
 3. The route runtime imports matched modules, constructs request context, and
    runs loaders.
 4. The document service joins the route runtime, Remix Router, and Octane. It
-   renders documents and static fragments without owning HTTP transport.
+   renders documents and route fragments without owning HTTP transport.
 5. The srvx adapter classifies HTTP requests, serves built assets, and calls the
    document service.
 
@@ -67,7 +67,8 @@ The build integration produces three kinds of generated material:
 
 Static builds add four files per static route: the full document, route data,
 fragment HTML, and the complete fragment artifact. See
-[static fragments](./static-fragments.md) for why the two fragment files exist.
+[route fragments](./fragments.md) for the transport contract and why the two
+static fragment files exist.
 
 ## Terms used in the code
 
@@ -82,11 +83,12 @@ both an srvx server configuration and the lifecycle interface used by build and
 preview commands.
 
 **Boundary.** A stable generated shell, layout, or route identity. Boundaries
-let a static navigation request render and replace the matched part of a route
+let a fragment response render and replace the matched part of a route
 hierarchy.
 
-**Fragment artifact.** Versioned JSON containing route data, leaf HTML,
-boundary HTML, hydration policy, and response status for a static route.
+**Route fragment.** Versioned JSON containing route data, leaf HTML, boundary
+HTML, hydration policy, and response status. Server routes produce it per
+request. Static routes read it from build output.
 
 **Protocol parameter.** A reserved query parameter used to distinguish shell
 or fragment requests. Flamefront removes these parameters before application
@@ -103,7 +105,7 @@ Use these source files as entry points:
 | Vite generation and browser graph policy | [`src/vite.ts`](../src/vite.ts)                             |
 | Document and fragment rendering          | [`src/octane.tsx`](../src/octane.tsx)                       |
 | Browser root startup                     | [`src/octane-client-core.ts`](../src/octane-client-core.ts) |
-| Static fragment hydration                | [`src/fragment.tsx`](../src/fragment.tsx)                   |
+| Fragment insertion and hydration         | [`src/fragment.tsx`](../src/fragment.tsx)                   |
 | HTTP classification                      | [`src/srvx.ts`](../src/srvx.ts)                             |
 | Build, dev, and preview orchestration    | [`src/lifecycle.ts`](../src/lifecycle.ts)                   |
 

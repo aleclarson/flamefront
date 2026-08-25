@@ -58,10 +58,11 @@ modules. The browser module contains the eager shell, lazy layouts and routes,
 route metadata, data loaders, and route-module preloaders. The server module is
 an importer over unique leaf entries.
 
-Static routes take a different browser path from live routes. Their generated
-route configuration uses fragment loading. Trigger-based policies and `none`
-also use a generated hydration component. Static navigation does not make the
-authored route module its normal rendering path.
+Server and static routes share one generated fragment route shape in the
+browser. The generated loader selects the server or static cache policy. The
+fragment route inserts response HTML before optional nested hydration. Client
+routes keep the route-data and module path. Fragment navigation does not import
+the authored route module as its normal browser rendering path.
 
 During browser builds, Flamefront removes `loader` and other server-only route
 exports together with private dependencies that become unreachable. A separate
@@ -89,8 +90,8 @@ has three operations:
 - `renderDocument` renders shell, client, server, or static documents and
   composes the resulting body, CSS, and hydration payload into an HTML template;
 - `loadRouteData` delegates to the route runtime;
-- `renderFragment` renders the boundary chain for one static route and packages
-  a fragment artifact.
+- `renderFragment` renders the boundary chain for one server or static route
+  and packages a fragment artifact.
 
 The service does not read files, listen on sockets, or choose response headers.
 Those are transport concerns.
@@ -120,6 +121,6 @@ Router instance, and attaches the shared router document to `#root`. A client
 route renders immediately. Server and static routes wait for router
 initialization and hydrate the existing document.
 
-Route-aware prefetch follows the same render split. Live routes warm route data
-and their client module. Static routes warm the fragment artifact and do not
-preload the authored route module as a rendering path.
+Route-aware prefetch follows the navigation split. Client routes warm route
+data and their client module. Server and static routes warm a fragment response
+and do not preload the authored route module as a rendering path.
