@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "jsx": "preserve",
+    "jsxImportSource": "octane",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
@@ -9,5 +11,5 @@
     "target": "ESNext",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"]
 }

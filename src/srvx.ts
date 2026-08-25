@@ -9,7 +9,7 @@ import {
   type AppDefinition,
   type RouteDefinition,
 } from "./index.ts"
-import type { OctaneDocuments } from "./octane.ts"
+import type { OctaneDocuments } from "./octane.tsx"
 import type { DocumentMode, RenderedDocument } from "./server.ts"
 import {
   isStaticFragmentRequest,

@@ -5,7 +5,7 @@ import {
   createOctaneDocuments,
   type DocumentRouter,
   type OctaneRenderer,
-} from "../src/octane.ts"
+} from "../src/octane.tsx"
 import { createRouteRuntime } from "../src/server.ts"
 
 const shell = "/src/AppShell.tsrx"

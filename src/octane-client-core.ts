@@ -1,5 +1,5 @@
 import type { AppDefinition, RouteDefinition } from "./index.ts"
-import type { RouterDocument, RouterDocumentProps } from "./octane.ts"
+import type { RouterDocument, RouterDocumentProps } from "./octane.tsx"
 
 export type OctaneClientApp<Route extends RouteDefinition = RouteDefinition> =
   Pick<AppDefinition<Route>, "match" | "prefetch">

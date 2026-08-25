@@ -1,10 +1,4 @@
-import {
-  createContext,
-  createElement,
-  useContext,
-  useLayoutEffect,
-  useRef,
-} from "octane"
+import { createContext, useContext, useLayoutEffect, useRef } from "octane"
 import {
   UNSAFE_DataRouterContext,
   UNSAFE_DataRouterStateContext,
@@ -75,11 +69,16 @@ export function createRouteBoundary(
 ): (props: Record<string, unknown>) => unknown {
   return (props) => {
     const target = useContext(staticFragmentBoundaryTarget)
-    const children = createElement(Component as never, props)
+    const RouteComponent = Component as (
+      props: Record<string, unknown>,
+    ) => unknown
+    const children = <RouteComponent {...props} />
 
-    return target === metadata.boundary
-      ? children
-      : createElement("div", boundaryProps(metadata), children)
+    return target === metadata.boundary ? (
+      children
+    ) : (
+      <div {...boundaryProps(metadata)}>{children}</div>
+    )
   }
 }
 
@@ -95,35 +94,34 @@ function createContextBridge(
     readonly viewTransition: unknown
   },
 ): (props: Record<string, unknown>) => unknown {
-  return () =>
-    createElement(UNSAFE_DataRouterContext.Provider as never, {
-      value: contexts.dataRouter,
-      children: createElement(UNSAFE_DataRouterStateContext.Provider as never, {
-        value: contexts.dataRouterState,
-        children: createElement(UNSAFE_FetchersContext.Provider as never, {
-          value: contexts.fetchers,
-          children: createElement(UNSAFE_LocationContext.Provider as never, {
-            value: contexts.location,
-            children: createElement(
-              UNSAFE_NavigationContext.Provider as never,
-              {
-                value: contexts.navigation,
-                children: createElement(UNSAFE_RouteContext.Provider as never, {
-                  value: contexts.route,
-                  children: createElement(
-                    UNSAFE_ViewTransitionContext.Provider as never,
-                    {
-                      value: contexts.viewTransition,
-                      children: createElement(Component as never, {}),
-                    },
-                  ),
-                }),
-              },
-            ),
-          }),
-        }),
-      }),
-    })
+  const ContextComponent = Component as () => unknown
+  const DataRouterProvider = UNSAFE_DataRouterContext.Provider
+  const DataRouterStateProvider = UNSAFE_DataRouterStateContext.Provider
+  const FetchersProvider = UNSAFE_FetchersContext.Provider
+  const LocationProvider = UNSAFE_LocationContext.Provider
+  const NavigationProvider = UNSAFE_NavigationContext.Provider
+  const RouteProvider = UNSAFE_RouteContext.Provider
+  const ViewTransitionProvider = UNSAFE_ViewTransitionContext.Provider
+
+  return () => (
+    <DataRouterProvider value={contexts.dataRouter as never}>
+      <DataRouterStateProvider value={contexts.dataRouterState as never}>
+        <FetchersProvider value={contexts.fetchers as never}>
+          <LocationProvider value={contexts.location as never}>
+            <NavigationProvider value={contexts.navigation as never}>
+              <RouteProvider value={contexts.route as never}>
+                <ViewTransitionProvider
+                  value={contexts.viewTransition as never}
+                >
+                  <ContextComponent />
+                </ViewTransitionProvider>
+              </RouteProvider>
+            </NavigationProvider>
+          </LocationProvider>
+        </FetchersProvider>
+      </DataRouterStateProvider>
+    </DataRouterProvider>
+  )
 }
 
 function routeLocationUrl(): string {
@@ -165,7 +163,7 @@ export function createStaticFragmentRoute(
   return function StaticFragmentRoute(props) {
     const routeUrl = routeLocationUrl()
     const artifact = getStaticFragment(routeUrl, { basename })
-    const hostRef = useRef<Element | null>(null, hostSlot)
+    const hostRef = useRef<HTMLDivElement | null>(null, hostSlot)
     const nestedRootRef = useRef<{ unmount(): void } | null>(null, rootSlot)
     const dataRouter = useContext(UNSAFE_DataRouterContext)
     const dataRouterState = useContext(UNSAFE_DataRouterStateContext)
@@ -217,7 +215,8 @@ export function createStaticFragmentRoute(
 
             setDangerouslySetInnerHTML(host, null)
             setHTML(host, html)
-            nestedRootRef.current = hydrateRoot(host, createElement(bridge, {}))
+            const Bridge = bridge
+            nestedRootRef.current = hydrateRoot(host, <Bridge />)
           },
         )
 
@@ -245,15 +244,17 @@ export function createStaticFragmentRoute(
       return fallbackBoundary(props)
     }
 
-    return createElement("div", {
-      ...boundaryProps(options.metadata),
-      ...(artifact
-        ? {
-            ref: hostRef,
-            dangerouslySetInnerHTML: { __html: artifact.html },
-          }
-        : {}),
-    })
+    return (
+      <div
+        {...boundaryProps(options.metadata)}
+        {...(artifact
+          ? {
+              ref: hostRef,
+              dangerouslySetInnerHTML: { __html: artifact.html },
+            }
+          : {})}
+      />
+    )
   }
 }
 

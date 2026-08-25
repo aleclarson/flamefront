@@ -233,7 +233,7 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
     import("@octanejs/remix-router"),
     import("./octane-router-document.ts"),
     import("octane/server"),
-    import("./fragment.ts"),
+    import("./fragment.tsx"),
   ])
 
   const createStaticNavigator = (router: {
@@ -308,44 +308,46 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
       const fragmentTree = remix.renderMatches(
         state.matches.slice(matchIndex) as never,
       )
-      const fragmentRoot = octane.createElement(
-        remix.UNSAFE_DataRouterContext.Provider as never,
-        {
-          value: dataRouterContext,
-          children: octane.createElement(
-            remix.UNSAFE_DataRouterStateContext.Provider as never,
-            {
-              value: state,
-              children: octane.createElement(
-                remix.UNSAFE_FetchersContext.Provider as never,
-                {
-                  value: new Map(),
-                  children: octane.createElement(
-                    remix.UNSAFE_ViewTransitionContext.Provider as never,
-                    {
-                      value: { isTransitioning: false },
-                      children: octane.createElement(
-                        remix.StaticRouter as never,
-                        {
-                          basename: staticContext.basename ?? "/",
-                          location: state.location,
-                          children: octane.createElement(
-                            fragment.staticFragmentBoundaryTarget
-                              .Provider as never,
-                            { value: boundary, children: fragmentTree },
-                          ),
-                        },
-                      ),
-                    },
-                  ),
-                },
-              ),
-            },
-          ),
-        },
+      const FragmentBoundaryProvider =
+        fragment.staticFragmentBoundaryTarget.Provider
+      const DataRouterProvider = remix.UNSAFE_DataRouterContext.Provider
+      const DataRouterStateProvider =
+        remix.UNSAFE_DataRouterStateContext.Provider
+      const FetchersProvider = remix.UNSAFE_FetchersContext.Provider
+      const ViewTransitionProvider = remix.UNSAFE_ViewTransitionContext.Provider
+      const StaticRouter = remix.StaticRouter
+      const FragmentRoot = () => (
+        <DataRouterProvider
+          value={dataRouterContext as never}
+          children={
+            <DataRouterStateProvider
+              value={state as never}
+              children={
+                <FetchersProvider
+                  value={new Map()}
+                  children={
+                    <ViewTransitionProvider
+                      value={{ isTransitioning: false }}
+                      children={
+                        <StaticRouter
+                          basename={staticContext.basename ?? "/"}
+                          location={state.location as never}
+                          children={
+                            <FragmentBoundaryProvider
+                              value={boundary}
+                              children={fragmentTree}
+                            />
+                          }
+                        />
+                      }
+                    />
+                  }
+                />
+              }
+            />
+          }
+        />
       )
-      const FragmentRoot = () => fragmentRoot
-
       return octane.renderToString(FragmentRoot, {})
     },
     defaultRouterDocument: routerDocument.RouterDocument,

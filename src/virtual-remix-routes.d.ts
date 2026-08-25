@@ -1,6 +1,6 @@
 declare module "virtual:flamefront/remix-routes" {
   import type { RouteObject } from "@octanejs/remix-router"
-  import type { RouterDocument as RouterDocumentComponent } from "./octane.ts"
+  import type { RouterDocument as RouterDocumentComponent } from "./octane.tsx"
   import type {
     GeneratedRouteMetadata,
     NormalizedRoutingOptions,

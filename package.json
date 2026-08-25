@@ -19,8 +19,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fragment": "./src/fragment.ts",
-    "./octane": "./src/octane.ts",
+    "./fragment": "./src/fragment.tsx",
+    "./octane": "./src/octane.tsx",
     "./octane/client": "./src/octane-client.ts",
     "./octane/router-document": "./src/octane-router-document.ts",
     "./remix-router": "./src/remix-router.ts",
@@ -30,7 +30,7 @@
     "./vite": "./src/vite.ts"
   },
   "scripts": {
-    "test": "node --test test/*.test.ts",
+    "test": "node --import octane/compiler/register --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
