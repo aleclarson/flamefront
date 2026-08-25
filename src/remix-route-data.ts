@@ -3,6 +3,7 @@ import {
   type RouteDataLoadOptions,
   type RouteDataRoutingOptions,
 } from "./route-data-client.ts"
+import type { RouteDataForPath } from "./index.ts"
 import {
   loadStaticFragment,
   type StaticFragmentLoadOptions,
@@ -17,7 +18,7 @@ export {
   type RouteDataSource,
 } from "./route-data-client.ts"
 
-export interface ClientLoaderArgs {
+export interface ClientLoaderArgs<_Path extends string = string> {
   readonly request: Request
 }
 
@@ -31,30 +32,36 @@ function client(options: RouteDataOptions) {
 }
 
 /** Load route data through Flamefront's server endpoint during browser navigation. */
-export async function loadRouteData(
-  { request }: ClientLoaderArgs,
+export async function loadRouteData<const Path extends string = string>(
+  { request }: ClientLoaderArgs<Path>,
   options: RouteDataOptions = {},
-): Promise<unknown> {
+): Promise<RouteDataForPath<Path>> {
   const loadOptions: RouteDataLoadOptions = { signal: request.signal }
 
-  return client(options).load(request.url, "live", loadOptions)
+  return client(options).load(request.url, "live", loadOptions) as Promise<
+    RouteDataForPath<Path>
+  >
 }
 
 /** Load a build-time static route artifact during browser navigation. */
-export async function loadStaticRouteData(
-  { request }: ClientLoaderArgs,
+export async function loadStaticRouteData<const Path extends string = string>(
+  { request }: ClientLoaderArgs<Path>,
   options: RouteDataOptions = {},
-): Promise<unknown> {
+): Promise<RouteDataForPath<Path>> {
   const loadOptions: RouteDataLoadOptions = { signal: request.signal }
 
-  return client(options).load(request.url, "static", loadOptions)
+  return client(options).load(request.url, "static", loadOptions) as Promise<
+    RouteDataForPath<Path>
+  >
 }
 
 /** Load a static fragment and expose only its route data to the router. */
-export async function loadStaticRouteFragment(
-  { request }: ClientLoaderArgs,
+export async function loadStaticRouteFragment<
+  const Path extends string = string,
+>(
+  { request }: ClientLoaderArgs<Path>,
   options: RouteDataOptions = {},
-): Promise<unknown> {
+): Promise<RouteDataForPath<Path>> {
   const fragmentOptions: StaticFragmentLoadOptions = {
     signal: request.signal,
   }
@@ -64,5 +71,5 @@ export async function loadStaticRouteFragment(
     fragmentOptions,
   )
 
-  return artifact.routeData
+  return artifact.routeData as RouteDataForPath<Path>
 }

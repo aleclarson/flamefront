@@ -1,7 +1,8 @@
 import type {
-  AppDefinition,
   LoadRouteOptions,
+  MatchRouteOptions,
   RouteDefinition,
+  RouteMatchForUrl,
 } from "./index.ts"
 
 /**
@@ -23,10 +24,16 @@ export type RouteModulePreloader = (entry: string) => void | Promise<void>
 
 export type RoutePrefetchCallback = (to: string) => void | Promise<void>
 
-type RoutePrefetchApp<Route extends RouteDefinition> = Pick<
-  AppDefinition<Route>,
-  "match" | "prefetch"
->
+type RoutePrefetchApp<Route extends RouteDefinition> = {
+  readonly match: (
+    url: string | URL,
+    options?: MatchRouteOptions,
+  ) => RouteMatchForUrl<Route, string> | null
+  readonly prefetch: (
+    url: string | URL,
+    options?: LoadRouteOptions,
+  ) => Promise<void>
+}
 
 /**
  * Warm the resources used by a matched route. Live routes share route data

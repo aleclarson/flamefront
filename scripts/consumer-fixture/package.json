@@ -8,5 +8,9 @@
     "flamefront": "file:./flamefront.tgz",
     "octane": "0.1.40",
     "vite": "8.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "typescript": "5.9.3"
   }
 }

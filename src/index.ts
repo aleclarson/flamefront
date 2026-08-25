@@ -1,8 +1,13 @@
 import {
   createMultiMatcher,
   type Match,
+  type MatchParams,
   type MultiMatcher,
 } from "@remix-run/route-pattern/match"
+import {
+  createHref as createPatternHref,
+  type CreateHrefArgs,
+} from "@remix-run/route-pattern/href"
 import type { HydrationInteractionEvents } from "octane/hydration"
 import { createRouteDataClient } from "./route-data-client.ts"
 import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
@@ -74,10 +79,13 @@ export interface RouteOptions {
   readonly hydration?: HydrationMode
 }
 
-export interface RouteDefinition extends RouteOptions {
-  readonly path: string
+export interface RouteDefinition<
+  Path extends string = string,
+  Entry extends string = string,
+> extends RouteOptions {
+  readonly path: Path
   /** Octane/Vite project-root module ID, such as `/src/Home.tsrx`. */
-  readonly entry: string
+  readonly entry: Entry
   readonly render: RenderMode
 }
 
@@ -92,6 +100,21 @@ export interface LayoutDefinition<
 
 export type RouteConfig = RouteDefinition | LayoutDefinition
 
+/** Flatten nested route configuration into the leaf route union. */
+export type RouteLeaf<Config> =
+  Config extends LayoutDefinition<infer Children>
+    ? number extends Children["length"]
+      ? RouteDefinition
+      : RouteLeaf<Children[number]>
+    : Config extends RouteDefinition
+      ? Config
+      : never
+
+export type RouteLeaves<Configs extends readonly RouteConfig[]> =
+  number extends Configs["length"]
+    ? RouteDefinition
+    : RouteLeaf<Configs[number]>
+
 export interface MatchRouteOptions {
   readonly render?: RenderMode
 }
@@ -103,10 +126,284 @@ export interface MatchRouteOptions {
  */
 export interface RouteImportMap {}
 
+/** Parameters used when a route pattern is not available to the type system. */
+export type BroadRouteParams = Record<string, string | undefined>
+
+type RouteImportMapPath = Extract<keyof RouteImportMap, string>
+
+/** Route patterns emitted by Flamefront, or `string` before type generation. */
+export type RoutePath = [RouteImportMapPath] extends [never]
+  ? string
+  : RouteImportMapPath
+
+/**
+ * Parameters captured by a generated route pattern. A stale or missing map
+ * deliberately keeps the existing broad record behavior.
+ */
+type RouteParamsForKnownPath<Path extends string> = Path extends string
+  ? Path extends RouteImportMapPath
+    ? MatchParams<Path> extends infer Params
+      ? [Params] extends [never]
+        ? BroadRouteParams
+        : Params
+      : BroadRouteParams
+    : BroadRouteParams
+  : BroadRouteParams
+
+export type RouteParams<Path extends string = string> = [
+  RouteImportMapPath,
+] extends [never]
+  ? BroadRouteParams
+  : string extends Path
+    ? BroadRouteParams
+    : RouteParamsForKnownPath<Path>
+
+/** The route module associated with a generated route pattern. */
+export type RouteModuleFor<Path extends string = string> = [
+  RouteImportMapPath,
+] extends [never]
+  ? unknown
+  : Path extends RouteImportMapPath
+    ? RouteImportMap[Path]
+    : unknown
+
+type RouteLoaderFunction<Module> = Module extends {
+  readonly loader?: infer Loader
+}
+  ? Loader extends (...args: infer _Args) => infer Result
+    ? (...args: _Args) => Result
+    : never
+  : never
+
+/** The authored loader function associated with a generated route pattern. */
+export type RouteLoaderFor<Path extends string = string> = RouteLoaderFunction<
+  RouteModuleFor<Path>
+>
+
+/** The awaited result of a generated route's loader, or `unknown` as fallback. */
+export type RouteLoaderData<Path extends string = string> =
+  RouteLoaderFor<Path> extends (...args: infer _Args) => infer Result
+    ? Awaited<Result>
+    : unknown
+
+type RoutePageParams<Path extends RouteImportMapPath> =
+  keyof RouteParams<Path> extends never
+    ? BroadRouteParams
+    : RouteParams<Path> & Record<string, string | undefined>
+
+/** Registration shape for router libraries that expose typed route pages. */
+export type RoutePages = [RouteImportMapPath] extends [never]
+  ? Record<string, { readonly params: BroadRouteParams }>
+  : {
+      [Path in RouteImportMapPath]: {
+        readonly params: RoutePageParams<Path>
+      }
+    }
+
+declare module "@octanejs/remix-router" {
+  interface Register {
+    pages: RoutePages
+  }
+}
+
 export interface LoadRouteOptions {
   readonly signal?: AbortSignal
   readonly reload?: boolean
 }
+
+type TrimTrailingSlashes<Value extends string> = Value extends "/"
+  ? Value
+  : Value extends `${infer Path}/`
+    ? TrimTrailingSlashes<Path>
+    : Value
+
+type RoutePathname<Value extends string> = Value extends `${string}?${string}`
+  ? Value extends `${infer Path}?${string}`
+    ? RoutePathname<Path>
+    : string
+  : Value extends `${string}#${string}`
+    ? Value extends `${infer Path}#${string}`
+      ? RoutePathname<Path>
+      : string
+    : Value extends `/${string}`
+      ? TrimTrailingSlashes<Value>
+      : string
+
+type RouteSegments<Value extends string> = Value extends `/${infer Rest}`
+  ? Rest extends ""
+    ? []
+    : Rest extends `${infer Head}/${infer Tail}`
+      ? [Head, ...RouteSegments<`/${Tail}`>]
+      : [Rest]
+  : []
+
+type RouteSegmentMatches<
+  Pattern extends string,
+  Value extends string,
+> = Pattern extends `:${string}`
+  ? true
+  : Pattern extends `*${string}`
+    ? true
+    : Pattern extends `(${infer Optional})`
+      ? RouteSegmentMatches<Optional, Value>
+      : Pattern extends Value
+        ? true
+        : false
+
+type RoutePatternMatches<
+  Pattern extends readonly string[],
+  Value extends readonly string[],
+> = Pattern extends []
+  ? Value extends []
+    ? true
+    : false
+  : Pattern extends [infer Head extends string, ...infer Tail extends string[]]
+    ? Head extends `*${string}`
+      ? true
+      : Head extends `(${infer Optional})`
+        ? RoutePatternMatches<[Optional, ...Tail], [...Value]> extends true
+          ? true
+          : RoutePatternMatches<Tail, Value>
+        : Value extends [
+              infer ValueHead extends string,
+              ...infer ValueTail extends string[],
+            ]
+          ? RouteSegmentMatches<Head, ValueHead> extends true
+            ? RoutePatternMatches<Tail, ValueTail>
+            : false
+          : false
+    : false
+
+type RouteMatchesUrl<
+  Pattern extends string,
+  Url extends string,
+> = string extends Url
+  ? true
+  : RoutePatternMatches<
+      RouteSegments<RoutePathname<Pattern>>,
+      RouteSegments<RoutePathname<Url>>
+    >
+
+type MatchingRoutes<
+  Routes extends RouteDefinition,
+  Url extends string,
+> = Routes extends RouteDefinition
+  ? true extends RouteMatchesUrl<Routes["path"], Url>
+    ? Routes
+    : never
+  : never
+
+type ExactMatchingRoutes<
+  Routes extends RouteDefinition,
+  Url extends string,
+> = Routes extends RouteDefinition
+  ? Routes["path"] extends RoutePathname<Url>
+    ? Routes
+    : never
+  : never
+
+type MatchedRoutes<Routes extends RouteDefinition, Url extends string> = [
+  ExactMatchingRoutes<Routes, Url>,
+] extends [never]
+  ? MatchingRoutes<Routes, Url>
+  : ExactMatchingRoutes<Routes, Url>
+
+type MatchingImportMapPaths<
+  Url extends string,
+  Paths extends string = RouteImportMapPath,
+> = Paths extends string
+  ? true extends RouteMatchesUrl<Paths, Url>
+    ? Paths
+    : never
+  : never
+
+type ExactImportMapPaths<
+  Url extends string,
+  Paths extends string = RouteImportMapPath,
+> = Paths extends string
+  ? Paths extends RoutePathname<Url>
+    ? Paths
+    : never
+  : never
+
+type ImportMapPathsForUrl<Url extends string> = [
+  ExactImportMapPaths<Url>,
+] extends [never]
+  ? MatchingImportMapPaths<Url>
+  : ExactImportMapPaths<Url>
+
+type RoutesForUrl<Routes extends RouteDefinition, Url extends string> =
+  string extends RoutePathname<Url>
+    ? Routes
+    : [MatchedRoutes<Routes, Url>] extends [never]
+      ? Routes
+      : MatchedRoutes<Routes, Url>
+
+/** A matched route whose params retain the authored route pattern. */
+export type RouteMatch<Route extends RouteDefinition = RouteDefinition> = Omit<
+  Match<string, Route>,
+  "params"
+> & {
+  readonly params: RouteParams<Route["path"]>
+}
+
+type BroadRouteMatch<Route extends RouteDefinition> = Omit<
+  RouteMatch<Route>,
+  "params"
+> & {
+  readonly params: BroadRouteParams
+}
+
+/** Match result selected from a route union and a statically known URL. */
+export type RouteMatchForUrl<
+  Routes extends RouteDefinition,
+  Url extends string,
+> = string extends Url
+  ? BroadRouteMatch<Routes>
+  : string extends RoutePathname<Url>
+    ? BroadRouteMatch<Routes>
+    : RouteMatch<RoutesForUrl<Routes, Url>>
+
+/** Loader data selected from a route union and a statically known URL. */
+export type RouteDataForUrl<
+  Routes extends RouteDefinition,
+  Url extends string,
+> = string extends Url
+  ? unknown
+  : string extends RoutePathname<Url>
+    ? unknown
+    : [MatchedRoutes<Routes, Url>] extends [never]
+      ? unknown
+      : MatchedRoutes<Routes, Url> extends infer Route
+        ? Route extends RouteDefinition
+          ? RouteLoaderData<Route["path"]>
+          : unknown
+        : unknown
+
+/** Loader data selected directly from the generated map and a URL pathname. */
+export type RouteDataForPath<Url extends string> = string extends Url
+  ? unknown
+  : string extends RoutePathname<Url>
+    ? unknown
+    : [RouteImportMapPath] extends [never]
+      ? unknown
+      : [ImportMapPathsForUrl<Url>] extends [never]
+        ? unknown
+        : ImportMapPathsForUrl<Url> extends infer Path
+          ? Path extends string
+            ? RouteLoaderData<Path>
+            : unknown
+          : unknown
+
+/** A router destination constrained to generated route patterns when present. */
+export type RouteDestination<Path extends string = RoutePath> =
+  | Path
+  | {
+      readonly pathname: Path
+      readonly search?: string
+      readonly hash?: string
+      readonly state?: unknown
+    }
 
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
   /** Octane/Vite project-root module ID for the persistent app shell. */
@@ -114,20 +411,44 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
   readonly routes: readonly T[]
   readonly routeTree: readonly RouteConfig[]
   readonly routing: NormalizedRoutingOptions
-  readonly match: (
-    url: string | URL,
-    options?: MatchRouteOptions,
-  ) => Match<string, T> | null
+  readonly match: {
+    <const Url extends string>(
+      url: Url,
+      options?: MatchRouteOptions,
+    ): RouteMatchForUrl<T, Url> | null
+    (url: URL, options?: MatchRouteOptions): RouteMatchForUrl<T, string> | null
+    (
+      url: string,
+      options?: MatchRouteOptions,
+    ): RouteMatchForUrl<T, string> | null
+    (
+      url: string | URL,
+      options?: MatchRouteOptions,
+    ): RouteMatchForUrl<T, string> | null
+  }
   /** Load route data using the route's live or static data source. */
-  readonly load: <Data = unknown>(
-    url: string | URL,
-    options?: LoadRouteOptions,
-  ) => Promise<Data>
+  readonly load: {
+    <const Url extends string>(
+      url: Url,
+      options?: LoadRouteOptions,
+    ): Promise<RouteDataForUrl<T, Url>>
+    <Data = unknown>(url: URL, options?: LoadRouteOptions): Promise<Data>
+    <Data = unknown>(url: string, options?: LoadRouteOptions): Promise<Data>
+    <Data = unknown>(
+      url: string | URL,
+      options?: LoadRouteOptions,
+    ): Promise<Data>
+  }
   /** Warm the same cache used by generated client route loaders. */
-  readonly prefetch: (
-    url: string | URL,
-    options?: LoadRouteOptions,
-  ) => Promise<void>
+  readonly prefetch: {
+    <const Url extends string>(
+      url: Url,
+      options?: LoadRouteOptions,
+    ): Promise<void>
+    (url: URL, options?: LoadRouteOptions): Promise<void>
+    (url: string, options?: LoadRouteOptions): Promise<void>
+    (url: string | URL, options?: LoadRouteOptions): Promise<void>
+  }
 }
 
 const defaultRoutingOptions: NormalizedRoutingOptions = Object.freeze({
@@ -253,6 +574,17 @@ export function joinBasename(basename: string, pathname: string): string {
 
   return `${basename}${pathname.startsWith("/") ? pathname : `/${pathname}`}`
 }
+
+/** Build a concrete URL from one generated route pattern. */
+export function routeHref<const Path extends RoutePath>(
+  path: Path,
+  ...args: CreateHrefArgs<Path>
+): string {
+  return createPatternHref(path, ...args)
+}
+
+/** Alias for callers that prefer the `create*` naming convention. */
+export const createRouteHref = routeHref
 
 function assertString(value: unknown, name: string): asserts value is string {
   if (typeof value !== "string" || value.length === 0) {
@@ -454,12 +786,12 @@ function validateRoute(
 }
 
 /** Define one explicit route without relying on a filesystem convention. */
-export function route(
-  path: string,
-  entry: string,
+export function route<const Path extends string, const Entry extends string>(
+  path: Path,
+  entry: Entry,
   options: RouteOptions = {},
-): RouteDefinition {
-  const definition: RouteDefinition = {
+): RouteDefinition<Path, Entry> {
+  const definition: RouteDefinition<Path, Entry> = {
     path,
     entry,
     ...options,
@@ -569,7 +901,7 @@ function matchRoutes<T extends RouteDefinition>(
   url: string | URL,
   options: MatchRouteOptions = {},
   basename = "/",
-): Match<string, T> | null {
+): RouteMatch<T> | null {
   let matchers = matcherCache.get(routes)
 
   if (!matchers) {
@@ -596,7 +928,7 @@ function matchRoutes<T extends RouteDefinition>(
     normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/+$/, "")
   }
 
-  return matcher.match(normalizedUrl)
+  return matcher.match(normalizedUrl) as RouteMatch<T> | null
 }
 
 /** Normalize and validate the application's explicit route graph. */
@@ -606,7 +938,9 @@ export function defineApp<
     readonly routes: readonly RouteConfig[]
     readonly routing?: RoutingOptions
   },
->(options: T): Omit<T, "routes" | "routing"> & AppDefinition {
+>(
+  options: T,
+): Omit<T, "routes" | "routing"> & AppDefinition<RouteLeaves<T["routes"]>> {
   if (
     !options ||
     typeof options !== "object" ||
@@ -618,31 +952,38 @@ export function defineApp<
   assertString(options.shell, "app shell entry")
 
   const normalized = normalizeRouteTree(options.routes, new Set())
-  const frozenRoutes = normalized.routes
+
+  type AppRoute = RouteLeaves<T["routes"]>
+  const frozenRoutes = normalized.routes as readonly AppRoute[]
   const routing = normalizeRoutingOptions(options.routing)
   const routeDataClient = createRouteDataClient(routing)
-  const load = <Data = unknown>(
-    url: string | URL,
-    loadOptions: LoadRouteOptions = {},
-  ) => {
+  const load = ((url: string | URL, loadOptions: LoadRouteOptions = {}) => {
     const match = matchRoutes(frozenRoutes, url, {}, routing.basename)
     const source = match?.data.render === "static" ? "static" : "live"
 
-    return routeDataClient.load<Data>(url, source, loadOptions)
-  }
+    return routeDataClient.load(url, source, loadOptions)
+  }) as AppDefinition<AppRoute>["load"]
 
   const app = Object.freeze({
     ...options,
     routes: frozenRoutes,
     routeTree: normalized.tree,
     routing,
-    match: (url: string | URL, matchOptions?: MatchRouteOptions) =>
-      matchRoutes(frozenRoutes, url, matchOptions, routing.basename),
+    match: ((url: string | URL, matchOptions?: MatchRouteOptions) =>
+      matchRoutes(
+        frozenRoutes,
+        url,
+        matchOptions,
+        routing.basename,
+      )) as AppDefinition<AppRoute>["match"],
     load,
-    prefetch: async (url: string | URL, loadOptions?: LoadRouteOptions) => {
-      await load(url, loadOptions)
-    },
-  }) as Omit<T, "routes" | "routing"> & AppDefinition
+    prefetch: (async (url: string | URL, loadOptions?: LoadRouteOptions) => {
+      const match = matchRoutes(frozenRoutes, url, {}, routing.basename)
+      const source = match?.data.render === "static" ? "static" : "live"
+
+      await routeDataClient.load(url, source, loadOptions)
+    }) as AppDefinition<AppRoute>["prefetch"],
+  }) as Omit<T, "routes" | "routing"> & AppDefinition<AppRoute>
 
   matcherCache.set(
     frozenRoutes,

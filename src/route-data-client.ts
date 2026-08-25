@@ -1,4 +1,5 @@
 import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
+import type { RouteDataForPath } from "./index.ts"
 
 export type RouteDataSource = "live" | "static"
 
@@ -13,16 +14,25 @@ export interface RouteDataLoadOptions {
 }
 
 export interface RouteDataClient {
-  readonly load: <Data = unknown>(
-    url: string | URL,
-    source: RouteDataSource,
-    options?: RouteDataLoadOptions,
-  ) => Promise<Data>
-  readonly prefetch: (
-    url: string | URL,
-    source: RouteDataSource,
-    options?: RouteDataLoadOptions,
-  ) => Promise<void>
+  readonly load: {
+    <const Url extends string>(
+      url: Url,
+      source: RouteDataSource,
+      options?: RouteDataLoadOptions,
+    ): Promise<RouteDataForPath<Url>>
+    <Data = unknown>(
+      url: string | URL,
+      source: RouteDataSource,
+      options?: RouteDataLoadOptions,
+    ): Promise<Data>
+  }
+  readonly prefetch: {
+    (
+      url: string | URL,
+      source: RouteDataSource,
+      options?: RouteDataLoadOptions,
+    ): Promise<void>
+  }
 }
 
 const defaultRouting = Object.freeze({
@@ -140,7 +150,7 @@ function createIsolatedRouteDataClient(routing: {
 }): RouteDataClient {
   const cache = new Map<string, Promise<unknown>>()
 
-  const load = <Data = unknown>(
+  const load = (<Data = unknown>(
     url: string | URL,
     source: RouteDataSource,
     options: RouteDataLoadOptions = {},
@@ -191,7 +201,7 @@ function createIsolatedRouteDataClient(routing: {
       }
     })
     return abortable(pending, options.signal)
-  }
+  }) as RouteDataClient["load"]
 
   return {
     load,

@@ -1,25 +1,50 @@
-import type { Match } from "@remix-run/route-pattern/match"
 import {
   type AppDefinition,
   type MatchRouteOptions,
+  type RouteLoaderFor,
   type RenderMode,
+  type RouteLoaderData,
+  type RouteMatchForUrl,
+  type RouteParams,
   type RouteDefinition,
 } from "./index.ts"
 import { stripFlamefrontProtocolRequest } from "./fragment-protocol.ts"
 
-export interface LoaderArgs<Context = unknown> {
+type LoaderPath<ContextOrPath, PathOrContext> =
+  ContextOrPath extends `/${string}`
+    ? ContextOrPath
+    : PathOrContext extends `/${string}`
+      ? PathOrContext
+      : string
+
+type LoaderContext<ContextOrPath, PathOrContext> =
+  ContextOrPath extends `/${string}`
+    ? PathOrContext extends `/${string}`
+      ? unknown
+      : PathOrContext
+    : ContextOrPath
+
+export interface LoaderArgs<ContextOrPath = unknown, PathOrContext = unknown> {
   readonly request: Request
-  readonly params: Readonly<Record<string, string | undefined>>
-  readonly context: Context
+  readonly params: Readonly<
+    RouteParams<LoaderPath<ContextOrPath, PathOrContext>>
+  >
+  readonly context: LoaderContext<ContextOrPath, PathOrContext>
 }
 
-export type Loader<Data = unknown, Context = unknown> = (
-  args: LoaderArgs<Context>,
-) => Data | Promise<Data>
+export type Loader<
+  Data = unknown,
+  Context = unknown,
+  Path extends string = string,
+> = (args: LoaderArgs<Context, Path>) => Data | Promise<Data>
 
-export interface RouteModule<Data = unknown, Context = unknown> {
+export interface RouteModule<
+  Data = unknown,
+  Context = unknown,
+  Path extends string = string,
+> {
   readonly default: unknown
-  readonly loader?: Loader<Data, Context>
+  readonly loader?: Loader<Data, Context, Path>
 }
 
 export type DocumentMode = "shell" | RenderMode
@@ -31,7 +56,7 @@ export interface RequestContextArgs<
 > {
   readonly request: Request
   readonly route: Route | null
-  readonly params: Readonly<Record<string, string | undefined>>
+  readonly params: Readonly<RouteParams<Route["path"]>>
   readonly purpose: RequestPurpose
   readonly mode?: DocumentMode
 }
@@ -42,9 +67,11 @@ export type RequestContextFactory<
 > = (args: RequestContextArgs<Route>) => Context | Promise<Context>
 
 /** Import a generated or application-provided route module by its entry ID. */
-export type RouteImporter<Data = unknown, Context = unknown> = (
-  entry: string,
-) => Promise<RouteModule<Data, Context>>
+export type RouteImporter<
+  Data = unknown,
+  Context = unknown,
+  Path extends string = string,
+> = (entry: string) => Promise<RouteModule<Data, Context, Path>>
 
 export interface RenderedDocument {
   readonly html: string
@@ -65,6 +92,41 @@ export interface LoadedRoute<
   readonly loaderData: Data | undefined
 }
 
+/** A loaded route whose data follows the generated route-module map. */
+export type LoadedRouteFor<
+  Route extends RouteDefinition,
+  Context = unknown,
+> = Route extends RouteDefinition
+  ? RouteLoaderFor<Route["path"]> extends (
+      ...args: infer _Args
+    ) => infer _Result
+    ? Omit<
+        LoadedRoute<RouteLoaderData<Route["path"]>, Context, Route>,
+        "loaderData"
+      > & {
+        readonly loaderData: RouteLoaderData<Route["path"]>
+      }
+    : LoadedRoute<unknown, Context, Route>
+  : never
+
+/** Route-module shape selected from one authored route definition. */
+export type RouteModuleForRoute<
+  Route extends RouteDefinition,
+  Context = unknown,
+> = Route extends RouteDefinition
+  ? RouteLoaderFor<Route["path"]> extends (
+      ...args: infer _Args
+    ) => infer _Result
+    ? RouteModule<RouteLoaderData<Route["path"]>, Context, Route["path"]>
+    : RouteModule<unknown, Context, Route["path"]>
+  : never
+
+/** Importer shape for applications that own a typed route-module boundary. */
+export type RouteImporterFor<
+  Route extends RouteDefinition,
+  Context = unknown,
+> = (entry: Route["entry"]) => Promise<RouteModuleForRoute<Route, Context>>
+
 export interface RouteRuntimeContextOptions {
   readonly purpose: RequestPurpose
   readonly mode?: DocumentMode
@@ -84,7 +146,7 @@ export interface RouteRuntime<
   readonly match: (
     url: string | URL,
     options?: MatchRouteOptions,
-  ) => Match<string, Route> | null
+  ) => RouteMatchForUrl<Route, string> | null
   readonly createRequestContext: (
     request: Request,
     options: RouteRuntimeContextOptions,
@@ -92,7 +154,7 @@ export interface RouteRuntime<
   readonly loadRoute: (
     request: Request,
     options?: RouteLoadOptions<Context>,
-  ) => Promise<LoadedRoute<unknown, Context, Route> | null>
+  ) => Promise<LoadedRouteFor<Route, Context> | null>
   readonly loadRouteData: (request: Request) => Promise<Response>
 }
 
@@ -111,7 +173,7 @@ async function loadMatchedRoute<
   Context = unknown,
   Route extends RouteDefinition = RouteDefinition,
 >(
-  match: Match<string, Route>,
+  match: RouteMatchForUrl<Route, string>,
   request: Request,
   importRoute: RouteImporter<Data, Context>,
   context?: Context,
@@ -120,8 +182,8 @@ async function loadMatchedRoute<
   const loaderData = routeModule.loader
     ? await routeModule.loader({
         request,
-        params: match.params,
-        context: context as Context,
+        params: match.params as never,
+        context: context as LoaderContext<Context, string>,
       })
     : undefined
 
@@ -131,6 +193,15 @@ async function loadMatchedRoute<
     loaderData,
   }
 }
+
+export function createRouteRuntime<
+  Context = unknown,
+  Route extends RouteDefinition = RouteDefinition,
+>(
+  options: Omit<RouteRuntimeOptions<Context, Route>, "importRoute"> & {
+    readonly importRoute: RouteImporterFor<Route, Context>
+  },
+): RouteRuntime<Context, Route>
 
 export function createRouteRuntime<
   Context = unknown,
@@ -148,7 +219,7 @@ export function createRouteRuntime<
     return options.requestContext({
       request,
       route: match?.data ?? null,
-      params: match?.params ?? {},
+      params: (match?.params ?? {}) as Readonly<RouteParams<Route["path"]>>,
       purpose: contextOptions.purpose,
       ...(contextOptions.mode === undefined
         ? {}
@@ -159,7 +230,7 @@ export function createRouteRuntime<
   const loadRouteForRequest = async (
     request: Request,
     loadOptions: RouteLoadOptions<Context> = {},
-  ): Promise<LoadedRoute<unknown, Context, Route> | null> => {
+  ): Promise<LoadedRouteFor<Route, Context> | null> => {
     const sanitizedRequest = stripFlamefrontProtocolRequest(request)
     const match = options.app.match(sanitizedRequest.url)
 
@@ -181,7 +252,7 @@ export function createRouteRuntime<
       sanitizedRequest,
       options.importRoute,
       context,
-    )
+    ) as Promise<LoadedRouteFor<Route, Context>>
   }
 
   const loadRouteData = async (request: Request): Promise<Response> => {
@@ -219,6 +290,28 @@ export function createRouteRuntime<
   }
 }
 
+export function loadRoute<
+  _Data = unknown,
+  Context = unknown,
+  Route extends RouteDefinition = RouteDefinition,
+>(
+  app: AppDefinition<Route>,
+  request: Request,
+  importRoute: RouteImporterFor<Route, Context>,
+  context?: Context,
+): Promise<LoadedRouteFor<Route, Context> | null>
+
+export function loadRoute<
+  Data = unknown,
+  Context = unknown,
+  Route extends RouteDefinition = RouteDefinition,
+>(
+  app: AppDefinition<Route>,
+  request: Request,
+  importRoute: RouteImporter<Data, Context>,
+  context?: Context,
+): Promise<LoadedRoute<Data, Context, Route> | null>
+
 export async function loadRoute<
   Data = unknown,
   Context = unknown,
@@ -226,9 +319,9 @@ export async function loadRoute<
 >(
   app: AppDefinition<Route>,
   request: Request,
-  importRoute: (entry: string) => Promise<RouteModule<Data, Context>>,
+  importRoute: RouteImporter<Data, Context>,
   context?: Context,
-): Promise<LoadedRoute<Data, Context, Route> | null> {
+): Promise<LoadedRouteFor<Route, Context> | null> {
   const sanitizedRequest = stripFlamefrontProtocolRequest(request)
   const match = app.match(sanitizedRequest.url)
 
@@ -236,5 +329,10 @@ export async function loadRoute<
     return null
   }
 
-  return loadMatchedRoute(match, sanitizedRequest, importRoute, context)
+  return loadMatchedRoute(
+    match,
+    sanitizedRequest,
+    importRoute,
+    context,
+  ) as Promise<LoadedRouteFor<Route, Context>>
 }

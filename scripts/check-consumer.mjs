@@ -198,6 +198,9 @@ try {
 
   assert.equal(version.stdout.trim(), "0.1.0-alpha.0")
 
+  await run(ff, ["typegen"], consumer)
+  await run("pnpm", ["exec", "tsc", "-p", "tsconfig.json"], consumer)
+
   const routes = JSON.parse(
     (await run(ff, ["routes", "--json"], consumer)).stdout,
   )

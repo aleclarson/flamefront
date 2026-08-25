@@ -115,12 +115,12 @@ export default function AppShell() @{
 import { useLoaderData } from "@octanejs/remix-router"
 import type { LoaderArgs } from "flamefront/server"
 
-export async function loader({ request }: LoaderArgs) {
+export async function loader({ request }: LoaderArgs<"/">) {
   return { pathname: new URL(request.url).pathname }
 }
 
 export default function HomePage() @{
-  const data = useLoaderData<{ pathname: string }>()
+  const data = useLoaderData<typeof loader>()
 
   <main>
     Flamefront loader: {data.pathname}
@@ -333,6 +333,53 @@ parameters. Pass `{ render: "client" }` to select only routes with a
 particular render mode. Flamefront delegates route grammar and specificity to
 `@remix-run/route-pattern` rather than maintaining its own matcher.
 
+### Generated route types
+
+Flamefront writes `.flamefront/types/route-import-map.d.ts` during Vite
+startup and build. Run `ff typegen` before a standalone editor or TypeScript
+check when Vite is not running. Add `.flamefront/types` to `tsconfig.json`
+`include`; the directory is generated output and should stay ignored by Git.
+
+The declaration contains one relationship: each authored route pattern points
+to its `typeof import(...)` route module. It does not copy route metadata or
+run the TypeScript checker. A change to a route module's exports flows through
+that import type without regenerating the map.
+
+With the map present, `RouteParams<"/products/:productId">`, `app.match`,
+`app.load`, `app.prefetch`, and `routeHref` retain route relationships. The
+router's `href` helper receives the same generated page registration, so
+required pattern parameters are checked:
+
+```ts
+import { href } from "@octanejs/remix-router"
+
+const productUrl = href("/products/:productId", { productId: "octane" })
+```
+
+Use a path parameter when authoring a loader if its module needs typed params:
+
+```ts
+import type { LoaderArgs } from "flamefront/server"
+
+export async function loader({ params }: LoaderArgs<"/products/:productId">) {
+  return { id: params.productId }
+}
+```
+
+Server route loads derive `loaderData` from the matched app route, including
+when the generated Vite importer is passed through `createRouteRuntime` or
+`loadRoute`. The virtual importer itself intentionally remains a broad
+`entry: string` bundler boundary: `RouteImportMap` contains path-to-module
+relationships only and does not duplicate entry metadata. An application that
+owns its importer can make that boundary explicit with
+`RouteImporterFor<typeof app.routes[number]>`.
+
+When declarations are missing or stale, Flamefront accepts ordinary string
+paths, keeps loader params as the existing broad record, and returns
+`unknown` for route data. This fallback keeps manifest edits and untyped apps
+working. The guarantees are compile-time only; loader payloads are not
+validated at runtime.
+
 `ff build` emits client assets and a srvx-compatible
 `dist/server/server.js`, then pre-renders every static route. The server
 build default-exports one `FlamefrontServerEntry`: srvx server options plus
@@ -450,14 +497,16 @@ A manifest entry is a route module. It may export a server loader alongside
 its default component:
 
 ```ts
+import { useLoaderData } from "@octanejs/remix-router"
 import type { LoaderArgs } from "flamefront/server"
 
-export async function loader({ request, params }: LoaderArgs) {
+export async function loader({ request, params }: LoaderArgs<"/products/:id">) {
   return { pathname: new URL(request.url).pathname, id: params.id }
 }
 
-export default function Route({ loaderData }) {
-  // Render with data resolved before the component renders.
+export default function Route() {
+  const loaderData = useLoaderData<typeof loader>()
+  return loaderData
 }
 ```
 

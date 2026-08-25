@@ -6,7 +6,7 @@ export async function loader({ request }: LoaderArgs) {
 }
 
 export default function HomePage() @{
-  const data = useLoaderData<{ pathname: string }>()
+  const data = useLoaderData<typeof loader>()
 
   <main data-testid="consumer-home">
     Consumer loader:

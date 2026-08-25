@@ -2,6 +2,7 @@ import type {
   AppDefinition,
   GeneratedRouteMetadata,
   RouteDefinition,
+  RouteParams,
 } from "./index.ts"
 import type {
   DocumentMode,
@@ -43,7 +44,7 @@ export interface DocumentCompositionContext<
   readonly request: Request
   readonly mode: DocumentMode
   readonly route: Route | null
-  readonly params: Readonly<Record<string, string | undefined>>
+  readonly params: Readonly<RouteParams<Route["path"]>>
   readonly status: number
 }
 
@@ -351,9 +352,9 @@ async function loadDefaultRenderer(): Promise<OctaneRenderer> {
   }
 }
 
-function createShellRouter(
+function createShellRouter<Route extends RouteDefinition>(
   request: Request,
-  app: AppDefinition,
+  app: AppDefinition<Route>,
   routeGraph: readonly unknown[],
   renderer: OctaneRenderer,
 ): { readonly context: StaticDocumentContext; readonly router: unknown } {
@@ -598,7 +599,9 @@ export function createOctaneDocuments<
       request: sanitizedRequest,
       mode,
       route,
-      params: routeMatch?.params ?? {},
+      params: (routeMatch?.params ?? {}) as Readonly<
+        RouteParams<Route["path"]>
+      >,
       status,
     }
     const parts: DocumentParts = {
