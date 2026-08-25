@@ -11,6 +11,7 @@ import type {
 } from "./index.ts"
 import { generate, parse } from "./babel.ts"
 import { removeExports } from "./remove-exports.ts"
+import { writeRouteImportMap } from "./typegen.ts"
 
 export const remixRoutesId = "virtual:flamefront/remix-routes"
 const resolvedRemixRoutesId = `\0${remixRoutesId}`
@@ -507,6 +508,8 @@ export function flamefront(options: FlamefrontOptions = {}) {
     new Set(
       (await loadRoutes()).map((route) => resolveRouteEntry(root, route.entry)),
     )
+  const generateTypes = async () =>
+    writeRouteImportMap(await loadApp(), { root })
   const configureRoot = (config: { readonly root: string }) => {
     root = config.root
   }
@@ -515,7 +518,10 @@ export function flamefront(options: FlamefrontOptions = {}) {
     name: "flamefront:framework-modules",
     enforce: "pre" as const,
     configResolved: configureRoot,
-    handleHotUpdate(context: {
+    async buildStart() {
+      await generateTypes()
+    },
+    async handleHotUpdate(context: {
       file: string
       server: {
         moduleGraph: {
@@ -530,6 +536,14 @@ export function flamefront(options: FlamefrontOptions = {}) {
 
       manifestRevision += 1
       appPromise = undefined
+      try {
+        await generateTypes()
+      } catch {
+        // Keep the previous declarations while an edited manifest is invalid.
+        // Vite will report the manifest error when the virtual route modules
+        // are requested, but a stale type file must not block editing.
+      }
+
       for (const moduleId of [resolvedRemixRoutesId, resolvedServerRoutesId]) {
         const generatedModule =
           context.server.moduleGraph.getModuleById(moduleId)

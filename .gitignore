@@ -1,3 +1,4 @@
 octane
 node_modules
 dist
+.flamefront/types
