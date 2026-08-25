@@ -20,10 +20,11 @@ leaf routes. Every leaf selects one render mode:
 | `server` | Render the matched router tree per request | Load live route data and import the route module |
 | `static` | Serve a document generated at build time   | Fetch and insert a static fragment artifact      |
 
-Hydration is a separate decision. `full`, `deferred`, `none`, and generated
-idle, visible, interaction, or media policies control when server or static HTML
-becomes interactive. Render mode decides where HTML comes from. Hydration policy
-decides whether and when Octane owns that HTML in the browser.
+Hydration is a separate decision. `full`, `deferred`, `none`, and the
+trigger-based `idle`, `visible`, `interaction`, and `media` policies control when
+server or static HTML becomes interactive. Render mode decides where HTML comes
+from. Hydration policy decides whether and when Octane owns that HTML in the
+browser.
 
 The authored manifest has two useful forms:
 

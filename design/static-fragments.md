@@ -99,9 +99,9 @@ the bridge together with the nested root rather than preserving it by habit.
 ## Hydration policies
 
 `none` leaves inserted fragment HTML inert. Every other accepted static-route
-policy permits post-insertion hydration. Generated idle, visible, interaction,
-and media policies wrap the route component in an Octane hydration boundary and
-control when its code becomes active.
+policy permits post-insertion hydration. The trigger-based `idle`, `visible`,
+`interaction`, and `media` policies wrap the route component in an Octane
+hydration boundary and control when its code becomes active.
 
 The fragment route still decides whether nested hydration is possible. The
 generated Octane boundary decides when the authored component runs. Keep those

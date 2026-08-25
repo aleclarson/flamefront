@@ -59,9 +59,9 @@ route metadata, data loaders, and route-module preloaders. The server module is
 an importer over unique leaf entries.
 
 Static routes take a different browser path from live routes. Their generated
-route configuration uses fragment loading. Triggered and `none` hydration
-policies also use a generated hydration component. Static navigation does not
-make the authored route module its normal rendering path.
+route configuration uses fragment loading. Trigger-based policies and `none`
+also use a generated hydration component. Static navigation does not make the
+authored route module its normal rendering path.
 
 During browser builds, Flamefront removes `loader` and other server-only route
 exports together with private dependencies that become unreachable. A separate
