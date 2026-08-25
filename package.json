@@ -30,7 +30,7 @@
     "./vite": "./src/vite.ts"
   },
   "scripts": {
-    "test": "node --import octane/compiler/register --test test/*.test.ts",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -48,7 +48,8 @@
     "@types/babel__traverse": "^7.28.0",
     "@types/node": "26.1.1",
     "typescript": "5.9.3",
-    "vite": "latest"
+    "vite": "latest",
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@octanejs/remix-router": "0.1.36",

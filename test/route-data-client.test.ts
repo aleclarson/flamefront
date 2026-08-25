@@ -1,18 +1,18 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { onTestFinished, test } from "vitest"
 import { defineApp, route } from "../src/index.ts"
 import { loadRouteData, loadStaticRouteData } from "../src/remix-route-data.ts"
 
 const shell = "/src/AppShell.tsrx"
 
-function useBrowserClient(context: test.TestContext): void {
+function useBrowserClient(): void {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window")
 
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {},
   })
-  context.after(() => {
+  onTestFinished(() => {
     if (descriptor) {
       Object.defineProperty(globalThis, "window", descriptor)
     } else {
@@ -21,8 +21,8 @@ function useBrowserClient(context: test.TestContext): void {
   })
 }
 
-test("shares a live data prefetch with generated client route loaders", async (context) => {
-  useBrowserClient(context)
+test("shares a live data prefetch with generated client route loaders", async () => {
+  useBrowserClient()
   const originalFetch = globalThis.fetch
   let requests = 0
 
@@ -38,7 +38,7 @@ test("shares a live data prefetch with generated client route loaders", async (c
     return Response.json({ source: "live" })
   }
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
 
@@ -64,8 +64,8 @@ test("shares a live data prefetch with generated client route loaders", async (c
   assert.equal(requests, 1)
 })
 
-test("prefetches static route data from the build artifact", async (context) => {
-  useBrowserClient(context)
+test("prefetches static route data from the build artifact", async () => {
+  useBrowserClient()
   const originalFetch = globalThis.fetch
   let requests = 0
 
@@ -78,7 +78,7 @@ test("prefetches static route data from the build artifact", async (context) => 
     return Response.json({ source: "static-artifact" })
   }
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
 

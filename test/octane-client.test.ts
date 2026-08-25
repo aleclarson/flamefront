@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { test } from "vitest"
 import { defineApp, route } from "../src/index.ts"
 import { startOctaneClientWithRuntime } from "../src/octane-client-core.ts"
 import {

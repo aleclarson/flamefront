@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { onTestFinished, test } from "vitest"
 import {
   getRouteFragment,
   loadRouteFragment,
@@ -19,11 +19,11 @@ test("marks fragment requests without leaking reserved protocol parameters", () 
   assert.equal(endpoint.searchParams.has("__flamefront_shell"), false)
 })
 
-test("keeps static fragments cached by origin and pathname", async (context) => {
+test("keeps static fragments cached by origin and pathname", async () => {
   const originalFetch = globalThis.fetch
   let requests = 0
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
 
@@ -58,11 +58,11 @@ test("keeps static fragments cached by origin and pathname", async (context) => 
   assert.equal(requests, 1)
 })
 
-test("coalesces server fragments by full URL and reloads after settlement", async (context) => {
+test("coalesces server fragments by full URL and reloads after settlement", async () => {
   const originalFetch = globalThis.fetch
   let requests = 0
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   globalThis.fetch = async (input) => {
@@ -100,11 +100,11 @@ test("coalesces server fragments by full URL and reloads after settlement", asyn
   assert.equal(requests, 3)
 })
 
-test("evicts failed and aborted server fragment requests", async (context) => {
+test("evicts failed and aborted server fragment requests", async () => {
   const originalFetch = globalThis.fetch
   let requests = 0
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   globalThis.fetch = async (_input, init) => {

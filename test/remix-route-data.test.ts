@@ -1,15 +1,15 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { onTestFinished, test } from "vitest"
 import {
   loadRouteData,
   loadStaticRouteData,
   loadRouteFragment,
 } from "../src/remix-route-data.ts"
 
-test("loads browser route data using the request URL and abort signal", async (context) => {
+test("loads browser route data using the request URL and abort signal", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   const controller = new AbortController()
@@ -32,10 +32,10 @@ test("loads browser route data using the request URL and abort signal", async (c
   assert.deepEqual(await loadRouteData({ request }), { message: "loaded" })
 })
 
-test("uses the app routing data path for browser route data", async (context) => {
+test("uses the app routing data path for browser route data", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   const request = new Request("https://example.test/docs/items/one")
@@ -56,10 +56,10 @@ test("uses the app routing data path for browser route data", async (context) =>
   )
 })
 
-test("reports unsuccessful browser route-data responses", async (context) => {
+test("reports unsuccessful browser route-data responses", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   globalThis.fetch = async () => new Response("Unavailable", { status: 503 })
@@ -70,10 +70,10 @@ test("reports unsuccessful browser route-data responses", async (context) => {
   )
 })
 
-test("loads static route data from the generated artifact beside the document", async (context) => {
+test("loads static route data from the generated artifact beside the document", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   const request = new Request("https://example.test/about?view=full")
@@ -87,10 +87,10 @@ test("loads static route data from the generated artifact beside the document", 
   assert.deepEqual(await loadStaticRouteData({ request }), { message: "built" })
 })
 
-test("strips the shared basename from static route-data artifacts", async (context) => {
+test("strips the shared basename from static route-data artifacts", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   const request = new Request("https://example.test/docs/about")
@@ -111,10 +111,10 @@ test("strips the shared basename from static route-data artifacts", async (conte
   )
 })
 
-test("reports unsuccessful static route-data responses", async (context) => {
+test("reports unsuccessful static route-data responses", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   globalThis.fetch = async () => new Response("Unavailable", { status: 404 })
@@ -125,10 +125,10 @@ test("reports unsuccessful static route-data responses", async (context) => {
   )
 })
 
-test("loads static navigation fragments while returning only route data", async (context) => {
+test("loads static navigation fragments while returning only route data", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   const request = new Request("https://example.test/about?view=full")
@@ -158,10 +158,10 @@ test("loads static navigation fragments while returning only route data", async 
   })
 })
 
-test("propagates browser route-data aborts", async (context) => {
+test("propagates browser route-data aborts", async () => {
   const originalFetch = globalThis.fetch
 
-  context.after(() => {
+  onTestFinished(() => {
     globalThis.fetch = originalFetch
   })
   globalThis.fetch = async (_input, init) => {
