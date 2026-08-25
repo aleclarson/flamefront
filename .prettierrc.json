@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/prettierrc",
   "plugins": ["@tsrx/prettier-plugin"],
   "semi": false,
   "singleQuote": false

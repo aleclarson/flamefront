@@ -1,5 +1,8 @@
+ignoreWorkspaceRootCheck: true
+
 packages:
-  - flamefront
+  - ./
+  - ./flamefront
 
 allowBuilds:
   esbuild: true
