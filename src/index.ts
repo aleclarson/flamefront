@@ -872,7 +872,7 @@ export function route<const Path extends string, const Entry extends string>(
   return Object.freeze(definition)
 }
 
-/** Define a server-rendered route without repeating the render mode. */
+/** Shorthand for a route with `render: "server"`. */
 export function serverRoute<
   const Path extends string,
   const Entry extends string,
@@ -884,7 +884,7 @@ export function serverRoute<
   return route(path, entry, { ...options, render: "server" })
 }
 
-/** Define a statically rendered route without repeating the render mode. */
+/** Shorthand for a route with `render: "static"`. */
 export function staticRoute<
   const Path extends string,
   const Entry extends string,
@@ -896,7 +896,7 @@ export function staticRoute<
   return route(path, entry, { ...options, render: "static" })
 }
 
-/** Define a client-rendered route without repeating the render mode. */
+/** Shorthand for a route with `render: "client"`. */
 export function clientRoute<
   const Path extends string,
   const Entry extends string,
