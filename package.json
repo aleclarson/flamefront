@@ -5,6 +5,7 @@
   "description": "Typed centralized route manifests for Octane.",
   "license": "FSL-1.1-MIT",
   "files": [
+    "bin",
     "src"
   ],
   "engines": {

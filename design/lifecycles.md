@@ -125,7 +125,7 @@ ownership rules are documented in [route fragments](./fragments.md).
 `ff build` runs these phases:
 
 1. Remove the previous `dist` directory.
-2. Build the browser output and Vite manifest.
+2. Build the browser output.
 3. Build `src/entry-server.ts` as `dist/server/server.js`.
 4. Preserve the unrendered client template for server requests.
 5. If the app has a client route, render one shell document into the client

@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "octane",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,

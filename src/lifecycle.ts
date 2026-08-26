@@ -234,7 +234,6 @@ export async function buildProject(root = process.cwd()): Promise<void> {
     configFile: resolve(root, "vite.config.ts"),
     build: {
       outDir: clientDirectory,
-      manifest: true,
     },
   })
   await build({

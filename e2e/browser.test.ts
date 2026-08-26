@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { chromium } from "playwright"
+import { test } from "vitest"
 
 const execFileAsync = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -384,39 +385,42 @@ async function checkBasenameFixture(page, base) {
   )
 }
 
-await run(ff, ["build"], fixture)
+test("covers browser navigation, hydration, and history", async () => {
+  await run(ff, ["build"], fixture)
 
-const rootPort = await findPort()
-const fixturePort = await findPort()
-const rootToken = `browser-check-root-${process.pid}-${Date.now()}`
-const fixtureToken = `browser-check-fixture-${process.pid}-${Date.now()}`
-const rootServer = startPreview(rootPort, root, rootToken)
-const fixtureServer = startPreview(fixturePort, fixture, fixtureToken)
-const browser = await chromium.launch({ headless: true })
+  const rootPort = await findPort()
+  const fixturePort = await findPort()
+  const rootToken = `browser-test-root-${process.pid}-${Date.now()}`
+  const fixtureToken = `browser-test-fixture-${process.pid}-${Date.now()}`
+  const rootServer = startPreview(rootPort, root, rootToken)
+  const fixtureServer = startPreview(fixturePort, fixture, fixtureToken)
+  let browser
 
-try {
-  await Promise.all([
-    waitForPreview(rootServer, `http://127.0.0.1:${rootPort}/`, rootToken),
-    waitForPreview(
-      fixtureServer,
-      `http://127.0.0.1:${fixturePort}/guide/client`,
-      fixtureToken,
-    ),
-  ])
+  try {
+    browser = await chromium.launch({ headless: true })
+    await Promise.all([
+      waitForPreview(rootServer, `http://127.0.0.1:${rootPort}/`, rootToken),
+      waitForPreview(
+        fixtureServer,
+        `http://127.0.0.1:${fixturePort}/guide/client`,
+        fixtureToken,
+      ),
+    ])
 
-  const mainPage = await browser.newPage()
-  const fixturePage = await browser.newPage()
+    const mainPage = await browser.newPage()
+    const fixturePage = await browser.newPage()
 
-  await checkMainApp(mainPage, `http://127.0.0.1:${rootPort}`)
-  await checkBasenameFixture(fixturePage, `http://127.0.0.1:${fixturePort}`)
+    await checkMainApp(mainPage, `http://127.0.0.1:${rootPort}`)
+    await checkBasenameFixture(fixturePage, `http://127.0.0.1:${fixturePort}`)
 
-  await mainPage.close()
-  await fixturePage.close()
-} finally {
-  await browser.close()
-  await Promise.all([stopPreview(rootServer), stopPreview(fixtureServer)])
-}
+    await mainPage.close()
+    await fixturePage.close()
+  } finally {
+    await browser?.close()
+    await Promise.all([stopPreview(rootServer), stopPreview(fixtureServer)])
+  }
 
-console.log(
-  "Browser acceptance passed for hydration, client and fragment navigation, loaders, errors, redirects, basenames, and history.",
-)
+  console.log(
+    "Browser acceptance passed for hydration, client and fragment navigation, loaders, errors, redirects, basenames, and history.",
+  )
+})

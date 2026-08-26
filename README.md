@@ -691,8 +691,7 @@ Promote the alpha only when every item below is complete and recorded.
 - [ ] Run `pnpm install --frozen-lockfile` with pnpm 11.21.0.
 - [ ] Run the release checks on Node 22.22.2, 24.x, and 26.x.
 - [ ] Confirm `pnpm lint`, `pnpm format:check`, `pnpm typecheck`,
-      `pnpm test`, `pnpm build`, `pnpm check:routes`,
-      `pnpm check:consumer`, and `pnpm check:browser` all pass.
+      `pnpm test`, `pnpm test:e2e`, and the production build all pass.
 - [ ] Confirm `pnpm check` passes as the single aggregate gate.
 - [ ] Inspect the packed tarball and verify that it contains the license,
       README, CLI files, and source exports, with no workspace-only files.
