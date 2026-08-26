@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { createContext, useContext, useLayoutEffect, useRef } from "octane"
 import type { Context } from "octane"
 import {
@@ -204,24 +206,18 @@ export function createRouteFragmentRoute(
 
         unmountNestedRoot(nestedRootRef.current)
         nestedRootRef.current = null
-        void import("octane").then(
-          ({ hydrateRoot, setDangerouslySetInnerHTML, setHTML }) => {
-            if (!active || hostRef.current !== host) {
-              return
-            }
 
-            // The outer document root used dangerouslySetInnerHTML to adopt the
-            // route fragment. Release that ownership before the nested root
-            // starts reconciling the same children.
-            const html = host.innerHTML
+        if (!import.meta.env.SSR) {
+          void import("./fragment-hydration-client.tsx").then(
+            ({ hydrateRouteFragment }) => {
+              if (!active || hostRef.current !== host) {
+                return
+              }
 
-            setDangerouslySetInnerHTML(host, null)
-            setHTML(host, html)
-            const Bridge = bridge
-
-            nestedRootRef.current = hydrateRoot(host, <Bridge />)
-          },
-        )
+              nestedRootRef.current = hydrateRouteFragment(host, bridge)
+            },
+          )
+        }
 
         return () => {
           active = false

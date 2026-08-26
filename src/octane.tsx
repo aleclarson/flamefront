@@ -1,10 +1,4 @@
 import type {
-  DataRouter,
-  Navigator,
-  RouteObject,
-  StaticHandlerContext,
-} from "@octanejs/remix-router"
-import type {
   AppDefinition,
   GeneratedRouteMetadata,
   RouteDefinition,
@@ -235,117 +229,7 @@ async function loadDefaultRouter(): Promise<DocumentRouter> {
 }
 
 async function loadDefaultRenderer(): Promise<OctaneRenderer> {
-  const [remix, routerDocument, octane, fragment] = await Promise.all([
-    import("@octanejs/remix-router"),
-    import("./octane-router-document.ts"),
-    import("octane/server"),
-    import("./fragment.tsx"),
-  ])
-
-  type StaticNavigator = Navigator & {
-    back(): never
-    forward(): never
-  }
-
-  const createStaticNavigator = (router: DataRouter): StaticNavigator => ({
-    createHref: router.createHref,
-    encodeLocation: router.encodeLocation,
-    push() {
-      throw new Error("Route fragment rendering cannot navigate on the server.")
-    },
-    replace() {
-      throw new Error("Route fragment rendering cannot navigate on the server.")
-    },
-    go() {
-      throw new Error("Route fragment rendering cannot navigate on the server.")
-    },
-    back() {
-      throw new Error("Route fragment rendering cannot navigate on the server.")
-    },
-    forward() {
-      throw new Error("Route fragment rendering cannot navigate on the server.")
-    },
-  })
-
-  return {
-    createStaticRouter: (routes, context) =>
-      remix.createStaticRouter(
-        routes as RouteObject[],
-        context as StaticHandlerContext,
-      ),
-    renderToString: (component, props) =>
-      octane.renderToString(
-        component as Parameters<typeof octane.renderToString>[0],
-        props,
-      ),
-    renderRouteFragment: (router, context, boundary) => {
-      const dataRouter = router as DataRouter
-      const staticContext = context as StaticHandlerContext
-      const state = dataRouter.state
-      const matchIndex = state.matches.findIndex(
-        (match) => match.route?.id === boundary,
-      )
-
-      if (matchIndex < 0) {
-        throw new Error(
-          `No server router match exists for fragment boundary ${JSON.stringify(boundary)}.`,
-        )
-      }
-
-      const navigator = createStaticNavigator(dataRouter)
-      const dataRouterContext = {
-        router: dataRouter,
-        navigator,
-        static: true,
-        staticContext,
-        basename: staticContext.basename ?? "/",
-      }
-      const fragmentTree = remix.renderMatches(state.matches.slice(matchIndex))
-      const FragmentBoundaryProvider =
-        fragment.routeFragmentBoundaryTarget.Provider
-      const DataRouterProvider = remix.UNSAFE_DataRouterContext.Provider
-      const DataRouterStateProvider =
-        remix.UNSAFE_DataRouterStateContext.Provider
-      const FetchersProvider = remix.UNSAFE_FetchersContext.Provider
-      const ViewTransitionProvider = remix.UNSAFE_ViewTransitionContext.Provider
-      const StaticRouter = remix.StaticRouter
-      const FragmentRoot = () => (
-        <DataRouterProvider
-          value={dataRouterContext}
-          children={
-            <DataRouterStateProvider
-              value={state}
-              children={
-                <FetchersProvider
-                  value={new Map()}
-                  children={
-                    <ViewTransitionProvider
-                      value={{ isTransitioning: false }}
-                      children={
-                        <StaticRouter
-                          basename={staticContext.basename ?? "/"}
-                          location={state.location}
-                          children={
-                            <FragmentBoundaryProvider
-                              value={boundary}
-                              children={fragmentTree}
-                            />
-                          }
-                        />
-                      }
-                    />
-                  }
-                />
-              }
-            />
-          }
-        />
-      )
-
-      return octane.renderToString(FragmentRoot, {})
-    },
-    defaultRouterDocument: routerDocument.RouterDocument,
-  }
+  return (await import("./octane-default-renderer.tsx")).defaultOctaneRenderer
 }
 
 function createShellRouter<Route extends RouteDefinition>(
