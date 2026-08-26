@@ -325,6 +325,23 @@ retains that authored nesting for compiler integrations, while `app.routes`
 is the normalized leaf collection used for matching, filtering, static output,
 and CLI inspection.
 
+Routes without an explicit hydration policy use the app's render-mode defaults:
+
+```ts
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  hydrationDefaults: {
+    server: "deferred",
+    static: "none",
+  },
+  routes: [route("/docs", "/src/Docs.tsrx", { render: "server" })],
+})
+```
+
+The built-in defaults for both server and static routes are `full`. An explicit
+route policy always wins. Client routes always resolve to `full`, so they do
+not have a client default.
+
 The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
 

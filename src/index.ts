@@ -56,6 +56,18 @@ export type GeneratedHydration =
  */
 export type HydrationMode = "full" | "deferred" | "none" | GeneratedHydration
 
+/** App-level fallbacks for routes that do not declare a hydration policy. */
+export interface HydrationDefaults {
+  readonly server?: HydrationMode
+  readonly static?: HydrationMode
+}
+
+/** Fully resolved app-level hydration fallbacks. */
+export interface NormalizedHydrationDefaults {
+  readonly server: HydrationMode
+  readonly static: HydrationMode
+}
+
 export type RouteNavigationStrategy = "router" | "fragment"
 
 export type RouteBoundaryKind = "shell" | "layout" | "route"
@@ -410,6 +422,7 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
   readonly shell: string
   readonly routes: readonly T[]
   readonly routeTree: readonly RouteConfig[]
+  readonly hydrationDefaults: NormalizedHydrationDefaults
   readonly routing: NormalizedRoutingOptions
   readonly match: {
     <const Url extends string>(
@@ -454,6 +467,11 @@ export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
 const defaultRoutingOptions: NormalizedRoutingOptions = Object.freeze({
   basename: "/",
   dataPath: "/__flamefront/data",
+})
+
+const defaultHydrationDefaults: NormalizedHydrationDefaults = Object.freeze({
+  server: "full",
+  static: "full",
 })
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>([
@@ -519,6 +537,47 @@ function normalizeRoutingPath(
   }
 
   return path.replace(/\/+$/, "") || "/"
+}
+
+function validateHydrationDefault(
+  hydration: unknown,
+  render: "server" | "static",
+): void {
+  validateHydrationMode(hydration, render, `hydrationDefaults.${render}`)
+}
+
+function normalizeHydrationDefaults(
+  options: HydrationDefaults | undefined = undefined,
+): NormalizedHydrationDefaults {
+  if (
+    options !== undefined &&
+    (!options || typeof options !== "object" || Array.isArray(options))
+  ) {
+    throw new TypeError("flamefront hydrationDefaults must be an object.")
+  }
+
+  if (options) {
+    const unexpected = Object.keys(options).find(
+      (key) => key !== "server" && key !== "static",
+    )
+
+    if (unexpected) {
+      throw new TypeError(
+        `flamefront hydrationDefaults has an unexpected ${JSON.stringify(unexpected)} option.`,
+      )
+    }
+  }
+
+  const server = options?.server ?? defaultHydrationDefaults.server
+  const staticMode = options?.static ?? defaultHydrationDefaults.static
+
+  validateHydrationDefault(server, "server")
+  validateHydrationDefault(staticMode, "static")
+
+  return Object.freeze({
+    server: freezeHydration(server) as HydrationMode,
+    static: freezeHydration(staticMode) as HydrationMode,
+  })
 }
 
 export function normalizeRoutingOptions(
@@ -694,12 +753,11 @@ function validateGeneratedHydration(
   }
 }
 
-function validateHydration(
-  routeDefinition: RouteDefinition,
+function validateHydrationMode(
+  hydration: unknown,
+  render: RenderMode,
   location: string,
 ): void {
-  const { hydration, render } = routeDefinition
-
   if (hydration === undefined) {
     return
   }
@@ -733,6 +791,17 @@ function validateHydration(
       `flamefront route ${location} client hydration can only be 'full'.`,
     )
   }
+}
+
+function validateHydration(
+  routeDefinition: RouteDefinition,
+  location: string,
+): void {
+  validateHydrationMode(
+    routeDefinition.hydration,
+    routeDefinition.render,
+    location,
+  )
 }
 
 function freezeHydration(
@@ -827,6 +896,7 @@ function isLayoutDefinition(config: RouteConfig): config is LayoutDefinition {
 function normalizeRouteTree(
   configs: readonly RouteConfig[],
   seenPaths: Set<string>,
+  hydrationDefaults: NormalizedHydrationDefaults,
   location = "",
 ): { tree: readonly RouteConfig[]; routes: readonly RouteDefinition[] } {
   const routes: RouteDefinition[] = []
@@ -852,6 +922,7 @@ function normalizeRouteTree(
       const normalized = normalizeRouteTree(
         config.children,
         seenPaths,
+        hydrationDefaults,
         configLocation,
       )
 
@@ -863,19 +934,24 @@ function normalizeRouteTree(
       })
     }
 
-    validateRoute(config, configLocation)
+    const hydration =
+      config.hydration ??
+      (config.render === "client" ? "full" : hydrationDefaults[config.render])
+    const normalizedRoute = {
+      ...config,
+      hydration: freezeHydration(hydration),
+    }
+
+    validateRoute(normalizedRoute, configLocation)
     if (seenPaths.has(config.path)) {
       throw new TypeError(`flamefront route path is duplicated: ${config.path}`)
     }
 
     seenPaths.add(config.path)
-    const normalizedRoute = Object.freeze({
-      ...config,
-      hydration: freezeHydration(config.hydration),
-    })
+    const frozenRoute = Object.freeze(normalizedRoute)
 
-    routes.push(normalizedRoute)
-    return normalizedRoute
+    routes.push(frozenRoute)
+    return frozenRoute
   })
 
   return { tree: Object.freeze(tree), routes: Object.freeze(routes) }
@@ -936,11 +1012,13 @@ export function defineApp<
   const T extends {
     readonly shell: string
     readonly routes: readonly RouteConfig[]
+    readonly hydrationDefaults?: HydrationDefaults
     readonly routing?: RoutingOptions
   },
 >(
   options: T,
-): Omit<T, "routes" | "routing"> & AppDefinition<RouteLeaves<T["routes"]>> {
+): Omit<T, "routes" | "routing" | "hydrationDefaults"> &
+  AppDefinition<RouteLeaves<T["routes"]>> {
   if (
     !options ||
     typeof options !== "object" ||
@@ -951,7 +1029,14 @@ export function defineApp<
 
   assertString(options.shell, "app shell entry")
 
-  const normalized = normalizeRouteTree(options.routes, new Set())
+  const hydrationDefaults = normalizeHydrationDefaults(
+    options.hydrationDefaults,
+  )
+  const normalized = normalizeRouteTree(
+    options.routes,
+    new Set(),
+    hydrationDefaults,
+  )
 
   type AppRoute = RouteLeaves<T["routes"]>
   const frozenRoutes = normalized.routes as readonly AppRoute[]
@@ -966,6 +1051,7 @@ export function defineApp<
 
   const app = Object.freeze({
     ...options,
+    hydrationDefaults,
     routes: frozenRoutes,
     routeTree: normalized.tree,
     routing,
@@ -983,7 +1069,8 @@ export function defineApp<
 
       await routeDataClient.load(url, source, loadOptions)
     }) as AppDefinition<AppRoute>["prefetch"],
-  }) as Omit<T, "routes" | "routing"> & AppDefinition<AppRoute>
+  }) as Omit<T, "routes" | "routing" | "hydrationDefaults"> &
+    AppDefinition<AppRoute>
 
   matcherCache.set(
     frozenRoutes,

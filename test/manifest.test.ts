@@ -88,6 +88,97 @@ test("uses server as the default mode and rejects legacy mode names", () => {
   )
 })
 
+test("normalizes omitted hydration policies to full", () => {
+  const app = defineApp({
+    shell,
+    routes: [
+      route("/server", "/src/Server.tsrx", { render: "server" }),
+      route("/static", "/src/Static.tsrx", { render: "static" }),
+      route("/client", "/src/Client.tsrx", { render: "client" }),
+    ],
+  })
+
+  assert.deepEqual(app.hydrationDefaults, {
+    server: "full",
+    static: "full",
+  })
+  assert.deepEqual(
+    app.routes.map(({ path, hydration }) => ({ path, hydration })),
+    [
+      { path: "/server", hydration: "full" },
+      { path: "/static", hydration: "full" },
+      { path: "/client", hydration: "full" },
+    ],
+  )
+})
+
+test("applies app hydration defaults by render mode", () => {
+  const app = defineApp({
+    shell,
+    hydrationDefaults: {
+      server: "deferred",
+      static: "none",
+    },
+    routes: [
+      route("/server-default", "/src/ServerDefault.tsrx", {
+        render: "server",
+      }),
+      route("/server-explicit", "/src/ServerExplicit.tsrx", {
+        render: "server",
+        hydration: "full",
+      }),
+      route("/static-default", "/src/StaticDefault.tsrx", {
+        render: "static",
+      }),
+      route("/client-default", "/src/ClientDefault.tsrx", {
+        render: "client",
+      }),
+    ],
+  })
+
+  assert.deepEqual(app.hydrationDefaults, {
+    server: "deferred",
+    static: "none",
+  })
+  assert.deepEqual(
+    app.routes.map(({ path, hydration }) => ({ path, hydration })),
+    [
+      { path: "/server-default", hydration: "deferred" },
+      { path: "/server-explicit", hydration: "full" },
+      { path: "/static-default", hydration: "none" },
+      { path: "/client-default", hydration: "full" },
+    ],
+  )
+  assert.equal(Object.isFrozen(app.hydrationDefaults), true)
+})
+
+test("validates hydration defaults and rejects unsupported keys", () => {
+  assert.throws(
+    () =>
+      defineApp({
+        shell,
+        hydrationDefaults: {
+          static: { when: "media" } as never,
+        },
+        routes: [],
+      }),
+    /hydrationDefaults\.static hydration query must be a non-empty string/,
+  )
+
+  assert.throws(
+    () =>
+      defineApp({
+        shell,
+        hydrationDefaults: {
+          server: "deferred",
+          client: "full",
+        } as never,
+        routes: [],
+      }),
+    /hydrationDefaults has an unexpected "client" option/,
+  )
+})
+
 test("rejects duplicate paths", () => {
   assert.throws(
     () =>
