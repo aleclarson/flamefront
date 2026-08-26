@@ -88,13 +88,13 @@ as a static route:
 
 ```ts
 // src/app.ts
-import { defineApp, route } from "flamefront"
+import { defineApp, serverRoute, staticRoute } from "flamefront"
 
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
   routes: [
-    route("/", "/src/HomePage.tsrx", { render: "server" }),
-    route("/about", "/src/AboutPage.tsrx", { render: "static" }),
+    serverRoute("/", "/src/HomePage.tsrx"),
+    staticRoute("/about", "/src/AboutPage.tsrx"),
   ],
 })
 ```
@@ -308,13 +308,13 @@ contract; this documentation does not change either one.
 The app owns one explicit, centralized route manifest:
 
 ```ts
-import { defineApp, layout, route } from "flamefront"
+import { defineApp, layout, serverRoute } from "flamefront"
 
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
   routes: [
     layout("/src/ArticleShell.tsrx", [
-      route("/articles/:slug", "/src/Article.tsrx", { render: "server" }),
+      serverRoute("/articles/:slug", "/src/Article.tsrx"),
     ]),
   ],
 })
@@ -325,6 +325,11 @@ retains that authored nesting for compiler integrations, while `app.routes`
 is the normalized leaf collection used for matching, filtering, static output,
 and CLI inspection.
 
+`serverRoute`, `staticRoute`, and `clientRoute` set the matching `render`
+option. Each accepts the same path and entry arguments as `route`, plus an
+optional options object for `hydration`. Use `route` when an explicit
+`render` option reads better.
+
 Routes without an explicit hydration policy use the app's render-mode defaults:
 
 ```ts
@@ -334,7 +339,7 @@ export const app = defineApp({
     server: "deferred",
     static: "none",
   },
-  routes: [route("/docs", "/src/Docs.tsrx", { render: "server" })],
+  routes: [serverRoute("/docs", "/src/Docs.tsrx")],
 })
 ```
 
@@ -462,7 +467,7 @@ Configure shared paths on the app definition so matching, generated browser
 routes, the server router, the data endpoint, and srvx use the same values:
 
 ```ts
-import { defineApp, route } from "flamefront"
+import { defineApp, serverRoute } from "flamefront"
 
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
@@ -470,7 +475,7 @@ export const app = defineApp({
     basename: "/docs",
     dataPath: "/docs/__flamefront/data",
   },
-  routes: [route("/", "/src/HomePage.tsrx", { render: "server" })],
+  routes: [serverRoute("/", "/src/HomePage.tsrx")],
 })
 ```
 
@@ -630,8 +635,7 @@ navigation abort signals and HTTP error handling.
 Server routes can choose who owns hydration:
 
 ```ts
-route("/reviews/:productId", "/src/Reviews.tsrx", {
-  render: "server",
+serverRoute("/reviews/:productId", "/src/Reviews.tsrx", {
   hydration: { when: "visible", rootMargin: "200px" },
 })
 ```
@@ -657,7 +661,7 @@ package. It includes:
 - the unscoped `flamefront` package and `ff` executable;
 - raw TypeScript exports for the route manifest, Vite integration, server
   runtime, srvx entry, Octane browser entry, and Remix Router adapter;
-- `client`, `server`, and `static` render modes with route layouts,
+- `client`, `server`, and `static` render modes with route shorthands, layouts,
   loaders, hydration policies, static route data, and route fragments;
 - `ff dev`, `ff build`, `ff preview`, and `ff routes`;
 - packed-package consumer verification across development, build, preview, and

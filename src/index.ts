@@ -872,6 +872,42 @@ export function route<const Path extends string, const Entry extends string>(
   return Object.freeze(definition)
 }
 
+/** Define a server-rendered route without repeating the render mode. */
+export function serverRoute<
+  const Path extends string,
+  const Entry extends string,
+>(
+  path: Path,
+  entry: Entry,
+  options: Omit<RouteOptions, "render"> = {},
+): RouteDefinition<Path, Entry> {
+  return route(path, entry, { ...options, render: "server" })
+}
+
+/** Define a statically rendered route without repeating the render mode. */
+export function staticRoute<
+  const Path extends string,
+  const Entry extends string,
+>(
+  path: Path,
+  entry: Entry,
+  options: Omit<RouteOptions, "render"> = {},
+): RouteDefinition<Path, Entry> {
+  return route(path, entry, { ...options, render: "static" })
+}
+
+/** Define a client-rendered route without repeating the render mode. */
+export function clientRoute<
+  const Path extends string,
+  const Entry extends string,
+>(
+  path: Path,
+  entry: Entry,
+  options: Omit<RouteOptions, "render"> = {},
+): RouteDefinition<Path, Entry> {
+  return route(path, entry, { ...options, render: "client" })
+}
+
 /** Group routes beneath a shared pathless layout without adding a URL segment. */
 export function layout<const Children extends readonly RouteConfig[]>(
   entry: string,

@@ -1,10 +1,13 @@
 import { href } from "@octanejs/remix-router"
 import { importRoute as generatedImportRoute } from "virtual:flamefront/server-routes"
 import {
+  clientRoute,
   defineApp,
   layout,
   route,
   routeHref,
+  serverRoute,
+  staticRoute,
   type BroadRouteParams,
   type RouteLoaderData,
   type RouteParams,
@@ -22,6 +25,18 @@ const app = defineApp({
     route("/products/:productId", "/src/Product.tsrx"),
   ],
 })
+
+defineApp({
+  shell: "/src/AppShell.tsrx",
+  routes: [
+    serverRoute("/server", "/src/Server.tsrx", { hydration: "deferred" }),
+    staticRoute("/static", "/src/Static.tsrx", { hydration: "none" }),
+    clientRoute("/client", "/src/Client.tsrx"),
+  ],
+})
+
+// @ts-expect-error A render-mode shorthand does not accept a render option.
+serverRoute("/wrong-mode", "/src/WrongMode.tsrx", { render: "client" })
 
 const productMatch = app.match("/products/octane")
 

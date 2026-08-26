@@ -1,6 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { defineApp, layout, route } from "../src/index.ts"
+import {
+  clientRoute,
+  defineApp,
+  layout,
+  route,
+  serverRoute,
+  staticRoute,
+} from "../src/index.ts"
 
 const shell = "/src/AppShell.tsrx"
 
@@ -85,6 +92,42 @@ test("uses server as the default mode and rejects legacy mode names", () => {
         { render: "ssr" },
       ]),
     /render must be 'client', 'server', or 'static'/,
+  )
+})
+
+test("defines routes with render-mode shorthands", () => {
+  const routes = [
+    serverRoute("/server", "/src/Server.tsrx", {
+      hydration: "deferred",
+    }),
+    staticRoute("/static", "/src/Static.tsrx", { hydration: "none" }),
+    clientRoute("/client", "/src/Client.tsrx"),
+  ]
+
+  assert.deepEqual(
+    routes.map(({ path, render, hydration }) => ({
+      path,
+      render,
+      hydration,
+    })),
+    [
+      { path: "/server", render: "server", hydration: "deferred" },
+      { path: "/static", render: "static", hydration: "none" },
+      { path: "/client", render: "client", hydration: undefined },
+    ],
+  )
+  assert.equal(routes.every(Object.isFrozen), true)
+  assert.equal(
+    Reflect.apply(serverRoute, undefined, [
+      "/forced-server",
+      "/src/ForcedServer.tsrx",
+      { render: "client" },
+    ]).render,
+    "server",
+  )
+  assert.throws(
+    () => clientRoute("/invalid", "/src/Invalid.tsrx", { hydration: "none" }),
+    /client hydration can only be 'full'/,
   )
 })
 

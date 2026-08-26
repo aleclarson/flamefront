@@ -1,9 +1,9 @@
-import { defineApp, route } from "flamefront"
+import { defineApp, serverRoute, staticRoute } from "flamefront"
 
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
   routes: [
-    route("/", "/src/HomePage.tsrx", { render: "server" }),
-    route("/about", "/src/AboutPage.tsrx", { render: "static" }),
+    serverRoute("/", "/src/HomePage.tsrx"),
+    staticRoute("/about", "/src/AboutPage.tsrx"),
   ],
 })
