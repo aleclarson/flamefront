@@ -16,7 +16,10 @@ flowchart LR
   Runtime[Route runtime]
   Documents[Document service]
   Transport[srvx transport]
-  Browser[Browser root]
+  Browser[Browser runtime]
+  Router[One Remix data router]
+  ShellRoot[Shell root]
+  OutletRoot[Outlet root]
   Build[Static artifacts]
 
   Manifest --> Model
@@ -28,20 +31,43 @@ flowchart LR
   Documents --> Transport
   Generated --> Browser
   Model --> Browser
+  Browser --> Router
+  Router --> ShellRoot
+  Router --> OutletRoot
   Documents --> Build
 ```
 
 The arrows are ownership dependencies, not import statements. For example, the
-browser root consumes a generated router through the Remix Router adapter, but
-it still uses the normalized app model to decide whether startup hydrates or
+browser runtime consumes a generated router through the Remix Router adapter,
+but it still uses the normalized app model to decide whether startup hydrates or
 renders.
+
+## Shell and outlet ownership
+
+Every application has two framework-owned UI regions. The shell root owns the
+persistent shell and the document chrome. The routed outlet root owns the
+current route and any matched pathless layouts placed below the shell's
+`<Outlet />`. On the browser, the shell root is attached to `#root` and the
+outlet root is managed beneath the shell's outlet host.
+
+The regions always share one authoritative Remix data router and one live
+location. The outlet root receives the router, router state, location,
+navigation, fetcher, route, and view-transition contexts through a bridge; it
+does not create a second router. The two roots use separate identifier
+namespaces: `flamefront-shell-` for shell rendering and `flamefront-outlet-`
+for outlet rendering and hydration.
+
+This is an ownership split, not a route-tree split. A `layout(...)` node remains
+part of the generated route hierarchy and its fragment boundary metadata, but it
+does not create an independent root or receive an independent hydration policy.
 
 ## App model
 
-`defineApp` validates the shell, layouts, paths, render modes, hydration
-policies, and routing options. It freezes the normalized route tree and leaf
-list. The resulting object also owns URL matching and the shared route-data
-client.
+`defineApp` validates the shell, layouts, paths, render modes, shell and route
+hydration policies, and routing options. It defaults `shellHydration` to
+`full`, freezes the normalized route tree and leaf list, and exposes the
+normalized shell policy for generated metadata. The resulting object also owns
+URL matching and the shared route-data client.
 
 This is the only layer allowed to decide which authored route matches a URL.
 Server transport, browser prefetch, static generation, and document rendering
@@ -55,8 +81,9 @@ classification, and static output requests.
 
 The Vite integration evaluates the app manifest and exposes two virtual
 modules. The browser module contains the eager shell, lazy layouts and routes,
-route metadata, data loaders, and route-module preloaders. The server module is
-an importer over unique leaf entries.
+route metadata, data loaders, and route-module preloaders. Shell metadata
+includes the normalized `shellHydration` policy. The server module is an
+importer over unique leaf entries.
 
 Server and static routes share one generated fragment route shape in the
 browser. The generated loader selects the server or static cache policy. The
@@ -114,12 +141,24 @@ server entry for prerendering, and starts srvx for preview. Keeping this work ou
 of the document service lets builds call rendering directly without simulating
 an HTTP round trip.
 
-## Browser root
+## Browser runtime
 
-The browser adapter consumes the server's hydration payload, creates a Remix
-Router instance, and attaches the shared router document to `#root`. A client
-route renders immediately. Server and static routes wait for router
-initialization and hydrate the existing document.
+The browser adapter consumes the server's hydration payload and creates one
+Remix Router instance. It attaches the shared router document to the shell root
+at `#root`; the shell's boundary then manages the routed outlet root. A client
+route mounts its outlet after router initialization. Server and static routes
+hydrate the existing outlet markup when their route policy permits it.
+
+Shell hydration is independent of the route policy. `full` activates the shell
+at startup, `none` leaves the shell dormant permanently, and `deferred` waits
+for the first location change before activating. Deferred activation reads the
+router's current state, so a navigation that occurred while the shell was
+dormant is not replayed from the initial server location. Generated shell
+triggers use their normal Octane hydration semantics.
+
+When the outlet root hydrates or mounts, the context bridge keeps its Remix
+hooks and links attached to the live shared router. A dormant shell therefore
+does not prevent outlet navigation.
 
 Route-aware prefetch follows the navigation split. Client routes warm route
 data and their client module. Server and static routes warm a fragment response

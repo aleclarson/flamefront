@@ -7,8 +7,10 @@ exercise it.
 ## One route model
 
 The normalized app definition is the only authority for matching, render mode,
-hydration policy, basename, and data path. Generated modules, server transport,
-prefetch, and static generation must consume that model.
+shell and route hydration policy, basename, and data path. `shellHydration`
+defaults to `full` and is emitted in generated shell metadata. Generated
+modules, server transport, prefetch, and static generation must consume that
+model.
 
 Do not add a second matcher or reconstruct route policy from filenames. Keep the
 layout-preserving `routeTree` and flattened `routes` list as two views of the
@@ -28,16 +30,27 @@ request-context factories, or loaders. Strip them before application code runs.
 Primary coverage: `manifest.test.ts`, `fragment.test.ts`,
 `remix-route-data.test.ts`, and `server.test.ts`.
 
-## One router document
+## One router, two ownership regions
 
 Server rendering and browser startup use the same router document unless the
-application explicitly supplies the same override to both compositions. This
-keeps the root provider hierarchy and hydration shape aligned.
+application explicitly supplies the same override to both compositions. The
+browser creates one authoritative Remix Router instance, with the shell root
+at `#root` and a separate routed outlet root beneath the shell's `<Outlet />`.
+The outlet receives live router contexts through a bridge; it must not create a
+second router.
+
+The shell root uses `flamefront-shell-` IDs and outlet roots use
+`flamefront-outlet-` IDs. These namespaces must remain distinct so hydration
+cannot collide across roots. Pathless layouts remain inside the outlet route
+hierarchy and do not become independent roots.
 
 Server and static startup must wait for router initialization before hydrating
-the existing document. Client startup renders a fresh root.
+the existing shell and outlet markup. Client startup renders a fresh shell root
+and mounts the outlet root. A dormant or inert shell must not block outlet
+navigation.
 
-Primary coverage: `octane-client.test.ts` and `octane.test.ts`.
+Primary coverage: `octane-client.test.ts`, `octane.test.ts`, and browser fixture
+checks for shell and outlet navigation.
 
 ## Request-scoped context stays request-scoped
 
@@ -83,10 +96,11 @@ Primary coverage: `route-prefetch.test.ts`, `fragment.test.ts`,
 
 ## DOM ownership changes once
 
-The outer root owns a fragment host while its content is raw inserted HTML. It
-must release that ownership before a nested root hydrates the children. The old
-nested root must unmount before replacement, and asynchronous hydration must
-check that its host is still current.
+The current owner of a fragment host owns its content while it is raw inserted
+HTML. It must release that ownership before a nested root hydrates the children.
+The old nested root must unmount before replacement, and asynchronous hydration
+must check that its host is still current. The shell root and routed outlet root
+must never reconcile the same child tree simultaneously.
 
 Router context must be re-provided inside the nested root. Context values should
 retain their library types through the bridge. Do not hide mismatches with
@@ -99,9 +113,10 @@ server and static routes.
 
 Render mode selects whether fragment HTML comes from request-time rendering or
 build output. Navigation strategy selects fragment transport or client module
-rendering. Hydration policy selects whether and when existing HTML becomes
-interactive. Validation rejects combinations that cannot affect the selected
-render mode.
+rendering. Route hydration policy selects whether and when outlet HTML becomes
+interactive; `shellHydration` independently selects whether and when the shell
+becomes interactive. Validation rejects combinations that cannot affect the
+selected render mode.
 
 Do not infer render mode from a hydration policy or silently reinterpret legacy
 mode names.

@@ -330,6 +330,50 @@ option. Each accepts the same path and entry arguments as `route`, plus an
 optional options object for `hydration`. Use `route` when an explicit
 `render` option reads better.
 
+Every Flamefront document has two framework-owned regions: the persistent shell
+and the routed outlet rendered by the shell's `<Outlet />`. They remain separate
+ownership regions while sharing one generated router document and one
+authoritative browser router. The shell owns the document chrome; the outlet
+owns the current route and any matched pathless layouts. Application code still
+uses one `#root` and does not manage either region's roots.
+
+### Shell hydration
+
+Configure the persistent shell with `shellHydration` on `defineApp`:
+
+```ts
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  shellHydration: "deferred",
+  routes: [serverRoute("/docs", "/src/Docs.tsrx")],
+})
+```
+
+The option accepts `full`, `deferred`, `none`, or the same generated trigger
+objects as route hydration (`idle`, `visible`, `interaction`, and `media`). Its
+default is `full`, and the normalized value is included in the generated shell
+metadata. Shell policy is independent of `hydrationDefaults` and each route's
+`hydration` policy.
+
+- `full` activates the shell during initial startup.
+- `deferred` leaves the shell dormant until the first location change. When it
+  activates, it starts from the browser router's current state, including any
+  navigation that happened while it was dormant.
+- `none` keeps the shell HTML inert for the lifetime of the document. The
+  routed outlet still navigates and mounts or hydrates according to its own
+  route policy.
+- A generated trigger uses the normal Octane `Hydrate` behavior for that
+  trigger. It does not change the outlet's policy or create another router.
+
+The shell root and every outlet root use distinct framework ID namespaces:
+`flamefront-shell-` for the shell and `flamefront-outlet-` for routed content.
+The outlet receives live Remix Router contexts through a framework-managed
+bridge, so router hooks, links, navigation state, errors, scroll restoration,
+and view transitions continue to use the same router even when the shell is
+dormant. `layout(...)` describes router nesting and fragment boundaries; it does
+not create an independently hydratable root or accept a layout hydration
+policy.
+
 Routes without an explicit hydration policy use the app's render-mode defaults:
 
 ```ts
@@ -345,7 +389,8 @@ export const app = defineApp({
 
 The built-in defaults for both server and static routes are `full`. An explicit
 route policy always wins. Client routes always resolve to `full`, so they do
-not have a client default.
+not have a client default. The shell has its own `shellHydration` default of
+`full`; changing a route default does not change shell activation.
 
 The manifest contains route behavior only. App-specific display data, such as
 navigation labels, remains in app code.
@@ -498,11 +543,12 @@ await startOctaneClient({ app })
 ```
 
 `startOctaneClient` mounts client-rendered routes and hydrates server or
-static routes after the browser router initializes. By default, it and
-`createOctaneDocuments` use the same `RouterDocument` exported by the
-generated Remix route module. This shared root is the `RouterProvider` itself,
-so Octane can adopt the server tree instead of recovering from a different
-client root.
+static routes after the browser router initializes. It creates the shell root
+under `#root`, then Flamefront manages the independently-owned routed outlet
+root beneath the shell's `<Outlet />`. Both regions use the same browser router;
+the outlet does not create a second router. The generated `RouterDocument` is
+still the same component used by `createOctaneDocuments` for the shell's
+`RouterProvider`, so server and browser provider hierarchies stay aligned.
 
 Applications that wrap the router in providers can pass `routerDocument`.
 Export that component from one shared module and pass the same import to
@@ -640,7 +686,8 @@ serverRoute("/reviews/:productId", "/src/Reviews.tsrx", {
 })
 ```
 
-- `full` or an omitted value hydrates with the shared shell.
+- `full` or an omitted value hydrates the routed outlet immediately. The shell
+  still follows `shellHydration` and is not part of the outlet's root.
 - `deferred` means the route authors its own Octane `<Hydrate>` boundaries.
 - `none` generates a permanent `never()` boundary around server output.
 - `{ when: "idle" }`, `{ when: "visible" }`,
@@ -649,7 +696,8 @@ serverRoute("/reviews/:productId", "/src/Reviews.tsrx", {
 
 Generated boundaries defer HTML inserted by a document or fragment render.
 Server and static routes accept `full`, `deferred`, `none`, and trigger objects.
-Client routes accept `full` only.
+Client routes accept `full` only. Route policies affect the routed outlet; they
+do not override `shellHydration`.
 
 ## Alpha release notes
 

@@ -9,6 +9,25 @@ Render mode and fragment transport answer different questions. Render mode
 decides when Flamefront produces the HTML. The fragment transport decides how
 the browser receives and inserts it during navigation.
 
+## Shell and routed outlet
+
+The shell and routed outlet are always separate ownership regions. The shell
+root owns the persistent document chrome at `#root`; the outlet root owns the
+current route and matched layouts below the shell's `<Outlet />`. They share one
+authoritative browser router and one live location. The outlet root receives
+that router's contexts through the bridge described below rather than creating a
+second router.
+
+Direct server and static documents render the outlet HTML into a stable host
+inside the shell region. Browser startup then hydrates or mounts that host as an
+independent outlet root. Fragment navigation replaces the outlet's selected
+boundary without replacing the document or changing shell ownership. The shell
+policy and each route's hydration policy are evaluated independently.
+
+Only these shell and outlet regions have independent root ownership. A pathless
+`layout(...)` is still a generated route boundary and remains inside the
+routed hierarchy; it is not independently split or independently hydratable.
+
 ## Protocol contract
 
 A fragment response uses the protocol identifier
@@ -96,7 +115,9 @@ sequenceDiagram
 
 The outer route initially renders a boundary host with
 `dangerouslySetInnerHTML`. This makes the response HTML visible without running
-the authored route component in the browser.
+the authored route component in the browser. In a direct document, this host is
+the shell's routed outlet host; during fragment navigation it is the selected
+fragment boundary.
 
 Hydration happens later in a layout effect. Before creating the nested root,
 Flamefront copies the host HTML, clears Octane's dangerous-HTML ownership, and
@@ -116,8 +137,13 @@ route. Hooks such as `useLocation`, `useNavigate`, `useMatches`, and
 
 The outer route reads the current data-router, router-state, fetcher, location,
 navigation, route, and view-transition contexts. `createContextBridge`
-re-provides those exact values around the hydrated route component inside the
-nested root.
+re-provides those exact live values around the hydrated route component inside
+the nested root. The same bridge connects the shell root to its independently
+owned outlet root.
+
+The shell root uses the `flamefront-shell-` identifier namespace. Outlet roots
+and fragment hydration roots use `flamefront-outlet-`, keeping generated IDs
+distinct across the two owners.
 
 The bridge exists because fragment content hydrates in a nested root. If the
 original root owns fragment content in the future, remove the bridge with the
@@ -128,7 +154,8 @@ nested root.
 `none` leaves inserted fragment HTML inert. Every other accepted policy permits
 post-insertion hydration. The `idle`, `visible`, `interaction`, and `media`
 policies wrap the route component in an Octane hydration boundary and control
-when its code becomes active.
+when its code becomes active. These route policies affect the outlet only;
+`shellHydration` controls the shell root.
 
 The fragment route decides whether nested hydration can start. The generated
 Octane boundary decides when the authored component runs. Keep those jobs

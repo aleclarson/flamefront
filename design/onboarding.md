@@ -12,7 +12,9 @@ route model.
 ## The working model
 
 An application supplies a persistent shell and a tree of pathless layouts and
-leaf routes. Every leaf selects one render mode:
+leaf routes. Flamefront gives the shell and the routed outlet separate
+ownership regions while keeping one browser router. Every leaf selects one
+render mode:
 
 | Mode     | Initial document                           | Later browser navigation                     |
 | -------- | ------------------------------------------ | -------------------------------------------- |
@@ -24,7 +26,12 @@ Hydration is a separate decision. `full`, `deferred`, `none`, and the
 trigger-based `idle`, `visible`, `interaction`, and `media` policies control when
 server or static HTML becomes interactive. Render mode decides where HTML comes
 from. Hydration policy decides whether and when Octane owns that HTML in the
-browser.
+browser. The app-level `shellHydration` policy controls the shell; each route's
+`hydration` policy controls the routed outlet. `shellHydration` defaults to
+`full`. `deferred` shell hydration activates on the first location change and
+uses the router's current state; `none` leaves the shell inert while outlet
+navigation remains available. Generated shell triggers retain their normal
+Octane behavior.
 
 The authored manifest has two useful forms:
 
@@ -60,7 +67,7 @@ loading compiler-only modules or starting an HTTP server.
 The build integration produces three kinds of generated material:
 
 - a browser router module with the eager shell, lazy route components, loaders,
-  metadata, and module preloaders;
+  shell and route metadata, and module preloaders;
 - a server route importer that can load every unique leaf route module;
 - a declaration-only route import map that connects authored paths to their
   module types.
@@ -72,8 +79,10 @@ static fragment files exist.
 
 ## Terms used in the code
 
-**Router document.** The one root component that renders `RouterProvider`. The
-server renderer and browser bootstrap must use the same component.
+**Router document.** The single component that renders `RouterProvider` for
+the shell root. The server renderer and browser bootstrap must use the same
+component. The browser also manages a separate outlet root beneath the shell;
+live router contexts are bridged into it rather than creating another router.
 
 **Document service.** The result of `createOctaneDocuments`. It renders a full
 document, loads route data, and renders a fragment artifact.
@@ -84,7 +93,8 @@ preview commands.
 
 **Boundary.** A stable generated shell, layout, or route identity. Boundaries
 let a fragment response render and replace the matched part of a route
-hierarchy.
+hierarchy. Only the shell and routed outlet are independent root owners;
+pathless layouts remain inside the outlet hierarchy.
 
 **Route fragment.** Versioned JSON containing route data, leaf HTML, boundary
 HTML, hydration policy, and response status. Server routes produce it per
@@ -104,7 +114,7 @@ Use these source files as entry points:
 | Route loading and request context        | [`src/server.ts`](../src/server.ts)                         |
 | Vite generation and browser graph policy | [`src/vite.ts`](../src/vite.ts)                             |
 | Document and fragment rendering          | [`src/octane.tsx`](../src/octane.tsx)                       |
-| Browser root startup                     | [`src/octane-client-core.ts`](../src/octane-client-core.ts) |
+| Browser runtime startup                  | [`src/octane-client-core.ts`](../src/octane-client-core.ts) |
 | Fragment insertion and hydration         | [`src/fragment.tsx`](../src/fragment.tsx)                   |
 | HTTP classification                      | [`src/srvx.ts`](../src/srvx.ts)                             |
 | Build, dev, and preview orchestration    | [`src/lifecycle.ts`](../src/lifecycle.ts)                   |

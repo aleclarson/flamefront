@@ -43,12 +43,16 @@ sequenceDiagram
 
 For `server` and `static` modes, Remix Router queries the route hierarchy and
 produces loader data, errors, status, and matches. The document service renders
-the shared router document with that router and context. It serializes loader,
-action, and error state into the hydration script.
+the shell and first routed outlet into separate stable regions using that
+router and context. The outlet markup is rendered from the first matched outlet
+boundary and passed to the shell document as server-only content. It serializes
+loader, action, and error state into the hydration script for the one browser
+router.
 
 For `client` and explicit `shell` modes, the document service creates a minimal
 static router context around the root route. It does not run the matched route's
-loader. The resulting document supplies the browser shell.
+loader. The resulting document supplies the browser shell; the client route's
+outlet is mounted by the browser after router startup.
 
 Redirect `Response` objects from router queries escape document rendering and
 become HTTP responses unchanged.
@@ -70,15 +74,25 @@ Static route data bypasses the live endpoint and comes from the generated
 ## Browser startup
 
 The browser removes the serialized hydration payload from the document after
-reading it. It creates the route prefetch callback and Remix Router instance,
-then selects root behavior from the matched Flamefront route:
+reading it, creates the route prefetch callback, and creates one Remix Router
+instance. It then attaches the generated router document to the shell root at
+`#root` using the `flamefront-shell-` identifier namespace. The shell boundary
+manages a separate outlet root using `flamefront-outlet-`.
 
-- a `client` route calls `createRoot` and renders the router document;
-- a `server` or `static` route waits for router initialization, then calls
-  `hydrateRoot` with the same router document used on the server.
+For a `client` route, the outlet root mounts the current route after router
+startup. For a `server` or `static` route, it adopts the existing outlet HTML
+and hydrates it when the route policy permits. Route hydration does not control
+the shell: `shellHydration` controls the shell root independently.
 
-Waiting matters because a hydrated document must start with the same router
-state that produced its HTML.
+`full` shell hydration activates at startup. `none` leaves the shell's existing
+HTML inert, while the outlet can continue navigating independently. `deferred`
+shell hydration waits for the first location change and then activates against
+the router's current state. Generated `idle`, `visible`, `interaction`, and
+`media` shell policies use their normal Octane trigger behavior.
+
+Waiting for router initialization matters because both regions must use the
+same live router state. The outlet context bridge re-provides the current router
+contexts rather than creating another router.
 
 ## Browser navigation and prefetch
 
@@ -116,9 +130,11 @@ entry leaves the in-flight map when it settles, so a later navigation renders
 again. For a static destination, the loader retains the fulfilled build
 artifact by origin and normalized pathname.
 
-The route component reads a separate artifact handoff, inserts its HTML, and
-hydrates it only when the route policy permits hydration. The cache and DOM
-ownership rules are documented in [route fragments](./fragments.md).
+The route component reads a separate artifact handoff, inserts its HTML into the
+routed outlet region, and hydrates it only when the route policy permits
+hydration. The shell region stays mounted according to `shellHydration`; a
+deferred or inert shell does not own the outlet's navigation lifecycle. The
+cache and DOM ownership rules are documented in [route fragments](./fragments.md).
 
 ## Production build
 
