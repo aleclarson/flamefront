@@ -12,10 +12,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const fixture = resolve(root, "scripts/browser-fixture")
 const ff = resolve(root, "node_modules/.bin/ff")
 
-async function run(command, args, cwd) {
+async function run(command, args, cwd, extraEnv = {}) {
   return execFileAsync(command, args, {
     cwd,
-    env: { ...process.env, CI: "1" },
+    env: { ...process.env, ...extraEnv, CI: "1" },
     maxBuffer: 20 * 1024 * 1024,
   })
 }
@@ -274,6 +274,12 @@ async function checkBasenameFixture(page, base) {
     "Client loader: /guide/client",
   )
 
+  const directError = await goto(page, `${base}/guide/error`, 418)
+
+  assert.equal(directError?.status(), 418)
+  await waitForText(page, "h2", "Unexpected Application Error!")
+  await waitForText(page, "h3", "418")
+
   await page.getByTestId("fixture-shell-counter").click()
   await waitForText(
     page,
@@ -385,36 +391,114 @@ async function checkBasenameFixture(page, base) {
   )
 }
 
+async function checkDormantShell(page, base, mode) {
+  await goto(page, `${base}/guide/server`)
+  await waitForText(
+    page,
+    '[data-testid="fixture-server-data"]',
+    "Server loader: /guide/server default",
+  )
+
+  const location = page.waitForURL((url) => url.pathname === "/guide/client", {
+    timeout: 10_000,
+  })
+
+  await page
+    .getByTestId("fixture-server")
+    .getByRole("link", { name: "Client", exact: true })
+    .click()
+  await location
+  await waitForText(
+    page,
+    '[data-testid="fixture-client"]',
+    "Client loader: /guide/client",
+  )
+
+  // Deferred activation is intentionally driven by this first location
+  // change, so the shell must see the current client location immediately.
+  if (mode === "none") {
+    await waitForText(
+      page,
+      '[data-testid="fixture-path"]',
+      "Shell path: /server",
+    )
+    await page.getByTestId("fixture-shell-counter").click()
+    await page.waitForTimeout(100)
+    assert.equal(
+      (await page.getByTestId("fixture-shell-counter").textContent())
+        ?.replace(/\s+/g, " ")
+        .trim(),
+      "Shell count: 0",
+      "An inert shell responded to an event.",
+    )
+    return
+  }
+
+  await waitForText(page, '[data-testid="fixture-path"]', "Shell path: /client")
+  await page.getByTestId("fixture-shell-counter").click()
+  await waitForText(
+    page,
+    '[data-testid="fixture-shell-counter"]',
+    "Shell count: 1",
+  )
+}
+
 test("covers browser navigation, hydration, and history", async () => {
   await run(ff, ["build"], fixture)
 
   const rootPort = await findPort()
-  const fixturePort = await findPort()
   const rootToken = `browser-test-root-${process.pid}-${Date.now()}`
-  const fixtureToken = `browser-test-fixture-${process.pid}-${Date.now()}`
   const rootServer = startPreview(rootPort, root, rootToken)
-  const fixtureServer = startPreview(fixturePort, fixture, fixtureToken)
+  let fixtureServer
   let browser
 
   try {
     browser = await chromium.launch({ headless: true })
-    await Promise.all([
-      waitForPreview(rootServer, `http://127.0.0.1:${rootPort}/`, rootToken),
-      waitForPreview(
-        fixtureServer,
-        `http://127.0.0.1:${fixturePort}/guide/client`,
-        fixtureToken,
-      ),
-    ])
+    await waitForPreview(rootServer, `http://127.0.0.1:${rootPort}/`, rootToken)
 
     const mainPage = await browser.newPage()
     const fixturePage = await browser.newPage()
+
+    const fixturePort = await findPort()
+    const fixtureToken = `browser-test-fixture-${process.pid}-${Date.now()}`
+
+    fixtureServer = startPreview(fixturePort, fixture, fixtureToken)
+    await waitForPreview(
+      fixtureServer,
+      `http://127.0.0.1:${fixturePort}/guide/client`,
+      fixtureToken,
+    )
 
     await checkMainApp(mainPage, `http://127.0.0.1:${rootPort}`)
     await checkBasenameFixture(fixturePage, `http://127.0.0.1:${fixturePort}`)
 
     await mainPage.close()
     await fixturePage.close()
+    await stopPreview(fixtureServer)
+
+    for (const shellHydration of ["none", "deferred"]) {
+      await run(ff, ["build"], fixture, {
+        VITE_SHELL_HYDRATION: shellHydration,
+      })
+      const dormantPort = await findPort()
+      const dormantToken = `browser-test-${shellHydration}-${process.pid}-${Date.now()}`
+
+      fixtureServer = startPreview(dormantPort, fixture, dormantToken)
+      await waitForPreview(
+        fixtureServer,
+        `http://127.0.0.1:${dormantPort}/guide/client`,
+        dormantToken,
+      )
+      const dormantPage = await browser.newPage()
+
+      await checkDormantShell(
+        dormantPage,
+        `http://127.0.0.1:${dormantPort}`,
+        shellHydration,
+      )
+      await dormantPage.close()
+      await stopPreview(fixtureServer)
+    }
   } finally {
     await browser?.close()
     await Promise.all([stopPreview(rootServer), stopPreview(fixtureServer)])

@@ -1,7 +1,15 @@
 import { defineApp, route } from "flamefront"
 
+const configuredShellHydration =
+  typeof process === "undefined"
+    ? import.meta.env?.VITE_SHELL_HYDRATION
+    : process.env.VITE_SHELL_HYDRATION
+const shellHydration = (configuredShellHydration ?? "full") as
+  "full" | "deferred" | "none"
+
 export const app = defineApp({
   shell: "/src/BrowserShell.tsrx",
+  shellHydration,
   routing: {
     basename: "/guide",
     dataPath: "/guide/__flamefront/data",

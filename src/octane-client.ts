@@ -31,13 +31,18 @@ export function startOctaneClient<Route extends RouteDefinition>(
     consumeHydrationData: consumeStaticRouterHydrationData,
     createRoutePrefetcher,
     createClientRouter,
-    renderRoot(root, component, props) {
-      const clientRoot = createRoot(root)
+    renderRoot(root, component, props, options) {
+      const clientRoot = createRoot(root, options)
 
       clientRoot.render(component as ComponentBody<RouterDocumentProps>, props)
       return clientRoot
     },
-    hydrateRoot: (root, component, props) =>
-      hydrateRoot(root, component as ComponentBody<RouterDocumentProps>, props),
+    hydrateRoot: (root, component, props, options) =>
+      hydrateRoot(
+        root,
+        component as ComponentBody<RouterDocumentProps>,
+        props,
+        options,
+      ),
   })
 }

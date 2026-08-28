@@ -20,12 +20,18 @@ import {
   type RouteFragmentArtifact,
   type RouteFragmentBoundary,
 } from "./fragment-client.ts"
+import {
+  outletIdentifierPrefix,
+  shellIdentifierPrefix,
+} from "./identifier-prefix.ts"
 
 export type { DocumentMode, RenderedDocument } from "./server.ts"
 
 export interface RouterDocumentProps {
   readonly router: unknown
   readonly context: unknown
+  /** Server-only markup for the independently-owned routed outlet. */
+  readonly outletHtml?: string | null
 }
 
 export type RouterDocument = (props: RouterDocumentProps) => unknown
@@ -74,12 +80,17 @@ export interface OctaneRenderer {
   readonly renderToString: (
     component: RouterDocument,
     props: RouterDocumentProps,
+    options?: { readonly identifierPrefix?: string },
   ) => OctaneRenderResult
   /** Render one generated route boundary directly from the static router tree. */
   readonly renderRouteFragment?: (
     router: unknown,
     context: unknown,
     boundary: string,
+    options?: {
+      readonly identifierPrefix?: string
+      readonly includeBoundary?: boolean
+    },
   ) => OctaneRenderResult
   readonly defaultRouterDocument: RouterDocument
 }
@@ -313,6 +324,47 @@ function routeData(context: StaticDocumentContext): unknown {
   return routeId ? (context.loaderData?.[routeId] ?? null) : null
 }
 
+function remapShellRouteError(
+  route: RouteDefinition | null,
+  context: StaticDocumentContext,
+  metadata: readonly GeneratedRouteMetadata[] | undefined,
+): StaticDocumentContext {
+  if (!route || !context.errors) {
+    return context
+  }
+
+  const chain = fragmentMetadataChain(route, metadata)
+  const shell = chain.find((item) => item.kind === "shell")
+  const outlet = shell ? chain[chain.indexOf(shell) + 1] : undefined
+
+  if (!shell || !outlet || !context.errors[shell.id]) {
+    return context
+  }
+
+  const errors = { ...context.errors }
+  const shellError = errors[shell.id]
+
+  delete errors[shell.id]
+  if (errors[outlet.id] === undefined) {
+    errors[outlet.id] = shellError
+  }
+
+  return {
+    ...context,
+    errors,
+  }
+}
+
+function routerRoutes(value: unknown): readonly unknown[] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined
+  }
+
+  const routes = (value as { readonly routes?: unknown }).routes
+
+  return Array.isArray(routes) ? routes : undefined
+}
+
 function fragmentMetadataChain(
   route: RouteDefinition,
   metadata: readonly GeneratedRouteMetadata[] | undefined,
@@ -365,6 +417,7 @@ function createRouteFragmentArtifact(
       router,
       context,
       item.boundary,
+      { identifierPrefix: outletIdentifierPrefix },
     )
 
     return {
@@ -387,6 +440,48 @@ function createRouteFragmentArtifact(
     hydration: route.hydration,
     status: context.statusCode ?? 200,
   }
+}
+
+function appendCss(documentCss: string, outletCss: string | undefined): string {
+  if (!outletCss || outletCss === documentCss) {
+    return documentCss
+  }
+
+  const tags = new Set(
+    `${documentCss}${outletCss}`.match(/<style\b[^>]*>[\s\S]*?<\/style>/g) ??
+      [],
+  )
+
+  return tags.size === 0 ? `${documentCss}${outletCss}` : [...tags].join("")
+}
+
+function renderDocumentOutlet(
+  route: RouteDefinition | null,
+  context: StaticDocumentContext,
+  router: unknown,
+  renderer: OctaneRenderer,
+  metadata: readonly GeneratedRouteMetadata[] | undefined,
+): { readonly html: string; readonly css: string } | undefined {
+  if (
+    !route ||
+    (route.render !== "server" && route.render !== "static") ||
+    !renderer.renderRouteFragment
+  ) {
+    return undefined
+  }
+
+  const chain = fragmentMetadataChain(route, metadata)
+  const shellIndex = chain.findIndex((item) => item.kind === "shell")
+  const outlet = shellIndex < 0 ? undefined : chain[shellIndex + 1]
+
+  if (!outlet) {
+    return undefined
+  }
+
+  return renderer.renderRouteFragment(router, context, outlet.boundary, {
+    identifierPrefix: outletIdentifierPrefix,
+    includeBoundary: true,
+  })
 }
 
 export function createOctaneDocuments<
@@ -415,6 +510,8 @@ export function createOctaneDocuments<
   const renderRoute = async (
     request: Request,
     mode: DocumentMode,
+    route: RouteDefinition | null,
+    renderOutlet = false,
   ): Promise<{
     readonly router: DocumentRouter
     readonly dataRouter: unknown
@@ -445,17 +542,43 @@ export function createOctaneDocuments<
       throw result
     }
 
-    const context = result.context as StaticDocumentContext
+    const context = remapShellRouteError(
+      route,
+      result.context as StaticDocumentContext,
+      router.routeMetadata,
+    )
+    const dataRouter =
+      context === result.context
+        ? result.router
+        : renderer.createStaticRouter(
+            routerRoutes(result.router) ?? router.routes,
+            context,
+          )
+    const outlet = renderDocumentOutlet(
+      renderOutlet ? route : null,
+      context,
+      dataRouter,
+      renderer,
+      router.routeMetadata,
+    )
+    const documentProps: RouterDocumentProps = {
+      router: dataRouter,
+      context,
+      ...(outlet ? { outletHtml: outlet.html } : {}),
+    }
+    const rendered = renderer.renderToString(routerDocument, documentProps, {
+      identifierPrefix: shellIdentifierPrefix,
+    })
 
     return {
       router,
-      dataRouter: result.router,
+      dataRouter,
       renderer,
       context,
-      rendered: renderer.renderToString(routerDocument, {
-        router: result.router,
-        context: result.context,
-      }),
+      rendered: {
+        ...rendered,
+        css: appendCss(rendered.css, outlet?.css),
+      },
     }
   }
 
@@ -473,6 +596,8 @@ export function createOctaneDocuments<
     const { context: staticContext, rendered } = await renderRoute(
       sanitizedRequest,
       mode,
+      route,
+      true,
     )
     const status = staticContext.statusCode ?? 200
     const compositionContext: DocumentCompositionContext<Route> = {
@@ -516,7 +641,7 @@ export function createOctaneDocuments<
     }
 
     const { router, dataRouter, renderer, rendered, context } =
-      await renderRoute(sanitizedRequest, route.render)
+      await renderRoute(sanitizedRequest, route.render, route)
 
     return createRouteFragmentArtifact(
       route,

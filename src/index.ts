@@ -420,6 +420,8 @@ export type RouteDestination<Path extends string = RoutePath> =
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
   /** Octane/Vite project-root module ID for the persistent app shell. */
   readonly shell: string
+  /** Hydration policy for the persistent shell region. */
+  readonly shellHydration: HydrationMode
   readonly routes: readonly T[]
   readonly routeTree: readonly RouteConfig[]
   readonly hydrationDefaults: NormalizedHydrationDefaults
@@ -473,6 +475,8 @@ const defaultHydrationDefaults: NormalizedHydrationDefaults = Object.freeze({
   server: "full",
   static: "full",
 })
+
+const defaultShellHydration: HydrationMode = "full"
 
 const renderModes: ReadonlySet<unknown> = new Set<RenderMode>([
   "client",
@@ -578,6 +582,15 @@ function normalizeHydrationDefaults(
     server: freezeHydration(server) as HydrationMode,
     static: freezeHydration(staticMode) as HydrationMode,
   })
+}
+
+function normalizeShellHydration(
+  hydration: HydrationMode | undefined,
+): HydrationMode {
+  const normalized = hydration ?? defaultShellHydration
+
+  validateHydrationMode(normalized, "server", "shellHydration")
+  return freezeHydration(normalized) as HydrationMode
 }
 
 export function normalizeRoutingOptions(
@@ -1048,12 +1061,13 @@ export function defineApp<
   const T extends {
     readonly shell: string
     readonly routes: readonly RouteConfig[]
+    readonly shellHydration?: HydrationMode
     readonly hydrationDefaults?: HydrationDefaults
     readonly routing?: RoutingOptions
   },
 >(
   options: T,
-): Omit<T, "routes" | "routing" | "hydrationDefaults"> &
+): Omit<T, "routes" | "routing" | "hydrationDefaults" | "shellHydration"> &
   AppDefinition<RouteLeaves<T["routes"]>> {
   if (
     !options ||
@@ -1068,6 +1082,7 @@ export function defineApp<
   const hydrationDefaults = normalizeHydrationDefaults(
     options.hydrationDefaults,
   )
+  const shellHydration = normalizeShellHydration(options.shellHydration)
   const normalized = normalizeRouteTree(
     options.routes,
     new Set(),
@@ -1087,6 +1102,7 @@ export function defineApp<
 
   const app = Object.freeze({
     ...options,
+    shellHydration,
     hydrationDefaults,
     routes: frozenRoutes,
     routeTree: normalized.tree,
@@ -1105,7 +1121,7 @@ export function defineApp<
 
       await routeDataClient.load(url, source, loadOptions)
     }) as AppDefinition<AppRoute>["prefetch"],
-  }) as Omit<T, "routes" | "routing" | "hydrationDefaults"> &
+  }) as Omit<T, "routes" | "routing" | "hydrationDefaults" | "shellHydration"> &
     AppDefinition<AppRoute>
 
   matcherCache.set(

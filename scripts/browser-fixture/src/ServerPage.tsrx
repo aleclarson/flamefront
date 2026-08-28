@@ -1,4 +1,4 @@
-import { useLoaderData, useLocation } from "@octanejs/remix-router"
+import { Link, useLoaderData, useLocation } from "@octanejs/remix-router"
 import { useState } from "octane"
 import type { LoaderArgs } from "flamefront/server"
 
@@ -38,6 +38,7 @@ export default function ServerPage() @{
       {location.pathname}
       {location.search}
     </p>
+    <Link to="/client">Client</Link>
     <button
       data-testid="fixture-server-counter"
       onClick={() => setCount(count + 1)}

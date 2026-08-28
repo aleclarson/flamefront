@@ -155,6 +155,69 @@ test("normalizes omitted hydration policies to full", () => {
   )
 })
 
+test("normalizes and validates the shell hydration policy", () => {
+  assert.equal(defineApp({ shell, routes: [] }).shellHydration, "full")
+
+  const deferred = defineApp({
+    shell,
+    shellHydration: "deferred",
+    routes: [],
+  })
+
+  assert.equal(deferred.shellHydration, "deferred")
+
+  const none = defineApp({
+    shell,
+    shellHydration: "none",
+    routes: [],
+  })
+
+  assert.equal(none.shellHydration, "none")
+
+  const generated = defineApp({
+    shell,
+    shellHydration: {
+      when: "visible",
+      rootMargin: "240px",
+      threshold: [0, 0.5],
+    },
+    routes: [],
+  })
+
+  assert.deepEqual(generated.shellHydration, {
+    when: "visible",
+    rootMargin: "240px",
+    threshold: [0, 0.5],
+  })
+  assert.equal(Object.isFrozen(generated.shellHydration), true)
+  assert.equal(
+    Object.isFrozen(
+      (generated.shellHydration as { readonly threshold: readonly number[] })
+        .threshold,
+    ),
+    true,
+  )
+
+  assert.throws(
+    () =>
+      defineApp({
+        shell,
+        shellHydration: { when: "media", query: "" },
+        routes: [],
+      }),
+    /shellHydration hydration query must be a non-empty string/,
+  )
+  assert.throws(
+    () =>
+      defineApp({
+        shell,
+        shellHydration: { when: "invalid" } as never,
+        routes: [],
+      }),
+    /shellHydration hydration trigger must be 'idle', 'visible', 'interaction', or 'media'/,
+  )
+})
+
 test("applies app hydration defaults by render mode", () => {
   const app = defineApp({
     shell,

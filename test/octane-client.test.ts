@@ -81,6 +81,7 @@ test("uses one generated router document for server rendering and client hydrati
   const hydratedRoot = { kind: "hydrated" }
   let clientRouterDocument: unknown
   let clientRouterProps: unknown
+  let clientRootOptions: unknown
   const started = startOctaneClientWithRuntime(
     { app },
     {
@@ -93,9 +94,10 @@ test("uses one generated router document for server rendering and client hydrati
       renderRoot() {
         throw new Error("A server route must hydrate its document.")
       },
-      hydrateRoot(_root, component, props) {
+      hydrateRoot(_root, component, props, options) {
         clientRouterDocument = component
         clientRouterProps = props
+        clientRootOptions = options
         return hydratedRoot
       },
     },
@@ -114,6 +116,47 @@ test("uses one generated router document for server rendering and client hydrati
     router: clientRouter,
     context: undefined,
   })
+  assert.deepEqual(clientRootOptions, {
+    identifierPrefix: "flamefront-shell-",
+  })
   assert.equal(unsubscribeCalls, 1)
   assert.equal(client.root, hydratedRoot)
+})
+
+test("uses the shell identifier namespace for client-only mounting", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/client", "/src/Client.tsrx", { render: "client" })],
+  })
+  const state = { initialized: true }
+  const clientRouter = {
+    state,
+    subscribe() {
+      return () => {}
+    },
+  }
+  let clientRootOptions: unknown
+
+  await startOctaneClientWithRuntime(
+    { app },
+    {
+      pathname: "/client",
+      defaultRoot: { id: "root" },
+      routerDocument: () => null,
+      consumeHydrationData: () => ({}),
+      createRoutePrefetcher: () => "prefetch",
+      createClientRouter: () => clientRouter,
+      renderRoot(_root, _component, _props, options) {
+        clientRootOptions = options
+        return { kind: "mounted" }
+      },
+      hydrateRoot() {
+        throw new Error("A client route must mount its document.")
+      },
+    },
+  )
+
+  assert.deepEqual(clientRootOptions, {
+    identifierPrefix: "flamefront-shell-",
+  })
 })

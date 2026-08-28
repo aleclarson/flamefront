@@ -1,4 +1,4 @@
-import { useLoaderData } from "@octanejs/remix-router"
+import { Link, useLoaderData } from "@octanejs/remix-router"
 import type { LoaderArgs } from "flamefront/server"
 
 export async function loader({ request }: LoaderArgs) {
@@ -11,5 +11,6 @@ export default function ClientPage() @{
   <main data-testid="fixture-client">
     Client loader:
     {data.pathname}
+    <Link to="/server">Server</Link>
   </main>
 }

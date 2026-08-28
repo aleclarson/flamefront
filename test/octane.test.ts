@@ -293,10 +293,12 @@ test("renders route fragment boundaries from the route hierarchy", async () => {
     },
   }
   const boundaries: string[] = []
+  const fragmentOptions: unknown[] = []
   const renderer: OctaneRenderer = {
     ...createTestRenderer(),
-    renderRouteFragment: (_router, _context, boundary) => {
+    renderRouteFragment: (_router, _context, boundary, options) => {
       boundaries.push(boundary)
+      fragmentOptions.push(options)
       return {
         html: `<section data-boundary="${boundary}">fragment</section>`,
         css: "",
@@ -310,6 +312,10 @@ test("renders route fragment boundaries from the route hierarchy", async () => {
   )
 
   assert.deepEqual(boundaries, ["shell-boundary", "page-boundary"])
+  assert.deepEqual(fragmentOptions, [
+    { identifierPrefix: "flamefront-outlet-" },
+    { identifierPrefix: "flamefront-outlet-" },
+  ])
   assert.equal(
     fragment.html,
     '<section data-boundary="page-boundary">fragment</section>',
@@ -326,5 +332,98 @@ test("renders route fragment boundaries from the route hierarchy", async () => {
         html: '<section data-boundary="page-boundary">fragment</section>',
       },
     ],
+  )
+})
+
+test("moves a shell-owned route error to the first outlet boundary", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/broken", "/src/Broken.tsrx")],
+  })
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({ default: null }),
+  })
+  const shellError = {
+    status: 500,
+    statusText: "",
+    internal: false,
+    data: "broken",
+  }
+  const context = {
+    loaderData: {},
+    actionData: null,
+    errors: { "shell-id": shellError },
+    statusCode: 500,
+    matches: [{ route: { id: "outlet-id" } }],
+  }
+  let renderedContext: unknown
+  let fragmentContext: unknown
+  const router: DocumentRouter = {
+    routes: [{ id: "root" }],
+    routeMetadata: [
+      {
+        id: "shell-id",
+        boundary: "shell-boundary",
+        kind: "shell",
+        entry: shell,
+        navigation: "router",
+      },
+      {
+        id: "outlet-id",
+        boundary: "outlet-boundary",
+        kind: "route",
+        entry: "/src/Broken.tsrx",
+        path: "/broken",
+        render: "server",
+        navigation: "fragment",
+        parent: "shell-id",
+      },
+    ],
+    async createServerRouter() {
+      return {
+        context,
+        hydrationData: {
+          loaderData: {},
+          actionData: null,
+          errors: context.errors,
+        },
+        router: { routes: [{ id: "root" }] },
+      }
+    },
+  }
+  const renderer: OctaneRenderer = {
+    createStaticRouter: (_routes, nextContext) => ({
+      routes: _routes,
+      context: nextContext,
+    }),
+    renderToString: (_component, props) => {
+      renderedContext = props.context
+      return { html: "<main>broken</main>", css: "" }
+    },
+    renderRouteFragment: (_router, nextContext, boundary) => {
+      if (boundary === "outlet-boundary") {
+        fragmentContext = nextContext
+      }
+
+      return { html: "<main>broken</main>", css: "" }
+    },
+    defaultRouterDocument: () => null,
+  }
+  const documents = createOctaneDocuments({ app, runtime, router, renderer })
+
+  const result = await documents.renderDocument(
+    '<html><head></head><body><div id="root"></div></body></html>',
+    new Request("https://example.test/broken"),
+  )
+
+  assert.equal(result.status, 500)
+  assert.deepEqual(
+    (renderedContext as { errors: Record<string, unknown> }).errors,
+    { "outlet-id": shellError },
+  )
+  assert.deepEqual(
+    (fragmentContext as { errors: Record<string, unknown> }).errors,
+    { "outlet-id": shellError },
   )
 })

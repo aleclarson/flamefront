@@ -350,6 +350,25 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
   assert.match(source, /export const routeMetadata = \[/)
 })
 
+test("emits the normalized shell hydration policy in generated metadata", () => {
+  const app = defineApp({
+    shell: "/src/AppShell.tsrx",
+    shellHydration: "deferred",
+    routes: [route("/server", "/src/Server.tsrx")],
+  })
+  const source = generateRemixRoutes(app)
+
+  assert.match(
+    source,
+    /"kind":"shell","entry":"\/src\/AppShell\.tsrx","navigation":"router","hydration":"deferred"/,
+  )
+  assert.match(
+    source,
+    /createRouteBoundary\(Shell, \{[\s\S]*"kind":"shell"[\s\S]*"hydration":"deferred"\}\)/,
+  )
+  assert.doesNotMatch(source, /shellHydration.*idle/)
+})
+
 test("marks static routes for fragment navigation and excludes them from module preloaders", () => {
   const app = defineApp({
     shell: "/src/AppShell.tsrx",

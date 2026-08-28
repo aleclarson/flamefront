@@ -1,5 +1,6 @@
 import type { AppDefinition, RouteDefinition } from "./index.ts"
 import type { RouterDocument, RouterDocumentProps } from "./octane.tsx"
+import { shellIdentifierPrefix } from "./identifier-prefix.ts"
 
 export type OctaneClientApp<Route extends RouteDefinition = RouteDefinition> =
   Pick<AppDefinition<Route>, "match" | "prefetch">
@@ -48,11 +49,13 @@ export interface OctaneClientRuntime<
     container: Container,
     component: RouterDocument,
     props: RouterDocumentProps,
+    options?: { readonly identifierPrefix?: string },
   ): Root
   hydrateRoot(
     container: Container,
     component: RouterDocument,
     props: RouterDocumentProps,
+    options?: { readonly identifierPrefix?: string },
   ): Root
 }
 
@@ -127,8 +130,12 @@ export async function startOctaneClientWithRuntime<
   const routerDocument = options.routerDocument ?? runtime.routerDocument
   const props: RouterDocumentProps = { router, context: undefined }
   const clientRoot = shouldHydrate
-    ? runtime.hydrateRoot(root, routerDocument, props)
-    : runtime.renderRoot(root, routerDocument, props)
+    ? runtime.hydrateRoot(root, routerDocument, props, {
+        identifierPrefix: shellIdentifierPrefix,
+      })
+    : runtime.renderRoot(root, routerDocument, props, {
+        identifierPrefix: shellIdentifierPrefix,
+      })
 
   return { router, root: clientRoot }
 }
