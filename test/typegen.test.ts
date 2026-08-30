@@ -7,6 +7,7 @@ import { defineApp, route } from "../src/index.ts"
 import {
   flamefrontTypesDirectory,
   generateProjectTypes,
+  markdownModuleTypesFile,
   generateRouteImportMap,
   routeImportMapFile,
 } from "../src/typegen.ts"
@@ -54,6 +55,10 @@ test("evaluates a project manifest and writes stable declarations", async () => 
     const first = await generateProjectTypes({ root })
     const second = await generateProjectTypes({ root })
     const generated = await readFile(first.file, "utf8")
+    const generatedMarkdownTypes = await readFile(
+      path.join(root, flamefrontTypesDirectory, markdownModuleTypesFile),
+      "utf8",
+    )
 
     assert.equal(
       first.file,
@@ -63,6 +68,8 @@ test("evaluates a project manifest and writes stable declarations", async () => 
     assert.equal(second.written, false)
     assert.equal(generated, first.source)
     assert.match(generated, /typeof import\("\.\.\/\.\.\/src\/One\.tsrx"\)/)
+    assert.match(generatedMarkdownTypes, /declare module "\*\.md"/)
+    assert.match(generatedMarkdownTypes, /declare module "\*\.mdx"/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

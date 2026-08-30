@@ -86,7 +86,11 @@ export interface GeneratedRouteMetadata {
   readonly hydration?: HydrationMode
 }
 
+export type RouteContent = "component" | "markdown"
+
 export interface RouteOptions {
+  /** The route entry's authored content shape. Omit for an Octane component. */
+  readonly content?: RouteContent
   readonly render?: RenderMode
   readonly hydration?: HydrationMode
 }
@@ -858,6 +862,16 @@ function validateRoute(
 
   assertString(routeDefinition.entry, `route ${location} entry`)
 
+  if (
+    routeDefinition.content !== undefined &&
+    routeDefinition.content !== "component" &&
+    routeDefinition.content !== "markdown"
+  ) {
+    throw new TypeError(
+      `flamefront route ${location} content must be 'component' or 'markdown'.`,
+    )
+  }
+
   if (!renderModes.has(routeDefinition.render)) {
     throw new TypeError(
       `flamefront route ${location} render must be 'client', 'server', or 'static'.`,
@@ -907,6 +921,22 @@ export function staticRoute<
   options: Omit<RouteOptions, "render"> = {},
 ): RouteDefinition<Path, Entry> {
   return route(path, entry, { ...options, render: "static" })
+}
+
+/** Shorthand for a static route backed by a Sätteri `.md` entry. */
+export function markdownRoute<
+  const Path extends string,
+  const Entry extends string,
+>(
+  path: Path,
+  entry: Entry,
+  options: Omit<RouteOptions, "content"> = {},
+): RouteDefinition<Path, Entry> & { readonly content: "markdown" } {
+  return route(path, entry, {
+    ...options,
+    content: "markdown",
+    render: options.render ?? "static",
+  }) as RouteDefinition<Path, Entry> & { readonly content: "markdown" }
 }
 
 /** Shorthand for a route with `render: "client"`. */

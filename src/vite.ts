@@ -1,6 +1,9 @@
 import fs from "node:fs"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
+import { compile as compileOctane } from "octane/compiler"
+import type { Features, HastPluginList, MdastPluginList } from "satteri"
+import vitePluginSatteri, { type MdxOptions } from "vite-plugin-satteri"
 import type {
   AppDefinition,
   GeneratedHydration,
@@ -20,6 +23,8 @@ export const serverRoutesId = "virtual:flamefront/server-routes"
 const resolvedServerRoutesId = `\0${serverRoutesId}`
 const hydrationRouteId = "/@flamefront/hydration-route.tsrx"
 const resolvedHydrationRoutePrefix = `${hydrationRouteId}?`
+const markdownRouteId = "/@flamefront/markdown-route.tsrx"
+const resolvedMarkdownRoutePrefix = `${markdownRouteId}?`
 const SERVER_ONLY_ROUTE_EXPORTS = ["loader"] as const
 const serverFilePattern = /\.server(?:\.[cm]?[jt]sx?|\.tsrx)$/
 const serverDirectoryPattern = /\/\.server\//
@@ -27,6 +32,20 @@ const serverDirectoryPattern = /\/\.server\//
 export interface FlamefrontOptions {
   /** Project-root route manifest module. */
   readonly routes?: string
+  /** Built-in Markdown and MDX compiler configuration. */
+  readonly markdown?: false | MarkdownOptions
+}
+
+export interface MarkdownOptions {
+  /** Parser feature toggles. GFM and frontmatter are enabled by default. */
+  readonly features?: Features
+  /** MDAST plugins shared by Markdown and MDX entries. */
+  readonly mdastPlugins?: MdastPluginList
+  /** HAST plugins shared by Markdown and MDX entries. */
+  readonly hastPlugins?: HastPluginList
+  /** MDX compiler options; its JSX import source is always `octane`. */
+  readonly mdx?:
+    boolean | Omit<MdxOptions, "jsxImportSource" | "jsx" | "jsxRuntime">
 }
 
 function quote(value: string): string {
@@ -62,10 +81,24 @@ function hydrationComponentId(
   return `${hydrationRouteId}?${parameters}`
 }
 
+function markdownComponentId(entry: string): string {
+  const parameters = new URLSearchParams({
+    entry,
+    "flamefront-markdown": "1",
+  })
+
+  return `${markdownRouteId}?${parameters}`
+}
+
 function browserRouteModuleId(routeDefinition: RouteDefinition): string {
+  const componentEntry =
+    routeDefinition.content === "markdown"
+      ? markdownComponentId(routeDefinition.entry)
+      : routeDefinition.entry
+
   return generatesHydrationBoundary(routeDefinition)
-    ? hydrationComponentId(routeDefinition.entry, routeDefinition.hydration)
-    : routeDefinition.entry
+    ? hydrationComponentId(componentEntry, routeDefinition.hydration)
+    : componentEntry
 }
 
 function generatedRouteId(kind: "layout" | "route", location: string): string {
@@ -169,6 +202,12 @@ function lazyRoute(
   }
 
   if (routeDefinition.render === "client") {
+    if (routeDefinition.content === "markdown") {
+      const componentId = browserRouteModuleId(routeDefinition)
+
+      return `async () => { if (import.meta.env.SSR) return {}; const componentModule = await import(${quote(componentId)}); return { Component: createRouteBoundary(componentModule.default, ${JSON.stringify(metadata)}), loader: ${browserLoaderExpression} }; }`
+    }
+
     return `async () => { if (import.meta.env.SSR) return {}; const routeModule = await import(${quote(entry)}); return { Component: createRouteBoundary(routeModule.default, ${JSON.stringify(metadata)}), loader: ${browserLoaderExpression} }; }`
   }
 
@@ -302,6 +341,11 @@ function hydrationStrategy(hydration: GeneratedHydration | "none"): {
   }
 }
 
+/** Generate the component adapter used when a route entry exports HTML. */
+export function generateMarkdownRoute(entry: string): string {
+  return `import html from ${quote(entry)};\n\nexport default function MarkdownRoute() @{\n\t<div dangerouslySetInnerHTML={{ __html: html }} />\n}\n`
+}
+
 export function generateHydrationRoute(
   entry: string,
   hydration: GeneratedHydration | "none",
@@ -321,7 +365,9 @@ interface ResolveOptions extends TransformOptions {
 }
 
 interface PluginContext {
-  readonly environment?: { readonly config?: { readonly consumer?: string } }
+  readonly environment?: {
+    readonly config?: { readonly command?: string; readonly consumer?: string }
+  }
   resolve(
     id: string,
     importer: string | undefined,
@@ -587,6 +633,10 @@ export function flamefront(options: FlamefrontOptions = {}) {
         return id
       }
 
+      if (id.startsWith(resolvedMarkdownRoutePrefix)) {
+        return id
+      }
+
       if (
         resolveOptions.scan ||
         isServerEnvironment(this, resolveOptions) ||
@@ -654,6 +704,17 @@ export function flamefront(options: FlamefrontOptions = {}) {
         )
       }
 
+      if (id.startsWith(resolvedMarkdownRoutePrefix)) {
+        const parameters = new URLSearchParams(id.slice(id.indexOf("?") + 1))
+        const entry = parameters.get("entry")
+
+        if (!entry) {
+          throw new TypeError("Flamefront Markdown route is missing its entry.")
+        }
+
+        return generateMarkdownRoute(entry)
+      }
+
       return null
     },
   }
@@ -707,5 +768,60 @@ export function flamefront(options: FlamefrontOptions = {}) {
     },
   }
 
-  return [frameworkModulesPlugin, routeModulePlugin] as const
+  const markdownPlugin =
+    options.markdown === false
+      ? undefined
+      : vitePluginSatteri({
+          ...(options.markdown ?? {}),
+          features: {
+            gfm: true,
+            frontmatter: true,
+            ...options.markdown?.features,
+          },
+          mdx:
+            options.markdown?.mdx === false
+              ? false
+              : {
+                  ...(typeof options.markdown?.mdx === "object"
+                    ? options.markdown.mdx
+                    : {}),
+                  jsx: true,
+                  jsxImportSource: "octane",
+                  jsxRuntime: "automatic",
+                },
+        })
+
+  const mdxCompilerPlugin =
+    options.markdown === false || options.markdown?.mdx === false
+      ? undefined
+      : {
+          name: "flamefront:markdown-mdx",
+          async transform(
+            this: PluginContext,
+            source: string,
+            id: string,
+            transformOptions?: TransformOptions,
+          ): Promise<{ code: string; map: object | null } | null> {
+            if (!cleanModuleId(id).endsWith(".mdx")) {
+              return null
+            }
+
+            const server = isServerEnvironment(this, transformOptions)
+            const command = this.environment?.config?.command
+            const compiled = compileOctane(source, id, {
+              dev: command === "serve",
+              hmr: command === "serve" && !server ? "vite" : false,
+              mode: server ? "server" : "client",
+            })
+
+            return { code: compiled.code, map: compiled.map }
+          },
+        }
+
+  return [
+    frameworkModulesPlugin,
+    routeModulePlugin,
+    markdownPlugin,
+    mdxCompilerPlugin,
+  ] as const
 }

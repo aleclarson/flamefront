@@ -3,10 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { test } from "vitest"
-import { defineApp, layout, route } from "../src/index.ts"
+import { defineApp, layout, markdownRoute, route } from "../src/index.ts"
 import {
   flamefront,
   generateHydrationRoute,
+  generateMarkdownRoute,
   generateRemixRoutes,
   generateServerRoutes,
   omitRouteSourceContent,
@@ -367,6 +368,40 @@ test("emits the normalized shell hydration policy in generated metadata", () => 
     /createRouteBoundary\(Shell, \{[\s\S]*"kind":"shell"[\s\S]*"hydration":"deferred"\}\)/,
   )
   assert.doesNotMatch(source, /shellHydration.*idle/)
+})
+
+test("adapts Markdown route entries to components", () => {
+  const app = defineApp({
+    shell: "/src/AppShell.tsrx",
+    routes: [markdownRoute("/docs", "/content/docs.md")],
+  })
+  const source = generateRemixRoutes(app)
+  const componentEntry =
+    "/@flamefront/markdown-route.tsrx?entry=%2Fcontent%2Fdocs.md&flamefront-markdown=1"
+
+  assert.ok(source.includes(`import("${componentEntry}")`))
+  assert.match(source, /import\("\/content\/docs\.md"\)/)
+  assert.match(
+    generateMarkdownRoute("/content/docs.md"),
+    /import html from "\/content\/docs\.md";/,
+  )
+  assert.match(
+    generateMarkdownRoute("/content/docs.md"),
+    /dangerouslySetInnerHTML=\{\{ __html: html \}\}/,
+  )
+})
+
+test("includes Sätteri by default and supports disabling Markdown transforms", () => {
+  const plugins = flamefront()
+  const markdownDisabled = flamefront({ markdown: false })
+  const mdxDisabled = flamefront({ markdown: { mdx: false } })
+
+  assert.equal(plugins[2]?.name, "vite-plugin-satteri")
+  assert.equal(plugins[3]?.name, "flamefront:markdown-mdx")
+  assert.equal(markdownDisabled[2], undefined)
+  assert.equal(markdownDisabled[3], undefined)
+  assert.equal(mdxDisabled[2]?.name, "vite-plugin-satteri")
+  assert.equal(mdxDisabled[3], undefined)
 })
 
 test("marks static routes for fragment navigation and excludes them from module preloaders", () => {

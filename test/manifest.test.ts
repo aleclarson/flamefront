@@ -4,6 +4,7 @@ import {
   clientRoute,
   defineApp,
   layout,
+  markdownRoute,
   route,
   serverRoute,
   staticRoute,
@@ -129,6 +130,43 @@ test("defines routes with render-mode shorthands", () => {
     () => clientRoute("/invalid", "/src/Invalid.tsrx", { hydration: "none" }),
     /client hydration can only be 'full'/,
   )
+})
+
+test("defines Markdown routes with static rendering by default", () => {
+  const markdown = markdownRoute("/guide", "/content/guide.md")
+
+  assert.deepEqual(
+    {
+      path: markdown.path,
+      entry: markdown.entry,
+      content: markdown.content,
+      render: markdown.render,
+      hydration: markdown.hydration,
+    },
+    {
+      path: "/guide",
+      entry: "/content/guide.md",
+      content: "markdown",
+      render: "static",
+      hydration: undefined,
+    },
+  )
+  assert.equal(Object.isFrozen(markdown), true)
+
+  const serverMarkdown = markdownRoute(
+    "/server-guide",
+    "/content/server-guide.md",
+    { render: "server", hydration: "none" },
+  )
+
+  assert.equal(serverMarkdown.content, "markdown")
+  assert.equal(serverMarkdown.render, "server")
+  assert.equal(serverMarkdown.hydration, "none")
+
+  const app = defineApp({ shell, routes: [markdown] })
+
+  assert.equal(app.routes[0].content, "markdown")
+  assert.equal(app.routes[0].hydration, "full")
 })
 
 test("normalizes omitted hydration policies to full", () => {

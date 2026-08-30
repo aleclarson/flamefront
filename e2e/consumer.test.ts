@@ -221,6 +221,8 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
       [
         { path: "/", render: "server" },
         { path: "/about", render: "static" },
+        { path: "/guide", render: "static" },
+        { path: "/mdx", render: "static" },
       ],
     )
 
@@ -246,6 +248,8 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
     await assertFile(resolve(consumer, "dist/client/index.html"))
     await assertFile(resolve(consumer, "dist/server/server.js"))
     await assertFile(resolve(consumer, "dist/client/about/index.html"))
+    await assertFile(resolve(consumer, "dist/client/guide/index.html"))
+    await assertFile(resolve(consumer, "dist/client/mdx/index.html"))
 
     const previewPort = await findPort()
     const preview = startServer(ff, ["preview"], consumer, previewPort)
@@ -261,6 +265,20 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
 
       assert.equal(aboutResponse.status, 200)
       assert.match(await aboutResponse.text(), /data-testid="consumer-about"/)
+
+      const guideResponse = await waitForResponse(preview, `${base}/guide`)
+
+      assert.equal(guideResponse.status, 200)
+      const guideHtml = await guideResponse.text()
+
+      assert.match(guideHtml, /<h1>Consumer guide<\/h1>/)
+      assert.match(guideHtml, /<table>/)
+      assert.doesNotMatch(guideHtml, /title: Consumer guide/)
+
+      const mdxResponse = await waitForResponse(preview, `${base}/mdx`)
+
+      assert.equal(mdxResponse.status, 200)
+      assert.match(await mdxResponse.text(), /<h1>Consumer MDX<\/h1>/)
 
       const dataUrl = new URL(`${base}/__flamefront/data`)
 

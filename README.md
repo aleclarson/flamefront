@@ -25,7 +25,8 @@ pnpm add \
 `@octanejs/remix-router` is an optional peer of Flamefront, but the
 quickstart uses it for `Outlet`, `Link`, and loader data. The
 `@octanejs/vite-plugin` package compiles TSRX and must be installed alongside
-the Flamefront Vite plugin.
+the Flamefront Vite plugin. Flamefront includes its Sätteri integration, so
+Markdown support does not require a separate Vite plugin installation.
 
 The app must use ESM and keep its route manifest at `src/app.ts`. The
 server entry and browser entry can be placed elsewhere, but the commands
@@ -330,6 +331,32 @@ option. Each accepts the same path and entry arguments as `route`, plus an
 optional options object for `hydration`. Use `route` when an explicit
 `render` option reads better.
 
+`markdownRoute(path, entry, options)` is the `.md` shorthand. It marks the
+entry as Markdown and defaults to `render: "static"`; `render` and `hydration`
+can still be overridden:
+
+```ts
+import { markdownRoute } from "flamefront"
+
+markdownRoute("/guide", "/src/Guide.md")
+markdownRoute("/release-notes", "/src/ReleaseNotes.md", {
+  render: "server",
+})
+```
+
+Use ordinary `route` for `.mdx` entries because MDX already exports an Octane
+component. There is no separate `mdxRoute` helper:
+
+```ts
+import { route } from "flamefront"
+
+route("/components", "/src/Components.mdx", { render: "static" })
+```
+
+Markdown routes are compiled by the built-in Sätteri Vite integration. A
+`.md` entry exports HTML and is adapted to an Octane component for route
+rendering; a `.mdx` entry exports its compiled Octane component directly.
+
 Every Flamefront document has two framework-owned regions: the persistent shell
 and the routed outlet rendered by the shell's `<Outlet />`. They remain separate
 ownership regions while sharing one generated router document and one
@@ -402,10 +429,11 @@ particular render mode. Flamefront delegates route grammar and specificity to
 
 ### Generated route types
 
-Flamefront writes `.flamefront/types/route-import-map.d.ts` during Vite
-startup and build. Run `ff typegen` before a standalone editor or TypeScript
-check when Vite is not running. Add `.flamefront/types` to `tsconfig.json`
-`include`; the directory is generated output and should stay ignored by Git.
+Flamefront writes `.flamefront/types/route-import-map.d.ts` and
+`.flamefront/types/markdown-modules.d.ts` during Vite startup and build. Run
+`ff typegen` before a standalone editor or TypeScript check when Vite is not
+running. Add `.flamefront/types` to `tsconfig.json` `include`; the directory
+is generated output and should stay ignored by Git.
 
 The declaration contains one relationship: each authored route pattern points
 to its `typeof import(...)` route module. It does not copy route metadata or
@@ -622,6 +650,31 @@ export default {
   plugins: [flamefront(), octane()],
 }
 ```
+
+`flamefront()` includes `vite-plugin-satteri` by default. It transforms both
+`.md` and `.mdx` entries and enables GFM and frontmatter by default. Configure
+the parser with the public `markdown` option bag:
+
+```ts
+import { flamefront } from "flamefront/vite"
+
+export default {
+  plugins: [
+    flamefront({
+      markdown: {
+        features: { math: true },
+      },
+    }),
+    octane(),
+  ],
+}
+```
+
+The `markdown` options are passed to Sätteri for both Markdown and MDX. Use
+`markdown.mdx` for additional MDX compiler options or set it to `false` to
+disable only MDX. The MDX JSX runtime is fixed to Octane, which is the only
+supported Flamefront renderer. Set `markdown: false` only when an application
+intentionally wants to disable Flamefront's built-in Markdown integration.
 
 Files and directories named `.server` are rejected if they remain reachable
 from client code after loader removal. This turns accidental server imports

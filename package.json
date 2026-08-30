@@ -42,7 +42,9 @@
     "@babel/types": "^7.29.8",
     "@remix-run/route-pattern": "0.24.0",
     "babel-dead-code-elimination": "^1.0.12",
-    "srvx": "0.12.5"
+    "satteri": "^0.10.5",
+    "srvx": "0.12.5",
+    "vite-plugin-satteri": "^0.3.5"
   },
   "devDependencies": {
     "@types/babel__generator": "^7.27.0",
