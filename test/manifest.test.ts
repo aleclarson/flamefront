@@ -1,14 +1,20 @@
 import assert from "node:assert/strict"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import { test } from "vitest"
 import {
   clientRoute,
   defineApp,
+  glob,
+  joinRoutePath,
   layout,
   markdownRoute,
   route,
   serverRoute,
   staticRoute,
 } from "../src/index.ts"
+import { setGlobRoot } from "../src/glob.ts"
 
 const shell = "/src/AppShell.tsrx"
 
@@ -167,6 +173,75 @@ test("defines Markdown routes with static rendering by default", () => {
 
   assert.equal(app.routes[0].content, "markdown")
   assert.equal(app.routes[0].hydration, "full")
+})
+
+test("expands project-root globs into concrete routes with directory indexes", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "flamefront-glob-"))
+
+  try {
+    await mkdir(path.join(root, "src/docs/guides"), { recursive: true })
+    await writeFile(path.join(root, "src/docs/index.md"), "# Docs")
+    await writeFile(path.join(root, "src/docs/guides/index.md"), "# Guides")
+    await writeFile(path.join(root, "src/docs/guides/install.md"), "# Install")
+    setGlobRoot(root)
+
+    const files = glob("/src/docs/**/*.md", (file) => file)
+
+    assert.deepEqual(files, [
+      {
+        path: "/src/docs/guides/index.md",
+        relativePath: "guides/index.md",
+        route: "guides",
+      },
+      {
+        path: "/src/docs/guides/install.md",
+        relativePath: "guides/install.md",
+        route: "guides/install",
+      },
+      {
+        path: "/src/docs/index.md",
+        relativePath: "index.md",
+        route: "",
+      },
+    ])
+
+    const docs = glob("/src/docs/**/*.md", (file) =>
+      markdownRoute(joinRoutePath("/docs", file.route), file.path),
+    )
+
+    assert.deepEqual(
+      docs.map(({ path: routePath, entry }) => ({ path: routePath, entry })),
+      [
+        { path: "/docs/guides", entry: "/src/docs/guides/index.md" },
+        {
+          path: "/docs/guides/install",
+          entry: "/src/docs/guides/install.md",
+        },
+        { path: "/docs", entry: "/src/docs/index.md" },
+      ],
+    )
+    assert.equal(Object.isFrozen(docs), true)
+
+    const app = defineApp({ shell, routes: docs })
+
+    assert.deepEqual(
+      app.routes.map(({ path: routePath }) => routePath),
+      ["/docs/guides", "/docs/guides/install", "/docs"],
+    )
+
+    await writeFile(path.join(root, "src/docs/guides.md"), "# Guides")
+    const collidingDocs = glob("/src/docs/**/*.md", (file) =>
+      markdownRoute(joinRoutePath("/docs", file.route), file.path),
+    )
+
+    assert.throws(
+      () => defineApp({ shell, routes: collidingDocs }),
+      /flamefront route path is duplicated: \/docs\/guides/,
+    )
+  } finally {
+    setGlobRoot(undefined)
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test("normalizes omitted hydration policies to full", () => {

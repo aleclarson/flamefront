@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import type { AppDefinition } from "./index.ts"
+import { setGlobRoot } from "./glob.ts"
 
 /** Directory containing declarations generated for the current application. */
 export const flamefrontTypesDirectory = ".flamefront/types"
@@ -177,6 +178,7 @@ async function loadManifest(
 
   manifestRevision += 1
   url.searchParams.set("flamefront-typegen", String(manifestRevision))
+  setGlobRoot(root)
   const module = (await import(url.href)) as AppModule
   const app = module.app ?? module.default
 

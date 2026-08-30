@@ -353,6 +353,34 @@ import { route } from "flamefront"
 route("/components", "/src/Components.mdx", { render: "static" })
 ```
 
+For file-backed route sets, `glob(pattern, map)` expands a project-root glob
+into concrete route definitions. The mapper receives the importable `path`, a
+`relativePath` from the glob's static directory, and an extension-stripped
+`route` fragment. `index.md` maps to its containing directory:
+
+```ts
+import { defineApp, glob, joinRoutePath, markdownRoute } from "flamefront"
+
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  routes: glob("/src/docs/**/*.md", (file) =>
+    markdownRoute(joinRoutePath("/docs", file.route), file.path),
+  ),
+})
+```
+
+For example, `/src/docs/index.md` becomes `/docs`, while
+`/src/docs/guides/install.md` becomes `/docs/guides/install`. Generated route
+paths must be unique. Use the same primitive for MDX with ordinary `route`:
+
+```ts
+import { glob, joinRoutePath, route } from "flamefront"
+
+glob("/src/docs/**/*.mdx", (file) =>
+  route(joinRoutePath("/docs", file.route), file.path, { render: "static" }),
+)
+```
+
 Markdown routes are compiled by the built-in Sätteri Vite integration. A
 `.md` entry exports HTML and is adapted to an Octane component for route
 rendering; a `.mdx` entry exports its compiled Octane component directly.

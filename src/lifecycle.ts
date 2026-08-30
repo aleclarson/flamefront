@@ -26,6 +26,7 @@ import {
   routeFragmentProtocol,
   type RouteFragmentArtifact,
 } from "./fragment-client.ts"
+import { setGlobRoot } from "./glob.ts"
 
 export {
   staticRouteFile,
@@ -65,6 +66,7 @@ export async function loadProject(
   const url = pathToFileURL(routesFile)
 
   url.searchParams.set("ff", String(Date.now()))
+  setGlobRoot(root)
   const module = (await import(url.href)) as AppModule
   const app = module.app ?? module.default
 

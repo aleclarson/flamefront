@@ -12,6 +12,9 @@ import type { HydrationInteractionEvents } from "octane/hydration"
 import { createRouteDataClient } from "./route-data-client.ts"
 import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
 
+export { glob } from "./glob.ts"
+export type { GlobFile } from "./glob.ts"
+
 export type RenderMode = "client" | "server" | "static"
 
 export interface RoutingOptions {
@@ -661,6 +664,44 @@ export function routeHref<const Path extends RoutePath>(
 
 /** Alias for callers that prefer the `create*` naming convention. */
 export const createRouteHref = routeHref
+
+/** Join a route prefix with a glob-provided route fragment. */
+export function joinRoutePath(prefix: string, suffix: string): string {
+  if (typeof prefix !== "string" || prefix.length === 0) {
+    throw new TypeError("flamefront route prefix must be a non-empty string.")
+  }
+
+  if (!prefix.startsWith("/")) {
+    throw new TypeError("flamefront route prefix must start with '/'.")
+  }
+
+  if (typeof suffix !== "string") {
+    throw new TypeError("flamefront route suffix must be a string.")
+  }
+
+  if (prefix.includes("?") || prefix.includes("#")) {
+    throw new TypeError(
+      "flamefront route prefix must be a pathname without a query or hash.",
+    )
+  }
+
+  if (suffix.includes("?") || suffix.includes("#")) {
+    throw new TypeError(
+      "flamefront route suffix must be a pathname without a query or hash.",
+    )
+  }
+
+  const normalizedPrefix = prefix.replace(/\/+$/, "") || "/"
+  const normalizedSuffix = suffix.replace(/^\/+|\/+$/g, "")
+
+  if (!normalizedSuffix) {
+    return normalizedPrefix
+  }
+
+  return normalizedPrefix === "/"
+    ? `/${normalizedSuffix}`
+    : `${normalizedPrefix}/${normalizedSuffix}`
+}
 
 function assertString(value: unknown, name: string): asserts value is string {
   if (typeof value !== "string" || value.length === 0) {

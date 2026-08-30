@@ -391,6 +391,37 @@ test("adapts Markdown route entries to components", () => {
   )
 })
 
+test("expands route-manifest globs before browser bundling", async () => {
+  const testPlugins = await createTestPlugins()
+  const docsDirectory = path.join(testPlugins.root, "src/docs")
+
+  await mkdir(path.join(docsDirectory, "guides"), { recursive: true })
+  await writeFile(path.join(docsDirectory, "index.md"), "# Docs")
+  await writeFile(path.join(docsDirectory, "guides/install.md"), "# Install")
+
+  try {
+    const transformed = testPlugins.frameworkPlugin.transform(
+      `import { defineApp, glob, markdownRoute } from "flamefront"
+
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  routes: glob("/src/docs/**/*.md", (file) =>
+    markdownRoute("/docs/" + file.route, file.path),
+  ),
+})
+`,
+      path.join(testPlugins.root, "src/app.ts"),
+    )
+
+    assert.ok(transformed)
+    assert.match(transformed.code, /"path":"\/src\/docs\/index\.md"/)
+    assert.match(transformed.code, /"path":"\/src\/docs\/guides\/install\.md"/)
+    assert.doesNotMatch(transformed.code, /\/src\/docs\/\*\*\/\*\.md/)
+  } finally {
+    await testPlugins.cleanup()
+  }
+})
+
 test("includes Sätteri by default and supports disabling Markdown transforms", () => {
   const plugins = flamefront()
   const markdownDisabled = flamefront({ markdown: false })

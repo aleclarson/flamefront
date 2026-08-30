@@ -12,7 +12,8 @@ import type {
   RouteConfig,
   RouteDefinition,
 } from "./index.ts"
-import { generate, parse } from "./babel.ts"
+import { generate, parse, traverse, type Babel } from "./babel.ts"
+import { expandGlob, globDirectory, setGlobRoot } from "./glob.ts"
 import { removeExports } from "./remove-exports.ts"
 import { writeRouteImportMap } from "./typegen.ts"
 
@@ -397,6 +398,139 @@ function cleanModuleId(id: string): string {
   return id.split("?", 1)[0].replaceAll("\\", "/")
 }
 
+interface ManifestGlobTransform {
+  readonly code: string
+  readonly map: null
+  readonly directories: readonly string[]
+}
+
+interface TextReplacement {
+  readonly end: number
+  readonly start: number
+  readonly text: string
+}
+
+function staticStringArgument(
+  argument: Babel.Node | undefined,
+): string | undefined {
+  if (!argument) {
+    return undefined
+  }
+
+  if (argument.type === "StringLiteral") {
+    return argument.value
+  }
+
+  if (
+    argument.type === "TemplateLiteral" &&
+    argument.expressions.length === 0
+  ) {
+    return argument.quasis[0]?.value.cooked ?? ""
+  }
+
+  return undefined
+}
+
+function transformManifestGlobs(
+  source: string,
+  id: string,
+  root: string,
+): ManifestGlobTransform | null {
+  const ast = parse(source, {
+    sourceFilename: id,
+    sourceType: "module",
+    plugins: ["typescript", "jsx"],
+  })
+  const globBindings = new Set<string>()
+
+  traverse(ast, {
+    ImportDeclaration(path) {
+      if (path.node.source.value !== "flamefront") {
+        return
+      }
+
+      for (const specifier of path.node.specifiers) {
+        if (specifier.type !== "ImportSpecifier") {
+          continue
+        }
+
+        const imported = specifier.imported
+        const importedName =
+          imported.type === "Identifier" ? imported.name : imported.value
+
+        if (importedName === "glob") {
+          globBindings.add(specifier.local.name)
+        }
+      }
+    },
+  })
+
+  if (globBindings.size === 0) {
+    return null
+  }
+
+  const replacements: TextReplacement[] = []
+  const directories = new Set<string>()
+
+  traverse(ast, {
+    CallExpression(path) {
+      const callee = path.node.callee
+
+      if (callee.type !== "Identifier" || !globBindings.has(callee.name)) {
+        return
+      }
+
+      const argument = path.node.arguments[0]
+      const pattern = staticStringArgument(argument)
+
+      if (pattern === undefined) {
+        throw new TypeError(
+          `flamefront glob() in ${id} requires a string-literal pattern.`,
+        )
+      }
+
+      if (
+        typeof argument?.start !== "number" ||
+        typeof argument.end !== "number"
+      ) {
+        throw new TypeError(`flamefront glob() in ${id} has no source range.`)
+      }
+
+      const files = expandGlob(root, pattern)
+
+      replacements.push({
+        start: argument.start,
+        end: argument.end,
+        text: JSON.stringify(files),
+      })
+      directories.add(globDirectory(root, pattern))
+    },
+  })
+
+  if (replacements.length === 0) {
+    return null
+  }
+
+  const code = [...replacements]
+    .sort((left, right) => right.start - left.start)
+    .reduce(
+      (result, replacement) =>
+        `${result.slice(0, replacement.start)}${replacement.text}${result.slice(replacement.end)}`,
+      source,
+    )
+
+  return { code, map: null, directories: [...directories] }
+}
+
+function isPathWithinDirectory(directory: string, candidate: string): boolean {
+  const relative = path.relative(directory, candidate)
+
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  )
+}
+
 function isServerEnvironment(
   context: PluginContext,
   options?: TransformOptions,
@@ -529,6 +663,7 @@ export function flamefront(options: FlamefrontOptions = {}) {
   let serverBuild = false
   let appPromise: Promise<AppDefinition> | undefined
   let manifestRevision = 0
+  let manifestGlobDirectories: readonly string[] = []
   const manifestId = options.routes ?? "/src/app.ts"
   const manifestPath = () =>
     path.resolve(
@@ -539,6 +674,7 @@ export function flamefront(options: FlamefrontOptions = {}) {
     const manifestUrl = new URL(pathToFileURL(manifestPath()))
 
     manifestUrl.searchParams.set("flamefront", String(manifestRevision))
+    setGlobRoot(root)
     appPromise ??= import(manifestUrl.href).then((module) => {
       const app = module.app ?? module.default
 
@@ -571,6 +707,18 @@ export function flamefront(options: FlamefrontOptions = {}) {
     async buildStart() {
       await generateTypes()
     },
+    transform(source: string, id: string) {
+      if (cleanModuleId(id) !== manifestPath()) {
+        return null
+      }
+
+      const transformed = transformManifestGlobs(source, id, root)
+
+      manifestGlobDirectories = transformed?.directories ?? []
+      return transformed
+        ? { code: transformed.code, map: transformed.map }
+        : null
+    },
     async handleHotUpdate(context: {
       file: string
       server: {
@@ -580,7 +728,12 @@ export function flamefront(options: FlamefrontOptions = {}) {
         }
       }
     }) {
-      if (context.file !== manifestPath()) {
+      const manifestChanged = context.file === manifestPath()
+      const globChanged = manifestGlobDirectories.some((directory) =>
+        isPathWithinDirectory(directory, context.file),
+      )
+
+      if (!manifestChanged && !globChanged) {
         return
       }
 
@@ -592,6 +745,15 @@ export function flamefront(options: FlamefrontOptions = {}) {
         // Keep the previous declarations while an edited manifest is invalid.
         // Vite will report the manifest error when the virtual route modules
         // are requested, but a stale type file must not block editing.
+      }
+
+      if (globChanged) {
+        const manifestModule =
+          context.server.moduleGraph.getModuleById(manifestPath())
+
+        if (manifestModule) {
+          context.server.moduleGraph.invalidateModule(manifestModule)
+        }
       }
 
       for (const moduleId of [resolvedRemixRoutesId, resolvedServerRoutesId]) {
