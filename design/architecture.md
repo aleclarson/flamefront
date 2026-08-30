@@ -1,8 +1,7 @@
 # Architecture
 
-Flamefront is a coordinator. It does not replace Octane, Remix Router, Vite,
-srvx, or Nitro. It gives them one route model and assigns each library a narrow
-job.
+Flamefront is a coordinator. It does not replace Octane, Remix Router, Vite, or
+srvx. It gives them one route model and assigns each library a narrow job.
 
 ## Ownership
 
@@ -18,7 +17,6 @@ flowchart LR
   Documents[Document service]
   Fetch[Web Fetch transport]
   Srvx[srvx runtime adapter]
-  Nitro[Nitro host]
   Browser[Browser runtime]
   Router[One Remix data router]
   ShellRoot[Shell root]
@@ -33,7 +31,6 @@ flowchart LR
   Generated --> Documents
   Documents --> Fetch
   Fetch --> Srvx
-  Fetch --> Nitro
   Generated --> Browser
   Model --> Browser
   Browser --> Router
@@ -89,8 +86,7 @@ modules. The browser module contains the eager shell, lazy layouts and routes,
 route metadata, data loaders, and route-module preloaders. Shell metadata
 includes the normalized `shellHydration` policy. The server module is an
 importer over unique leaf entries. The server-entry module selects the Web
-Fetch entry by default, the srvx adapter for `target: "node" | "deno" | "bun"`,
-or the Web entry for `adapter: "nitro"`.
+Fetch entry by default or the srvx adapter for `target: "node" | "deno" | "bun"`.
 
 Server and static routes share one generated fragment route shape in the
 browser. The generated loader selects the server or static cache policy. The
@@ -141,8 +137,7 @@ adapter boundary.
 handles the data endpoint, fragment requests, document requests, headers,
 middleware, and the basename redirect without reading a filesystem. The srvx
 adapter adds static asset fallback and filesystem-backed template and fragment
-lookup. Nitro can consume the same Web entry while providing its own build,
-storage, caching, and deployment layers.
+lookup.
 
 The CLI lifecycle owns files and processes. It starts Vite in middleware mode
 for development, runs separate client and server builds, invokes the built

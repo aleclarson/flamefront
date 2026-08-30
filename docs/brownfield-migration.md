@@ -166,7 +166,7 @@ The composition has four responsibilities:
 4. pass the document service and asset location to `createServerEntry` from
    `flamefront/entry` and default-export the result. Use `target` in the Vite
    plugin for the built-in srvx asset host, or use Fetch asset callbacks for a
-   Web or Nitro host.
+   Web host.
 
 The complete composition is shown in the [server entry quickstart](../README.md#composable-server-entry).
 Use `requestContext` on `createRouteRuntime` for request-scoped values such

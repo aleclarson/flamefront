@@ -519,19 +519,12 @@ The output choice belongs in the `flamefront` Vite plugin options. `srvx` is an
 implementation detail, so applications name the runtime target only when they
 want Flamefront's built-in srvx host:
 
-| Configuration                      | Generated server entry      |
-| ---------------------------------- | --------------------------- |
-| `flamefront()`                     | Web `fetch` entry           |
-| `flamefront({ target: "node" })`   | srvx entry for Node         |
-| `flamefront({ target: "deno" })`   | srvx entry for Deno         |
-| `flamefront({ target: "bun" })`    | srvx entry for Bun          |
-| `flamefront({ adapter: "nitro" })` | Web `fetch` entry for Nitro |
-
-If both options are present, `adapter: "nitro"` takes precedence. Nitro's own
-build and deployment preset remains the outer layer; Flamefront does not make
-Nitro a required dependency. The Nitro selection keeps the entry on Web APIs so
-Nitro can provide its advanced routing, storage, caching, and deployment
-features.
+| Configuration                    | Generated server entry |
+| -------------------------------- | ---------------------- |
+| `flamefront()`                   | Web `fetch` entry      |
+| `flamefront({ target: "node" })` | srvx entry for Node    |
+| `flamefront({ target: "deno" })` | srvx entry for Deno    |
+| `flamefront({ target: "bun" })`  | srvx entry for Bun     |
 
 The default Fetch entry expects host-provided asset callbacks:
 

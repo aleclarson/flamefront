@@ -1,11 +1,9 @@
 export type FlamefrontTarget = "node" | "deno" | "bun"
-export type FlamefrontAdapter = "nitro"
+export type FlamefrontAdapter = "fetch" | "srvx"
 
 export interface FlamefrontOutputOptions {
   /** Select the runtime family used by the built-in srvx adapter. */
   readonly target?: FlamefrontTarget
-  /** Select an advanced server adapter. Nitro takes precedence over target. */
-  readonly adapter?: FlamefrontAdapter
 }
 
 export type ResolvedFlamefrontOutput =
@@ -16,10 +14,6 @@ export type ResolvedFlamefrontOutput =
   | {
       readonly adapter: "srvx"
       readonly target: FlamefrontTarget
-    }
-  | {
-      readonly adapter: "nitro"
-      readonly target?: FlamefrontTarget
     }
 
 const targets: ReadonlySet<FlamefrontTarget> = new Set(["node", "deno", "bun"])
@@ -38,16 +32,12 @@ export function resolveFlamefrontOutput(
     )
   }
 
-  if (options.adapter !== undefined && options.adapter !== "nitro") {
-    throw new TypeError(
-      `flamefront adapter must be "nitro"; received ${JSON.stringify(options.adapter)}.`,
-    )
-  }
+  const requestedAdapter = (options as { readonly adapter?: unknown }).adapter
 
-  if (options.adapter === "nitro") {
-    return options.target === undefined
-      ? Object.freeze({ adapter: "nitro" })
-      : Object.freeze({ adapter: "nitro", target: options.target })
+  if (requestedAdapter !== undefined) {
+    throw new TypeError(
+      `flamefront adapter is not supported; omit "adapter" and use "target" for srvx or the default Web Fetch entry.`,
+    )
   }
 
   if (options.target !== undefined) {

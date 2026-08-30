@@ -90,8 +90,7 @@ document, loads route data, and renders a fragment artifact.
 **Server entry.** The default export built from `createServerEntry` in
 `flamefront/entry`. It always exposes the Web Fetch contract and the lifecycle
 interface used by build and preview commands. A `target` selects the built-in
-srvx asset and host adapter; `adapter: "nitro"` keeps the Web contract for an
-external Nitro build.
+srvx asset and host adapter.
 
 **Boundary.** A stable generated shell, layout, or route identity. Boundaries
 let a fragment response render and replace the matched part of a route

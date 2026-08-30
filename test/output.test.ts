@@ -15,16 +15,6 @@ test("uses srvx when a runtime target is selected", () => {
   }
 })
 
-test("lets the Nitro adapter take precedence over a runtime target", () => {
-  assert.deepEqual(resolveFlamefrontOutput({ adapter: "nitro" }), {
-    adapter: "nitro",
-  })
-  assert.deepEqual(
-    resolveFlamefrontOutput({ adapter: "nitro", target: "node" }),
-    { adapter: "nitro", target: "node" },
-  )
-})
-
 test("rejects unknown output options at runtime", () => {
   assert.throws(
     () =>
@@ -34,10 +24,7 @@ test("rejects unknown output options at runtime", () => {
     /target must be one of "node", "deno", or "bun"/,
   )
   assert.throws(
-    () =>
-      resolveFlamefrontOutput({
-        adapter: "alien" as never,
-      }),
-    /adapter must be "nitro"/,
+    () => resolveFlamefrontOutput({ adapter: "nitro" } as never),
+    /adapter is not supported/,
   )
 })

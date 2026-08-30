@@ -62,9 +62,7 @@ hosting provider. That keeps rendering separate from the server runtime and
 gives Flamefront a clear path to adapters for different providers.
 
 When an app selects `target: "node" | "deno" | "bun"`, Flamefront uses
-[srvx](https://srvx.h3.dev) as its built-in host and static-asset adapter. When
-an app selects `adapter: "nitro"`, Nitro can provide its own build, storage,
-caching, and deployment layers around the same Web entry.
+[srvx](https://srvx.h3.dev) as its built-in host and static-asset adapter.
 
 ## Server code stays on the server
 
@@ -79,8 +77,8 @@ code by accident.
 ## One route model keeps the pieces aligned
 
 Octane renders. Remix Router navigates. Vite builds. Web hosts serve. Flamefront
-coordinates them through one route model, with srvx and Nitro available as
-adapters.
+coordinates them through one route model, with srvx available as its built-in
+host adapter.
 
 That model owns paths, render modes, hydration policies, and shared URL
 settings. The browser, server, and build consume the same decisions. Flamefront

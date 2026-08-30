@@ -9,7 +9,6 @@ import {
   generateHydrationRoute,
   generateMarkdownRoute,
   generateRemixRoutes,
-  generateServerEntry,
   generateServerRoutes,
   omitRouteSourceContent,
   remixRoutesId,
@@ -17,7 +16,6 @@ import {
   serverEntryId,
   serverRoutesId,
 } from "../src/vite.ts"
-import { resolveFlamefrontOutput } from "../src/output.ts"
 
 const routeSource = { entry: "/src/Route.tsrx" }
 
@@ -572,7 +570,6 @@ test("generates the selected server entry adapter", async () => {
   for (const [options, importName] of [
     [{}, "createFetchServerEntry"],
     [{ target: "node" as const }, "createSrvxServerEntry"],
-    [{ adapter: "nitro" as const }, "createFetchServerEntry"],
   ] as const) {
     const [plugin] = flamefront(options)
     const resolvedId = await plugin.resolveId.call(pluginContext, serverEntryId)
@@ -581,9 +578,4 @@ test("generates the selected server entry adapter", async () => {
     assert.equal(resolvedId, serverEntryModuleId)
     assert.match(source ?? "", new RegExp(`export \\{ ${importName}`))
   }
-
-  assert.match(
-    generateServerEntry(resolveFlamefrontOutput({ adapter: "nitro" })),
-    /Web Fetch entry/,
-  )
 })
