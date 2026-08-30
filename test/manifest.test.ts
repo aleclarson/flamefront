@@ -7,7 +7,6 @@ import {
   clientRoute,
   defineApp,
   glob,
-  joinRoutePath,
   layout,
   markdownRoute,
   route,
@@ -204,9 +203,22 @@ test("expands project-root globs into concrete routes with directory indexes", a
         route: "",
       },
     ])
+    assert.equal(files[0]?.routePath("/docs"), "/docs/guides")
+    assert.equal(files[2]?.routePath("/docs"), "/docs")
+
+    const serializedFiles = JSON.parse(JSON.stringify(files)) as typeof files
+    const serializedRoutes = glob(serializedFiles, (file) =>
+      file.routePath("/docs"),
+    )
+
+    assert.deepEqual(serializedRoutes, [
+      "/docs/guides",
+      "/docs/guides/install",
+      "/docs",
+    ])
 
     const docs = glob("/src/docs/**/*.md", (file) =>
-      markdownRoute(joinRoutePath("/docs", file.route), file.path),
+      markdownRoute(file.routePath("/docs"), file.path),
     )
 
     assert.deepEqual(
@@ -231,7 +243,7 @@ test("expands project-root globs into concrete routes with directory indexes", a
 
     await writeFile(path.join(root, "src/docs/guides.md"), "# Guides")
     const collidingDocs = glob("/src/docs/**/*.md", (file) =>
-      markdownRoute(joinRoutePath("/docs", file.route), file.path),
+      markdownRoute(file.routePath("/docs"), file.path),
     )
 
     assert.throws(

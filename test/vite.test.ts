@@ -406,7 +406,7 @@ test("expands route-manifest globs before browser bundling", async () => {
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
   routes: glob("/src/docs/**/*.md", (file) =>
-    markdownRoute("/docs/" + file.route, file.path),
+    markdownRoute(file.routePath("/docs"), file.path),
   ),
 })
 `,

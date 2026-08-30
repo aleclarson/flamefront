@@ -6,6 +6,8 @@ export interface GlobFile {
   readonly relativePath: string
   /** Extension-stripped route fragment; directory indexes are empty. */
   readonly route: string
+  /** Join the route fragment to an app-relative URL prefix. */
+  readonly routePath: (prefix: string) => string
 }
 
 interface NodeProcessLike {
@@ -86,6 +88,44 @@ function staticGlobDirectory(pattern: string): string {
   return directory ? `/${directory}` : "/"
 }
 
+/** Join a route prefix with a glob-provided route fragment. */
+export function joinRoutePath(prefix: string, suffix: string): string {
+  if (typeof prefix !== "string" || prefix.length === 0) {
+    throw new TypeError("flamefront route prefix must be a non-empty string.")
+  }
+
+  if (!prefix.startsWith("/")) {
+    throw new TypeError("flamefront route prefix must start with '/'.")
+  }
+
+  if (typeof suffix !== "string") {
+    throw new TypeError("flamefront route suffix must be a string.")
+  }
+
+  if (prefix.includes("?") || prefix.includes("#")) {
+    throw new TypeError(
+      "flamefront route prefix must be a pathname without a query or hash.",
+    )
+  }
+
+  if (suffix.includes("?") || suffix.includes("#")) {
+    throw new TypeError(
+      "flamefront route suffix must be a pathname without a query or hash.",
+    )
+  }
+
+  const normalizedPrefix = prefix.replace(/\/+$/, "") || "/"
+  const normalizedSuffix = suffix.replace(/^\/+|\/+$/g, "")
+
+  if (!normalizedSuffix) {
+    return normalizedPrefix
+  }
+
+  return normalizedPrefix === "/"
+    ? `/${normalizedSuffix}`
+    : `${normalizedPrefix}/${normalizedSuffix}`
+}
+
 /** Resolve the static directory watched by a project-root glob. */
 export function globDirectory(root: string, pattern: string): string {
   if (typeof root !== "string" || root.length === 0) {
@@ -115,6 +155,26 @@ function routeFragment(relativePath: string): string {
   }
 
   return segments.join("/")
+}
+
+type GlobFileData = Omit<GlobFile, "routePath">
+
+function withRoutePath(file: GlobFileData | GlobFile): GlobFile {
+  if (typeof (file as Partial<GlobFile>).routePath === "function") {
+    return file as GlobFile
+  }
+
+  const route = file.route
+  const descriptor = { ...file }
+
+  Object.defineProperty(descriptor, "routePath", {
+    configurable: false,
+    enumerable: false,
+    value: (prefix: string) => joinRoutePath(prefix, route),
+    writable: false,
+  })
+
+  return Object.freeze(descriptor) as GlobFile
 }
 
 function isWithin(root: string, candidate: string, runtime: NodeRuntime) {
@@ -179,7 +239,7 @@ export function expandGlob(root: string, pattern: string): readonly GlobFile[] {
         .relative(projectRoot, match)
         .replaceAll("\\", "/")
 
-      return Object.freeze({
+      return withRoutePath({
         path: `/${projectPath}`,
         relativePath,
         route: routeFragment(relativePath),
@@ -230,5 +290,5 @@ export function glob<Result>(
     files = patternOrFiles
   }
 
-  return Object.freeze(files.map(map))
+  return Object.freeze(files.map((file) => map(withRoutePath(file))))
 }

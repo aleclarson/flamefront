@@ -355,16 +355,17 @@ route("/components", "/src/Components.mdx", { render: "static" })
 
 For file-backed route sets, `glob(pattern, map)` expands a project-root glob
 into concrete route definitions. The mapper receives the importable `path`, a
-`relativePath` from the glob's static directory, and an extension-stripped
-`route` fragment. `index.md` maps to its containing directory:
+`relativePath` from the glob's static directory, an extension-stripped `route`
+fragment, and `routePath(prefix)` for joining that fragment to a URL prefix.
+`index.md` maps to its containing directory:
 
 ```ts
-import { defineApp, glob, joinRoutePath, markdownRoute } from "flamefront"
+import { defineApp, glob, markdownRoute } from "flamefront"
 
 export const app = defineApp({
   shell: "/src/AppShell.tsrx",
   routes: glob("/src/docs/**/*.md", (file) =>
-    markdownRoute(joinRoutePath("/docs", file.route), file.path),
+    markdownRoute(file.routePath("/docs"), file.path),
   ),
 })
 ```
@@ -374,10 +375,10 @@ For example, `/src/docs/index.md` becomes `/docs`, while
 paths must be unique. Use the same primitive for MDX with ordinary `route`:
 
 ```ts
-import { glob, joinRoutePath, route } from "flamefront"
+import { glob, route } from "flamefront"
 
 glob("/src/docs/**/*.mdx", (file) =>
-  route(joinRoutePath("/docs", file.route), file.path, { render: "static" }),
+  route(file.routePath("/docs"), file.path, { render: "static" }),
 )
 ```
 
