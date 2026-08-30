@@ -18,3 +18,18 @@ declare module "virtual:flamefront/server-routes" {
 
   export function importRoute(entry: string): Promise<RouteModule>
 }
+
+declare module "virtual:flamefront/server-entry" {
+  import type { RouteDefinition } from "./index.ts"
+  import type {
+    FetchServerEntryOptions,
+    FlamefrontFetchServerEntry,
+  } from "./fetch.ts"
+  import type { FlamefrontServerEntry, SrvxServerEntryOptions } from "./srvx.ts"
+
+  export function createServerEntry<
+    Route extends RouteDefinition = RouteDefinition,
+  >(
+    options: FetchServerEntryOptions<Route> | SrvxServerEntryOptions<Route>,
+  ): FlamefrontFetchServerEntry | FlamefrontServerEntry
+}

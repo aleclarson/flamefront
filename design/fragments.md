@@ -51,18 +51,20 @@ on the request.
 
 ## Server and static sources
 
-Server fragments are live responses. The srvx adapter always calls the document
+Server fragments are live responses. The Web Fetch entry calls the document
 fragment renderer, which runs the server router and loaders for the sanitized
 incoming request. URL state, cookies, request headers, redirects, errors,
 response status, and application header policy follow the existing server
-rendering path.
+rendering path. An srvx target supplies the host around that same entry.
 
 Static fragments are build output. The static build writes
 `.fragment.html` and `.fragment.json` beside the route document and data file.
 The HTML file is the selected fragment as markup. The JSON file is the browser
 protocol artifact with route data, hierarchy, hydration policy, and status. The
-srvx adapter reads the JSON file for a static fragment request. It may use the
-document renderer if that artifact is absent.
+selected host reads the JSON file for a static fragment request through the
+Fetch entry's `loadStaticFragment` asset callback. The srvx adapter wires that
+callback to the filesystem and may use the document renderer if the artifact
+is absent.
 
 Fragment requests for client routes and unmatched URLs return 404. Server
 fragment requests never probe the static output directory.

@@ -4,33 +4,36 @@ import { resolve } from "node:path"
 import { staticMiddleware } from "srvx/static"
 import type { ServerMiddleware, ServerOptions } from "srvx"
 import {
-  joinBasename,
   stripBasename,
   type AppDefinition,
   type RouteDefinition,
 } from "./index.ts"
-import type { OctaneDocuments } from "./octane.tsx"
-import type { DocumentMode, RenderedDocument } from "./server.ts"
+import { isRouteFragmentRequest } from "./fragment-protocol.ts"
 import {
-  isRouteFragmentRequest,
-  stripFlamefrontProtocolRequest,
-} from "./fragment-protocol.ts"
+  createFetchServerEntry,
+  type ResponseHeadersHook,
+  type ServerDocuments,
+  type ServerEntryLifecycle,
+  type TemplateLoader,
+} from "./fetch.ts"
 import { staticRouteFragmentDataFile } from "./static-fragment-artifacts.ts"
-import type { RouteFragmentArtifact } from "./fragment-client.ts"
+
+export type {
+  FetchMiddleware,
+  FetchServerAssets,
+  FetchServerEntryOptions,
+  FlamefrontFetchServerEntry,
+  ResponseHeaders,
+  ResponseHeadersContext,
+  ResponseHeadersHook,
+  ServerDocuments,
+  StaticFragmentContext,
+  StaticFragmentLoader,
+  TemplateContext,
+  TemplateLoader,
+} from "./fetch.ts"
 
 export type SrvxMiddleware = ServerMiddleware
-
-export interface TemplateContext<
-  Route extends RouteDefinition = RouteDefinition,
-> {
-  readonly request: Request
-  readonly route: Route | null
-  readonly mode: DocumentMode
-}
-
-export type TemplateLoader<Route extends RouteDefinition = RouteDefinition> = (
-  context: TemplateContext<Route>,
-) => string | Promise<string>
 
 /** Client asset location and the optional replacement for template lookup. */
 export interface ServerAssets<Route extends RouteDefinition = RouteDefinition> {
@@ -38,30 +41,7 @@ export interface ServerAssets<Route extends RouteDefinition = RouteDefinition> {
   readonly loadTemplate?: TemplateLoader<Route>
 }
 
-export interface ResponseHeadersContext<
-  Route extends RouteDefinition = RouteDefinition,
-> {
-  readonly request: Request
-  readonly route: Route | null
-  readonly mode: DocumentMode
-  readonly document: RenderedDocument
-}
-
-export type ResponseHeaders = HeadersInit
-
-/** Add or override response headers after document rendering. */
-export type ResponseHeadersHook<
-  Route extends RouteDefinition = RouteDefinition,
-> = (
-  context: ResponseHeadersContext<Route>,
-) => ResponseHeaders | Promise<ResponseHeaders>
-
-/** Lifecycle operations exposed alongside the srvx server options. */
-export interface ServerEntryLifecycle {
-  readonly renderDocument: OctaneDocuments["renderDocument"]
-  readonly loadRouteData: OctaneDocuments["loadRouteData"]
-  readonly renderFragment?: OctaneDocuments["renderFragment"]
-}
+export type { ServerEntryLifecycle }
 
 /** The single default-export value consumed by Flamefront's lifecycle. */
 export type FlamefrontServerEntry = ServerOptions & ServerEntryLifecycle
@@ -71,11 +51,7 @@ export interface SrvxServerEntryOptions<
   Route extends RouteDefinition = RouteDefinition,
 > {
   readonly app: AppDefinition<Route>
-  readonly documents: Pick<
-    OctaneDocuments,
-    "renderDocument" | "loadRouteData"
-  > &
-    Partial<Pick<OctaneDocuments, "renderFragment">>
+  readonly documents: ServerDocuments
   readonly assets: ServerAssets<Route>
   /** Applied outermost first, in declaration order, around framework transport. */
   readonly middleware?: readonly SrvxMiddleware[]
@@ -103,16 +79,6 @@ async function loadDefaultTemplate(clientDirectory: string): Promise<string> {
   }
 
   throw lastError
-}
-
-function mergeHeaders(target: Headers, source: HeadersInit | undefined): void {
-  if (source === undefined) {
-    return
-  }
-
-  for (const [name, value] of new Headers(source)) {
-    target.set(name, value)
-  }
 }
 
 function staticRequest(request: Request, basename: string): Request {
@@ -145,9 +111,6 @@ export function createSrvxServerEntry<
   const loadTemplate =
     options.assets.loadTemplate ?? (() => loadDefaultTemplate(clientDirectory))
   const serveClientFile = staticMiddleware({ dir: clientDirectory })
-  const defaultClientRoute = options.app.routes.find(
-    (route) => route.render === "client",
-  )
 
   const frameworkMiddleware: SrvxMiddleware = (request, next) => {
     const url = new URL(request.url)
@@ -176,146 +139,36 @@ export function createSrvxServerEntry<
     )
   }
 
-  const fetch = async (request: Request): Promise<Response> => {
-    const url = new URL(request.url)
-    const match = options.app.match(url)
-
-    try {
-      if (
-        url.pathname === options.app.routing.basename &&
-        !match &&
-        defaultClientRoute
-      ) {
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: joinBasename(
-              options.app.routing.basename,
-              defaultClientRoute.path,
+  const fetchEntry = createFetchServerEntry({
+    app: options.app,
+    documents: options.documents,
+    assets: {
+      loadTemplate,
+      loadStaticFragment: async ({ route }) => {
+        try {
+          return JSON.parse(
+            await readFile(
+              staticRouteFragmentDataFile(clientDirectory, route),
+              "utf8",
             ),
-          },
-        })
-      }
-
-      if (url.pathname === options.app.routing.dataPath) {
-        return options.documents.loadRouteData(request)
-      }
-
-      if (isRouteFragmentRequest(url)) {
-        const sanitizedRequest = stripFlamefrontProtocolRequest(request)
-        const fragmentMatch = options.app.match(sanitizedRequest.url)
-
-        if (!fragmentMatch || fragmentMatch.data.render === "client") {
-          return new Response("Not found", { status: 404 })
-        }
-
-        let artifact: RouteFragmentArtifact | undefined
-
-        if (fragmentMatch.data.render === "static") {
-          try {
-            artifact = JSON.parse(
-              await readFile(
-                staticRouteFragmentDataFile(
-                  clientDirectory,
-                  fragmentMatch.data,
-                ),
-                "utf8",
-              ),
-            ) as RouteFragmentArtifact
-          } catch (error) {
-            if ((error as { code?: string }).code !== "ENOENT") {
-              throw error
-            }
-          }
-        }
-
-        if (!artifact && options.documents.renderFragment) {
-          artifact = await options.documents.renderFragment(sanitizedRequest)
-        }
-
-        if (!artifact) {
-          return new Response("Not found", { status: 404 })
-        }
-
-        const responseHeaders = new Headers({
-          "Content-Type":
-            "application/vnd.flamefront.fragment+json; charset=utf-8",
-        })
-
-        if (options.headers) {
-          mergeHeaders(
-            responseHeaders,
-            await options.headers({
-              request: sanitizedRequest,
-              route: fragmentMatch.data,
-              mode: fragmentMatch.data.render,
-              document: {
-                html: artifact.html,
-                routeData: artifact.routeData,
-                status: artifact.status,
-              },
-            }),
           )
+        } catch (error) {
+          if ((error as { code?: string }).code !== "ENOENT") {
+            throw error
+          }
+
+          return undefined
         }
-
-        return new Response(JSON.stringify(artifact), {
-          status: artifact.status ?? 200,
-          headers: responseHeaders,
-        })
-      }
-
-      if (!match) {
-        return new Response("Not found", { status: 404 })
-      }
-
-      const mode: DocumentMode = url.searchParams.has("__flamefront_shell")
-        ? "shell"
-        : match.data.render
-      const template = await loadTemplate({
-        request,
-        route: match.data,
-        mode,
-      })
-      const document = await options.documents.renderDocument(
-        template,
-        request,
-        { mode },
-      )
-      const responseHeaders = new Headers({
-        "Content-Type": "text/html; charset=utf-8",
-      })
-
-      mergeHeaders(responseHeaders, document.headers)
-      if (options.headers) {
-        mergeHeaders(
-          responseHeaders,
-          await options.headers({
-            request,
-            route: match.data,
-            mode,
-            document,
-          }),
-        )
-      }
-
-      return new Response(document.html, {
-        status: document.status ?? 200,
-        headers: responseHeaders,
-      })
-    } catch (error) {
-      if (error instanceof Response) {
-        return error
-      }
-
-      throw error
-    }
-  }
+      },
+    },
+    headers: options.headers,
+  })
 
   return {
-    fetch,
+    fetch: fetchEntry.fetch,
     middleware: [...(options.middleware ?? []), frameworkMiddleware],
-    renderDocument: options.documents.renderDocument,
-    loadRouteData: options.documents.loadRouteData,
-    renderFragment: options.documents.renderFragment,
+    renderDocument: fetchEntry.renderDocument,
+    loadRouteData: fetchEntry.loadRouteData,
+    renderFragment: fetchEntry.renderFragment,
   }
 }

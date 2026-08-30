@@ -55,8 +55,8 @@ Flamefront divides work among five parts:
    runs loaders.
 4. The document service joins the route runtime, Remix Router, and Octane. It
    renders documents and route fragments without owning HTTP transport.
-5. The srvx adapter classifies HTTP requests, serves built assets, and calls the
-   document service.
+5. The Web Fetch entry classifies HTTP requests and calls the document service;
+   the selected host adapter may serve built assets.
 
 The seams between these parts are intentional. The route runtime and document
 renderer accept injected adapters so their behavior can be tested without
@@ -87,9 +87,11 @@ live router contexts are bridged into it rather than creating another router.
 **Document service.** The result of `createOctaneDocuments`. It renders a full
 document, loads route data, and renders a fragment artifact.
 
-**Server entry.** The default export built from `createSrvxServerEntry`. It is
-both an srvx server configuration and the lifecycle interface used by build and
-preview commands.
+**Server entry.** The default export built from `createServerEntry` in
+`flamefront/entry`. It always exposes the Web Fetch contract and the lifecycle
+interface used by build and preview commands. A `target` selects the built-in
+srvx asset and host adapter; `adapter: "nitro"` keeps the Web contract for an
+external Nitro build.
 
 **Boundary.** A stable generated shell, layout, or route identity. Boundaries
 let a fragment response render and replace the matched part of a route
@@ -116,7 +118,8 @@ Use these source files as entry points:
 | Document and fragment rendering          | [`src/octane.tsx`](../src/octane.tsx)                       |
 | Browser runtime startup                  | [`src/octane-client-core.ts`](../src/octane-client-core.ts) |
 | Fragment insertion and hydration         | [`src/fragment.tsx`](../src/fragment.tsx)                   |
-| HTTP classification                      | [`src/srvx.ts`](../src/srvx.ts)                             |
+| Web HTTP classification                  | [`src/fetch.ts`](../src/fetch.ts)                           |
+| srvx asset and host adapter              | [`src/srvx.ts`](../src/srvx.ts)                             |
 | Build, dev, and preview orchestration    | [`src/lifecycle.ts`](../src/lifecycle.ts)                   |
 
 Before changing one of these boundaries, read [architecture](./architecture.md)

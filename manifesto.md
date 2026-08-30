@@ -55,16 +55,16 @@ production output. It does not put another build pipeline beside Vite.
 Vite-first may feel like table stakes for a modern meta-framework. It still
 matters. Existing Vite knowledge, plugins, and tooling continue to apply.
 
-## srvx keeps hosting open
+## Web APIs keep hosting open
 
-Flamefront's server entry targets [srvx](https://srvx.h3.dev) instead of one
+Flamefront's core server entry uses the Web `fetch` contract instead of one
 hosting provider. That keeps rendering separate from the server runtime and
 gives Flamefront a clear path to adapters for different providers.
 
-Nuxt already uses srvx internally through Nitro. Flamefront is building on the
-same server layer instead of creating its own.
-
-srvx gives it a portable server contract to build on.
+When an app selects `target: "node" | "deno" | "bun"`, Flamefront uses
+[srvx](https://srvx.h3.dev) as its built-in host and static-asset adapter. When
+an app selects `adapter: "nitro"`, Nitro can provide its own build, storage,
+caching, and deployment layers around the same Web entry.
 
 ## Server code stays on the server
 
@@ -78,8 +78,9 @@ code by accident.
 
 ## One route model keeps the pieces aligned
 
-Octane renders. Remix Router navigates. Vite builds. srvx serves. Flamefront
-coordinates them through one route model.
+Octane renders. Remix Router navigates. Vite builds. Web hosts serve. Flamefront
+coordinates them through one route model, with srvx and Nitro available as
+adapters.
 
 That model owns paths, render modes, hydration policies, and shared URL
 settings. The browser, server, and build consume the same decisions. Flamefront

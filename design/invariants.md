@@ -22,7 +22,9 @@ Primary coverage: `manifest.test.ts`, `vite.test.ts`, and `server.test.ts`.
 
 The same normalized basename applies to app matching, generated Remix Router
 configuration, static requests, fragment cache keys, and asset fallback. The
-configured data path must agree between generated browser loaders and srvx.
+configured data path must agree between generated browser loaders and the Web
+Fetch entry, regardless of whether srvx or another host supplies the outer
+adapter.
 
 Reserved shell and fragment query parameters must not reach app matching,
 request-context factories, or loaders. Strip them before application code runs.
@@ -145,7 +147,8 @@ after document rendering.
 The document service remains independent of sockets, filesystem lookup, and
 HTTP server startup.
 
-Primary coverage: `remix-router.test.ts`, `srvx.test.ts`, and `server.test.ts`.
+Primary coverage: `remix-router.test.ts`, `fetch.test.ts`, `srvx.test.ts`, and
+`server.test.ts`.
 
 ## Updating the checklist
 

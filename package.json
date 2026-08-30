@@ -20,6 +20,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./entry": "./src/entry.ts",
+    "./fetch": "./src/fetch.ts",
     "./fragment": "./src/fragment.tsx",
     "./octane": "./src/octane.tsx",
     "./octane/client": "./src/octane-client.ts",
@@ -27,6 +29,7 @@
     "./remix-router": "./src/remix-router.ts",
     "./remix-router/data": "./src/remix-route-data.ts",
     "./server": "./src/server.ts",
+    "./output": "./src/output.ts",
     "./srvx": "./src/srvx.ts",
     "./vite": "./src/vite.ts"
   },

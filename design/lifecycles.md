@@ -5,7 +5,8 @@ who owns each step.
 
 ## HTTP classification
 
-The srvx adapter classifies requests in this order:
+The Web Fetch entry classifies app requests in this order. When a runtime target
+selects srvx, its static middleware handles the final asset fallback:
 
 | Request                    | Owner                                              |
 | -------------------------- | -------------------------------------------------- |
@@ -13,7 +14,7 @@ The srvx adapter classifies requests in this order:
 | Configured data path       | Route runtime data response                        |
 | Route fragment protocol    | Live renderer or static artifact, selected by mode |
 | Matched route              | Mode-aware document rendering                      |
-| Unmatched path             | Static middleware, then a 404                      |
+| Unmatched path             | Host asset layer, then a 404                       |
 
 Framework protocol parameters affect classification only. The adapter creates a
 sanitized request before matching again, invoking loaders, or calling document
@@ -23,7 +24,7 @@ rendering.
 
 ```mermaid
 sequenceDiagram
-  participant HTTP as srvx adapter
+  participant HTTP as Web Fetch entry
   participant App as App model
   participant Documents as Document service
   participant Runtime as Route runtime
@@ -60,8 +61,8 @@ become HTTP responses unchanged.
 ## Route-data request
 
 Client-route browser loaders call the configured data endpoint with the
-original route URL in a query parameter. The srvx adapter delegates directly to
-the route runtime. The runtime sanitizes the URL, matches it, creates request
+original route URL in a query parameter. The Web Fetch entry delegates directly
+to the route runtime. The runtime sanitizes the URL, matches it, creates request
 context with purpose `data`, imports the route module, and runs its loader.
 
 The browser data client deduplicates in-flight loads. Prefetch and later
@@ -160,9 +161,9 @@ and deployment.
 ## Development and preview
 
 Development runs Vite in middleware mode. Requests that belong to the app load
-`src/entry-server.ts` through Vite SSR and create a short-lived manual srvx
-server entry. Other requests fall through to Vite's middleware.
+`src/entry-server.ts` through Vite SSR and create a short-lived local host around
+the selected Fetch entry. Other requests fall through to Vite's middleware.
 
-Preview loads the built server entry and starts srvx against `dist/client`.
-Neither mode has a separate routing implementation. Both consume the same
-server entry contract used by the build.
+Preview loads the built server entry and starts the local srvx host against
+`dist/client`. Neither mode has a separate routing implementation. Both consume
+the same server entry contract used by the build.

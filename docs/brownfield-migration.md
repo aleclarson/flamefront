@@ -24,16 +24,16 @@ traffic between old and new applications.
 Flamefront should replace the framework-owned parts of the application. It
 does not require a rewrite of the application's domain code.
 
-| Existing application part                         | Full-migration target                                                                        |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Router, route registry, and route matching        | One `defineApp` manifest with the complete route tree                                        |
-| Server rendering entry and document lifecycle     | `entry-server.ts` composed from the Flamefront runtime, Octane documents, and srvx transport |
-| Browser router bootstrap and hydration            | `startOctaneClient` with the same router document used by the server                         |
-| React/Preact renderer, roots, and UI runtime      | Octane components, providers, rendering, and hydration                                       |
-| Route-level read data and server request plumbing | Route `loader` functions plus request-scoped context                                         |
-| Static generation and route-data transport        | `ff build` and Flamefront's generated static files and fragments                             |
-| Framework-specific build and preview commands     | `ff dev`, `ff build`, and `ff preview`                                                       |
-| Framework middleware and response headers         | Application middleware and headers passed to the Flamefront server entry                     |
+| Existing application part                         | Full-migration target                                                                                 |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Router, route registry, and route matching        | One `defineApp` manifest with the complete route tree                                                 |
+| Server rendering entry and document lifecycle     | `entry-server.ts` composed from the Flamefront runtime, Octane documents, and selected server adapter |
+| Browser router bootstrap and hydration            | `startOctaneClient` with the same router document used by the server                                  |
+| React/Preact renderer, roots, and UI runtime      | Octane components, providers, rendering, and hydration                                                |
+| Route-level read data and server request plumbing | Route `loader` functions plus request-scoped context                                                  |
+| Static generation and route-data transport        | `ff build` and Flamefront's generated static files and fragments                                      |
+| Framework-specific build and preview commands     | `ff dev`, `ff build`, and `ff preview`                                                                |
+| Framework middleware and response headers         | Application middleware and headers passed to the Flamefront server entry                              |
 
 Usually keep the following code:
 
@@ -131,8 +131,8 @@ rename part of this migration's definition of done.
 
 Use the existing public URLs whenever possible. If the old application uses a
 prefix, set `routing.basename` and `routing.dataPath` on the app definition so
-the matcher, generated browser routes, server router, data endpoint, and srvx
-transport use the same values.
+the matcher, generated browser routes, server router, data endpoint, and Web
+Fetch entry transport use the same values.
 
 Each route module keeps a default component export and may add a `loader` for
 read-side data. The route entry is a Vite project-root module ID, such as
@@ -163,8 +163,10 @@ The composition has four responsibilities:
    `virtual:flamefront/server-routes`;
 2. create a route runtime with the app and importer;
 3. create Octane documents from that runtime;
-4. pass the document service and asset location to
-   `createSrvxServerEntry` and default-export the result.
+4. pass the document service and asset location to `createServerEntry` from
+   `flamefront/entry` and default-export the result. Use `target` in the Vite
+   plugin for the built-in srvx asset host, or use Fetch asset callbacks for a
+   Web or Nitro host.
 
 The complete composition is shown in the [server entry quickstart](../README.md#composable-server-entry).
 Use `requestContext` on `createRouteRuntime` for request-scoped values such
@@ -303,7 +305,8 @@ Deploy the complete output:
 
 - `dist/client` contains browser assets, the HTML template, static route
   output, route data, and static fragment artifacts;
-- `dist/server/server.js` contains the srvx-compatible server entry.
+- `dist/server/server.js` contains the selected Web Fetch or adapter server
+  entry.
 
 Keep both directories together for any application with server or client
 routes. A static host is suitable only when every deployed route is covered by

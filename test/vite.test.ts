@@ -9,12 +9,15 @@ import {
   generateHydrationRoute,
   generateMarkdownRoute,
   generateRemixRoutes,
+  generateServerEntry,
   generateServerRoutes,
   omitRouteSourceContent,
   remixRoutesId,
   removeServerRouteExports,
+  serverEntryId,
   serverRoutesId,
 } from "../src/vite.ts"
+import { resolveFlamefrontOutput } from "../src/output.ts"
 
 const routeSource = { entry: "/src/Route.tsrx" }
 
@@ -535,6 +538,10 @@ test("resolves the public generated routes module and hydration TSRX modules", a
     pluginContext,
     serverRoutesId,
   )
+  const publicServerEntryId = await plugin.resolveId.call(
+    pluginContext,
+    "flamefront/entry",
+  )
   const hydrationRouteId = await plugin.resolveId.call(
     pluginContext,
     "/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D",
@@ -547,6 +554,7 @@ test("resolves the public generated routes module and hydration TSRX modules", a
 
   assert.equal(generatedId, `\0${remixRoutesId}`)
   assert.equal(serverGeneratedId, `\0${serverRoutesId}`)
+  assert.equal(publicServerEntryId, `\0${serverEntryId}`)
   assert.equal(
     hydrationRouteId,
     "/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D",
@@ -554,5 +562,28 @@ test("resolves the public generated routes module and hydration TSRX modules", a
   assert.equal(
     extractedId,
     "/@flamefront/hydration-route.tsrx?entry=%2Fsrc%2FServer.tsrx&hydration=%7B%22when%22%3A%22visible%22%7D&octane-hydrate=0",
+  )
+})
+
+test("generates the selected server entry adapter", async () => {
+  const pluginContext = { resolve: async () => null }
+  const serverEntryModuleId = `\0${serverEntryId}`
+
+  for (const [options, importName] of [
+    [{}, "createFetchServerEntry"],
+    [{ target: "node" as const }, "createSrvxServerEntry"],
+    [{ adapter: "nitro" as const }, "createFetchServerEntry"],
+  ] as const) {
+    const [plugin] = flamefront(options)
+    const resolvedId = await plugin.resolveId.call(pluginContext, serverEntryId)
+    const source = await plugin.load(serverEntryModuleId)
+
+    assert.equal(resolvedId, serverEntryModuleId)
+    assert.match(source ?? "", new RegExp(`export \\{ ${importName}`))
+  }
+
+  assert.match(
+    generateServerEntry(resolveFlamefrontOutput({ adapter: "nitro" })),
+    /Web Fetch entry/,
   )
 })

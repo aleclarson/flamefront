@@ -1,7 +1,8 @@
 # Architecture
 
-Flamefront is a coordinator. It does not replace Octane, Remix Router, Vite, or
-srvx. It gives them one route model and assigns each library a narrow job.
+Flamefront is a coordinator. It does not replace Octane, Remix Router, Vite,
+srvx, or Nitro. It gives them one route model and assigns each library a narrow
+job.
 
 ## Ownership
 
@@ -15,7 +16,9 @@ flowchart LR
   Generated[Generated router modules]
   Runtime[Route runtime]
   Documents[Document service]
-  Transport[srvx transport]
+  Fetch[Web Fetch transport]
+  Srvx[srvx runtime adapter]
+  Nitro[Nitro host]
   Browser[Browser runtime]
   Router[One Remix data router]
   ShellRoot[Shell root]
@@ -28,7 +31,9 @@ flowchart LR
   Generated --> Runtime
   Runtime --> Documents
   Generated --> Documents
-  Documents --> Transport
+  Documents --> Fetch
+  Fetch --> Srvx
+  Fetch --> Nitro
   Generated --> Browser
   Model --> Browser
   Browser --> Router
@@ -74,16 +79,18 @@ Server transport, browser prefetch, static generation, and document rendering
 all ask the app model rather than implementing their own matcher.
 
 `basename` and `dataPath` are normalized with the app. They then flow into
-generated router configuration, data requests, fragment cache keys, srvx
-classification, and static output requests.
+generated router configuration, data requests, fragment cache keys, Web
+transport classification, srvx classification, and static output requests.
 
 ## Generated router modules
 
-The Vite integration evaluates the app manifest and exposes two virtual
+The Vite integration evaluates the app manifest and exposes three virtual
 modules. The browser module contains the eager shell, lazy layouts and routes,
 route metadata, data loaders, and route-module preloaders. Shell metadata
 includes the normalized `shellHydration` policy. The server module is an
-importer over unique leaf entries.
+importer over unique leaf entries. The server-entry module selects the Web
+Fetch entry by default, the srvx adapter for `target: "node" | "deno" | "bun"`,
+or the Web entry for `adapter: "nitro"`.
 
 Server and static routes share one generated fragment route shape in the
 browser. The generated loader selects the server or static cache policy. The
@@ -130,16 +137,18 @@ adapter boundary.
 
 ## Transport and lifecycle
 
-`createSrvxServerEntry` wraps the document service in HTTP behavior. It handles
-the data endpoint, fragment requests, document requests, static asset fallback,
-headers, middleware, and the basename redirect. It returns one object consumed
-by the dev server, production preview, and static build.
+`createFetchServerEntry` wraps the document service in Web HTTP behavior. It
+handles the data endpoint, fragment requests, document requests, headers,
+middleware, and the basename redirect without reading a filesystem. The srvx
+adapter adds static asset fallback and filesystem-backed template and fragment
+lookup. Nitro can consume the same Web entry while providing its own build,
+storage, caching, and deployment layers.
 
 The CLI lifecycle owns files and processes. It starts Vite in middleware mode
 for development, runs separate client and server builds, invokes the built
-server entry for prerendering, and starts srvx for preview. Keeping this work out
-of the document service lets builds call rendering directly without simulating
-an HTTP round trip.
+server entry for prerendering, and uses srvx as the local preview host. Keeping
+this work out of the document service lets builds call rendering directly
+without simulating an HTTP round trip.
 
 ## Browser runtime
 
