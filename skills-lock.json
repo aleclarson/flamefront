@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "tsrx": {
+      "source": "aleclarson/tsrx-resources",
+      "sourceType": "github",
+      "skillPath": "skills/tsrx/SKILL.md",
+      "computedHash": "3f0e2539c17ea3c9a0b3a934d13ca9dc6a35aa44841a5ea8ecdfcc0eb88fff96"
+    }
+  }
+}

@@ -2,7 +2,8 @@ ignoreWorkspaceRootCheck: true
 
 packages:
   - ./
-  - ./flamefront
+  - ./playground
+  - ./scripts/browser-fixture
 
 allowBuilds:
   esbuild: true

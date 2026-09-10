@@ -167,10 +167,10 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
       .map((entry) => entry.replace(/\/$/, ""))
       .sort()
     const packageFiles = [
-      ...(await collectFiles(resolve(root, "flamefront/bin"))).map(
+      ...(await collectFiles(resolve(root, "bin"))).map(
         (file) => `package/bin/${file}`,
       ),
-      ...(await collectFiles(resolve(root, "flamefront/src"))).map(
+      ...(await collectFiles(resolve(root, "src"))).map(
         (file) => `package/src/${file}`,
       ),
     ]
@@ -193,7 +193,7 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
       resolve(consumer, "node_modules/flamefront"),
     )
 
-    assert.notEqual(installedPackage, resolve(root, "flamefront"))
+    assert.notEqual(installedPackage, resolve(root))
 
     const installedManifest = JSON.parse(
       await readFile(resolve(installedPackage, "package.json"), "utf8"),

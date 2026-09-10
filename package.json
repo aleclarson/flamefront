@@ -34,8 +34,16 @@
     "./vite": "./src/vite.ts"
   },
   "scripts": {
+    "dev": "pnpm --filter flamefront-playground dev",
+    "build": "pnpm --filter flamefront-playground build",
+    "preview": "pnpm --filter flamefront-playground preview",
+    "typegen": "pnpm --filter flamefront-playground typegen",
+    "routes": "pnpm --filter flamefront-playground routes",
+    "typecheck": "tsc -p tsconfig.json && pnpm --filter flamefront-playground typecheck",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json"
+    "test:e2e": "pnpm --filter flamefront-playground build && vitest run --config vitest.e2e.config.ts",
+    "check": "oxlint && prettier --check . && pnpm typecheck && pnpm test && pnpm test:e2e",
+    "format": "oxlint --fix && prettier --write ."
   },
   "dependencies": {
     "@alloc/cmd-ts": "0.17.1",
@@ -50,9 +58,17 @@
     "vite-plugin-satteri": "^0.3.5"
   },
   "devDependencies": {
+    "@octanejs/remix-router": "0.1.36",
+    "@octanejs/vite-plugin": "0.1.40",
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
     "@types/node": "26.1.1",
+    "@tsrx/prettier-plugin": "^0.3.123",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "octane": "0.1.40",
+    "oxc-tsrx": "0.5.0",
+    "playwright": "1.62.1",
+    "prettier": "^3.9.6",
     "typescript": "5.9.3",
     "vite": "latest",
     "vitest": "^4.1.10"

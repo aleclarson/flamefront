@@ -8,6 +8,23 @@ built-in type stripping runs the CLI, while Vite bundles the application.
 Pin the alpha to an exact version. Alpha releases may change the route,
 hydration, build, or peer dependency contracts before `1.0.0`.
 
+## Repository layout
+
+The package source and unit tests live at the repository root. The
+[`playground`](./playground/) workspace is a complete Flamefront app used by
+the end-to-end checks; the browser and consumer fixtures used by those checks
+live under [`scripts`](./scripts/).
+
+From the repository root, these commands run the playground or the complete
+verification suite:
+
+```sh
+pnpm dev
+pnpm build
+pnpm routes
+pnpm check
+```
+
 ## Install the alpha
 
 Flamefront's package name is the unscoped `flamefront`. A minimal app uses

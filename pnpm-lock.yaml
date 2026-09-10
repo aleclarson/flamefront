@@ -11,49 +11,6 @@ importers:
 
   .:
     dependencies:
-      '@octanejs/remix-router':
-        specifier: 0.1.36
-        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
-      '@octanejs/vite-plugin':
-        specifier: 0.1.40
-        version: 0.1.40(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
-      flamefront:
-        specifier: workspace:*
-        version: link:flamefront
-      octane:
-        specifier: 0.1.40
-        version: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
-    devDependencies:
-      '@stylistic/eslint-plugin':
-        specifier: ^5.10.0
-        version: 5.10.0(eslint@10.8.1)
-      '@tsrx/prettier-plugin':
-        specifier: ^0.3.123
-        version: 0.3.123(@typescript-eslint/types@8.67.0)(prettier@3.9.6)
-      '@types/node':
-        specifier: 26.1.1
-        version: 26.1.1
-      oxc-tsrx:
-        specifier: 0.5.0
-        version: 0.5.0
-      playwright:
-        specifier: 1.62.1
-        version: 1.62.1
-      prettier:
-        specifier: ^3.9.6
-        version: 3.9.6
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vite:
-        specifier: latest
-        version: 8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.11(@types/node@26.1.1)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
-
-  flamefront:
-    dependencies:
       '@alloc/cmd-ts':
         specifier: 0.17.1
         version: 0.17.1
@@ -69,18 +26,12 @@ importers:
       '@babel/types':
         specifier: ^7.29.8
         version: 7.29.8
-      '@octanejs/remix-router':
-        specifier: 0.1.36
-        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
       '@remix-run/route-pattern':
         specifier: 0.24.0
         version: 0.24.0
       babel-dead-code-elimination:
         specifier: ^1.0.12
         version: 1.0.12
-      octane:
-        specifier: 0.1.40
-        version: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
       satteri:
         specifier: ^0.10.5
         version: 0.10.5
@@ -91,6 +42,18 @@ importers:
         specifier: ^0.3.5
         version: 0.3.5(satteri@0.10.5)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
     devDependencies:
+      '@octanejs/remix-router':
+        specifier: 0.1.36
+        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
+      '@octanejs/vite-plugin':
+        specifier: 0.1.40
+        version: 0.1.40(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+      '@stylistic/eslint-plugin':
+        specifier: ^5.10.0
+        version: 5.10.0(eslint@10.8.1)
+      '@tsrx/prettier-plugin':
+        specifier: ^0.3.123
+        version: 0.3.123(@typescript-eslint/types@8.67.0)(prettier@3.9.6)
       '@types/babel__generator':
         specifier: ^7.27.0
         version: 7.27.0
@@ -100,6 +63,18 @@ importers:
       '@types/node':
         specifier: 26.1.1
         version: 26.1.1
+      octane:
+        specifier: 0.1.40
+        version: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+      oxc-tsrx:
+        specifier: 0.5.0
+        version: 0.5.0
+      playwright:
+        specifier: 1.62.1
+        version: 1.62.1
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -109,6 +84,49 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.11(@types/node@26.1.1)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+
+  playground:
+    dependencies:
+      '@octanejs/remix-router':
+        specifier: 0.1.36
+        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
+      '@octanejs/vite-plugin':
+        specifier: 0.1.40
+        version: 0.1.40(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+      flamefront:
+        specifier: workspace:*
+        version: link:..
+      octane:
+        specifier: 0.1.40
+        version: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+    devDependencies:
+      '@types/node':
+        specifier: 26.1.1
+        version: 26.1.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: latest
+        version: 8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
+
+  scripts/browser-fixture:
+    dependencies:
+      '@octanejs/remix-router':
+        specifier: 0.1.36
+        version: 0.1.36(patch_hash=394255e73d5308a6b35a63035f29b8874a69f3c7e78212c89734e548130d5ea2)(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))
+      '@octanejs/vite-plugin':
+        specifier: 0.1.40
+        version: 0.1.40(octane@0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)))(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+      flamefront:
+        specifier: workspace:*
+        version: link:../..
+      octane:
+        specifier: 0.1.40
+        version: 0.1.40(@typescript-eslint/types@8.67.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0))
+      vite:
+        specifier: latest
+        version: 8.2.2(@types/node@26.1.1)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 

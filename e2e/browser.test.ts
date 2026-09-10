@@ -9,8 +9,9 @@ import { test } from "vitest"
 
 const execFileAsync = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const playground = resolve(root, "playground")
 const fixture = resolve(root, "scripts/browser-fixture")
-const ff = resolve(root, "node_modules/.bin/ff")
+const ff = resolve(playground, "node_modules/.bin/ff")
 
 async function run(command, args, cwd, extraEnv = {}) {
   return execFileAsync(command, args, {
@@ -95,7 +96,7 @@ async function waitForPreview(server, url, token) {
 }
 
 async function stopPreview(server) {
-  if (server.child.exitCode !== null) {
+  if (!server || server.child.exitCode !== null) {
     return
   }
 
@@ -448,7 +449,7 @@ test("covers browser navigation, hydration, and history", async () => {
 
   const rootPort = await findPort()
   const rootToken = `browser-test-root-${process.pid}-${Date.now()}`
-  const rootServer = startPreview(rootPort, root, rootToken)
+  const rootServer = startPreview(rootPort, playground, rootToken)
   let fixtureServer
   let browser
 

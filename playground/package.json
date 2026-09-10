@@ -1,0 +1,24 @@
+{
+  "name": "flamefront-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ff dev",
+    "build": "ff build",
+    "preview": "ff preview",
+    "typegen": "NODE_OPTIONS=\"--no-warnings\" ff typegen",
+    "routes": "ff routes",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@octanejs/remix-router": "0.1.36",
+    "@octanejs/vite-plugin": "0.1.40",
+    "flamefront": "workspace:*",
+    "octane": "0.1.40"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "typescript": "^6.0.3",
+    "vite": "latest"
+  }
+}

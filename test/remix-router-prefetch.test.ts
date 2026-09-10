@@ -5,20 +5,20 @@ import { createServer } from "vite"
 
 const routerSource = fileURLToPath(
   new URL(
-    "../../node_modules/@octanejs/remix-router/src/lib/router/router.ts",
+    "../node_modules/@octanejs/remix-router/src/lib/router/router.ts",
     import.meta.url,
   ),
 )
 const historySource = fileURLToPath(
   new URL(
-    "../../node_modules/@octanejs/remix-router/src/lib/router/history.ts",
+    "../node_modules/@octanejs/remix-router/src/lib/router/history.ts",
     import.meta.url,
   ),
 )
 
 async function loadRouterModules() {
   const server = await createServer({
-    root: fileURLToPath(new URL("../../", import.meta.url)),
+    root: fileURLToPath(new URL("../", import.meta.url)),
     logLevel: "error",
   })
 

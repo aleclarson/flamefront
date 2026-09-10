@@ -1,14 +1,10 @@
-import { defineConfig, mergeConfig } from "vitest/config"
-import viteConfig from "./vite.config.ts"
+import { defineConfig } from "vitest/config"
 
-export default mergeConfig(
-  viteConfig,
-  defineConfig({
-    test: {
-      fileParallelism: false,
-      hookTimeout: 120_000,
-      include: ["e2e/**/*.test.ts"],
-      testTimeout: 120_000,
-    },
-  }),
-)
+export default defineConfig({
+  test: {
+    fileParallelism: false,
+    hookTimeout: 120_000,
+    include: ["e2e/**/*.test.ts"],
+    testTimeout: 120_000,
+  },
+})

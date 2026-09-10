@@ -3,10 +3,11 @@ import { spawn } from "node:child_process"
 import { readdir, readFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { app } from "../src/app.ts"
+import { app } from "../playground/src/app.ts"
 import { test } from "vitest"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const playground = resolve(root, "playground")
 const port = 40_000 + (process.pid % 10_000)
 const base = `http://127.0.0.1:${port}`
 const previewToken = `route-check-${process.pid}-${Date.now()}`
@@ -157,15 +158,19 @@ test("serves the field guide routes and generated artifacts", async () => {
     "Compiled route metadata must not contain display labels.",
   )
 
-  const preview = spawn(resolve(root, "node_modules/.bin/ff"), ["preview"], {
-    cwd: root,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      FLAMEFRONT_CHECK_TOKEN: previewToken,
+  const preview = spawn(
+    resolve(playground, "node_modules/.bin/ff"),
+    ["preview"],
+    {
+      cwd: playground,
+      env: {
+        ...process.env,
+        PORT: String(port),
+        FLAMEFRONT_CHECK_TOKEN: previewToken,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  })
+  )
   let previewOutput = ""
 
   preview.stdout.on("data", (chunk) => {
@@ -287,7 +292,7 @@ test("serves the field guide routes and generated artifacts", async () => {
     assert.match(staticHtml, /type="module"/)
 
     const builtShell = await readFile(
-      resolve(root, "dist/client/index.html"),
+      resolve(playground, "dist/client/index.html"),
       "utf8",
     )
 
@@ -298,7 +303,7 @@ test("serves the field guide routes and generated artifacts", async () => {
 
     const staticPath = staticRoute.path.replace(/^\/+|\/+$/g, "") || "index"
     const generatedStatic = await readFile(
-      resolve(root, "dist/client", staticPath, "index.html"),
+      resolve(playground, "dist/client", staticPath, "index.html"),
       "utf8",
     )
 
@@ -307,7 +312,7 @@ test("serves the field guide routes and generated artifacts", async () => {
     assert.match(generatedStatic, /type="module"/)
 
     const staticDataFile = resolve(
-      root,
+      playground,
       "dist/client",
       staticPath,
       "index.data.json",
@@ -323,7 +328,7 @@ test("serves the field guide routes and generated artifacts", async () => {
     const interactiveStaticPath =
       staticInteractiveRoute.path.replace(/^\/+|\/+$/g, "") || "index"
     const generatedInteractiveStatic = await readFile(
-      resolve(root, "dist/client", interactiveStaticPath, "index.html"),
+      resolve(playground, "dist/client", interactiveStaticPath, "index.html"),
       "utf8",
     )
 
@@ -333,7 +338,12 @@ test("serves the field guide routes and generated artifacts", async () => {
     assert.match(generatedInteractiveStatic, /Server HTML is dormant\./)
     const interactiveStaticData = JSON.parse(
       await readFile(
-        resolve(root, "dist/client", interactiveStaticPath, "index.data.json"),
+        resolve(
+          playground,
+          "dist/client",
+          interactiveStaticPath,
+          "index.data.json",
+        ),
         "utf8",
       ),
     )
@@ -343,12 +353,14 @@ test("serves the field guide routes and generated artifacts", async () => {
       "Generated /static-interactive during ff build.",
     )
 
-    const clientAssets = await readdir(resolve(root, "dist/client/assets"))
+    const clientAssets = await readdir(
+      resolve(playground, "dist/client/assets"),
+    )
     const clientJavaScript = await Promise.all(
       clientAssets
         .filter((asset) => asset.endsWith(".js"))
         .map((asset) =>
-          readFile(resolve(root, "dist/client/assets", asset), "utf8"),
+          readFile(resolve(playground, "dist/client/assets", asset), "utf8"),
         ),
     )
 
@@ -366,7 +378,7 @@ test("serves the field guide routes and generated artifacts", async () => {
       clientAssets
         .filter((asset) => asset.endsWith(".js.map"))
         .map((asset) =>
-          readFile(resolve(root, "dist/client/assets", asset), "utf8"),
+          readFile(resolve(playground, "dist/client/assets", asset), "utf8"),
         ),
     )
 
@@ -386,8 +398,10 @@ test("serves the field guide routes and generated artifacts", async () => {
     )?.[1]
 
     assert.ok(clientEntry, "Built client shell is missing its entry script.")
-    await readFile(resolve(root, "dist/client", `${clientEntry.slice(1)}.map`))
-    await readFile(resolve(root, "dist/server/server.js.map"))
+    await readFile(
+      resolve(playground, "dist/client", `${clientEntry.slice(1)}.map`),
+    )
+    await readFile(resolve(playground, "dist/server/server.js.map"))
 
     console.log(
       "Route matching and the shell/layout route tree are observable in production output.",

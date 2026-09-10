@@ -1,0 +1,12 @@
+{
+  "name": "flamefront-browser-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@octanejs/remix-router": "0.1.36",
+    "@octanejs/vite-plugin": "0.1.40",
+    "flamefront": "workspace:*",
+    "octane": "0.1.40",
+    "vite": "latest"
+  }
+}
