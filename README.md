@@ -1,18 +1,18 @@
 # Flamefront
 
 Flamefront brings routing, server rendering, and static pages to Octane.
-Define your routes in one place and choose how each page renders.
+One route list connects your pages to the server, browser router, and build.
 
 ## Why try it?
 
-- **Mix rendering modes.** Serve live pages from the server, build static pages
-  ahead of time, and render browser-first screens on the client.
+- **Render each page where it makes sense.** On the server, at build time, or
+  in the browser.
 - **React Router-style loaders.** Load data beside your page component and read
   it with `useLoaderData`.
-- **Shared layouts.** Keep navigation and other shared UI in place as pages change.
-- **Choose when pages become interactive.** Activate them immediately, when
-  they become visible, or when someone interacts with them.
-- **Markdown pages included.** Turn Markdown and MDX files into routes.
+- **Shared layouts.** Keep navigation and shared UI in place as pages change.
+- **Control interactivity.** Activate a page immediately, when it becomes
+  visible, or when someone interacts with it.
+- **Markdown routes.** Use Markdown and MDX files as pages.
 
 ## One route list
 
@@ -29,29 +29,23 @@ export const app = defineApp({
 })
 ```
 
-The same list drives the server, browser router, and build. The shell holds
-shared UI; each route points to an Octane page component.
+The shell holds shared UI. Each route pairs a URL with an Octane page component
+and chooses how it renders.
 
 ## Quickstart
 
-[Build and inspect the included app](./docs/getting-started.md) to try it,
-then follow [Create a one-page app](./docs/create-app.md) to make your own.
-The setup guide uses the current checkout so the package matches these examples.
-
-## Status and support
-
-Flamefront is an early alpha for Octane apps. Expect changes before 1.0.
-You'll need Node.js 26+; the [setup guide](./docs/create-app.md) lists the
-matching package versions.
+[Try the included app](./docs/getting-started.md): build a static page, inspect
+its generated HTML, and serve it locally. Then [create your own app](./docs/create-app.md).
 
 ## Before you try it
 
-Flamefront is worth exploring if you want these rendering choices in an
-Octane app. If your current framework already does what you need, you may
-not need it.
+Flamefront is an early alpha and requires Node.js 26+. Expect changes before
+1.0. Follow the setup guide for matching packages.
 
-There is no built-in form action or mutation API yet. The package uses the
-[FSL-1.1-MIT license](./LICENSE.md).
+There is no built-in form action or mutation API yet. If your current framework
+already covers your needs, there's no need to switch.
+
+Licensed under [FSL-1.1-MIT](./LICENSE.md).
 
 ## Learn more
 
