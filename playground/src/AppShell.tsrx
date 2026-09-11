@@ -26,7 +26,7 @@ export function AppShell() @{
         data-testid="shell-counter"
         onClick={() => setShellCount(shellCount + 1)}
       >
-        Shell count
+        Shell count{" "}
         {shellCount}
       </button>
       <span class="shell-transition" data-testid="shell-transition">

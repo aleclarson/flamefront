@@ -15,7 +15,7 @@ export function AppLayout() @{
         data-testid="layout-counter"
         onClick={() => setLayoutCount(layoutCount + 1)}
       >
-        Layout count
+        Layout count{" "}
         {layoutCount}
       </button>
     </div>

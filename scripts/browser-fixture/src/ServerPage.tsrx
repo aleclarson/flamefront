@@ -26,7 +26,7 @@ export default function ServerPage() @{
 
   <main data-testid="fixture-server">
     <p data-testid="fixture-server-data">
-      Server loader:
+      Server loader:{" "}
       {data.pathname}
       {" "}
       {data.query}
@@ -34,7 +34,7 @@ export default function ServerPage() @{
       {data.requestCount}
     </p>
     <p data-testid="fixture-server-location">
-      Router location:
+      Router location:{" "}
       {location.pathname}
       {location.search}
     </p>
@@ -43,7 +43,7 @@ export default function ServerPage() @{
       data-testid="fixture-server-counter"
       onClick={() => setCount(count + 1)}
     >
-      Server count:
+      Server count:{" "}
       {count}
     </button>
   </main>

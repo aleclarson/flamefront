@@ -9,7 +9,7 @@ export default function StaticPage() @{
   const data = useLoaderData<{ pathname: string }>()
 
   <main data-testid="fixture-static">
-    Static loader:
+    Static loader:{" "}
     {data.pathname}
   </main>
 }

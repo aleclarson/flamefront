@@ -34,7 +34,6 @@
       { "blankLine": "always", "prev": ["function", "class"], "next": "*" },
       { "blankLine": "always", "prev": "*", "next": ["function", "class"] }
     ],
-    "curly": "error",
-    "react/react-compiler": "error"
+    "curly": "error"
   }
 }

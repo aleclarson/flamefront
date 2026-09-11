@@ -9,7 +9,7 @@ export default function ClientPage() @{
   const data = useLoaderData<{ pathname: string }>()
 
   <main data-testid="fixture-client">
-    Client loader:
+    Client loader:{" "}
     {data.pathname}
     <Link to="/server">Server</Link>
   </main>

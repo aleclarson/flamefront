@@ -39,7 +39,7 @@ export function HydrationProbe({
           setActivations(activations + 1)
         }}
       >
-        Interaction count:
+        Interaction count:{" "}
         {activations}
       </button>
     }

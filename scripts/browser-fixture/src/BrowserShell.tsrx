@@ -11,7 +11,7 @@ export default function BrowserShell() @{
       data-testid="fixture-shell-counter"
       onClick={() => setCount(count + 1)}
     >
-      Shell count:
+      Shell count:{" "}
       {count}
     </button>
     <nav aria-label="Fixture routes">

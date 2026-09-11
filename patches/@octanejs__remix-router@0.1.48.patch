@@ -97,9 +97,9 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  	viewTransition?: boolean;
  	defaultShouldRevalidate?: boolean;
 +	download?: string | boolean;
- 	// `| null` (and the `ref = null` default below) because octane composes a
- 	// forwarded ref with any `ref` inside the host spread as `ref={[a, b]}`, and
- 	// an array member must be a ref — `undefined` is not one. `attachRef` treats
+ 	// A missing forwarded ref stays inert when composed with host-spread refs.
+ 	ref?: { current: HTMLAnchorElement | null } | ((node: HTMLAnchorElement | null) => void) | null;
+ 	[key: string]: unknown;
 @@ -39,6 +41,10 @@ type LinkProps = {
  export function Link(props: LinkProps) @{
  	const {

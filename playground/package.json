@@ -11,14 +11,14 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@octanejs/remix-router": "0.1.36",
-    "@octanejs/vite-plugin": "0.1.40",
+    "@octanejs/remix-router": "0.1.48",
+    "@octanejs/vite-plugin": "0.1.54",
     "flamefront": "workspace:*",
-    "octane": "0.1.40"
+    "octane": "0.2.7"
   },
   "devDependencies": {
-    "@types/node": "26.1.1",
-    "typescript": "^6.0.3",
-    "vite": "latest"
+    "@types/node": "26.5.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
   }
 }
