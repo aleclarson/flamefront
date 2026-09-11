@@ -67,8 +67,7 @@ application still owns what it can access and how writes work.
 These docs describe the current repository checkout, whose package version
 is `0.1.0-alpha.0`, and require Node.js 26 or newer. The published package with
 that version has an older API; the setup guide uses a local package archive.
-APIs and output can change before 1.0. The package uses
-[FSL-1.1-MIT](../LICENSE.md); review the license before adoption.
+APIs and output can change before 1.0. The package is licensed under [MIT](../LICENSE.md).
 
 ## Try it, then choose a next step
 

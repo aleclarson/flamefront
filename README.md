@@ -48,7 +48,7 @@ Flamefront is an early alpha and requires Node.js 26+. Expect changes before
 There is no built-in form action or mutation API yet. If your current framework
 already covers your needs, there's no need to switch.
 
-Licensed under [FSL-1.1-MIT](./LICENSE.md).
+Licensed under [MIT](./LICENSE.md).
 
 ## Learn more
 
