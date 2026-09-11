@@ -47,39 +47,39 @@
     "format": "oxlint --fix && prettier --write ."
   },
   "dependencies": {
-    "@alloc/cmd-ts": "0.17.1",
+    "@alloc/cmd-ts": "^0.17.1",
     "@babel/generator": "^8.0.5",
     "@babel/parser": "^8.0.5",
     "@babel/traverse": "^8.0.5",
     "@babel/types": "^8.0.5",
-    "@remix-run/route-pattern": "0.24.0",
+    "@remix-run/route-pattern": "^0.24.0",
     "babel-dead-code-elimination": "^2.0.0",
     "satteri": "^0.10.5",
-    "srvx": "1.0.4",
+    "srvx": "^1.0.4",
     "vite-plugin-satteri": "^0.3.5"
   },
   "devDependencies": {
-    "@octanejs/remix-router": "0.1.48",
-    "@octanejs/vite-plugin": "0.1.54",
+    "@octanejs/remix-router": "^0.1.48",
+    "@octanejs/vite-plugin": "^0.1.54",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tsrx/prettier-plugin": "^0.3.137",
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
-    "@types/node": "26.5.1",
-    "octane": "0.2.7",
-    "oxc-tsrx": "0.6.1",
+    "@types/node": "^26.5.1",
+    "octane": "^0.2.7",
+    "oxc-tsrx": "^0.6.1",
     "oxlint": "^1.82.0",
     "oxlint-tsgolint": "^7.0.2001",
-    "playwright": "1.63.0",
+    "playwright": "^1.63.0",
     "prettier": "^3.9.6",
-    "typescript": "5.9.3",
-    "vite": "8.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
     "vitest": "^5.0.0"
   },
   "peerDependencies": {
-    "@octanejs/remix-router": "0.1.48",
-    "octane": "0.2.7",
-    "vite": "^8.3.0"
+    "@octanejs/remix-router": ">=0.1.48",
+    "octane": ">=0.2.7",
+    "vite": ">=8.3.0"
   },
   "peerDependenciesMeta": {
     "@octanejs/remix-router": {
