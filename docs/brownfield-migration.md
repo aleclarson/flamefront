@@ -58,7 +58,7 @@ runtime migration is part of this full cutover even when the files remain
 
 ## Before starting
 
-Read the [alpha support matrix](../README.md#status-and-support) and
+Read the [matching package setup](create-app.md) and
 [known limitations](../README.md#before-you-try-it)
 before choosing the target runtime. Pin the Flamefront version and matching
 Octane, Remix Router, Vite, and Node versions for the migration branch.
