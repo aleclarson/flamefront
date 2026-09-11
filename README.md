@@ -53,7 +53,7 @@ below assume the conventional paths shown here.
 
 | Package or runtime       | Supported version | Notes                                                                   |
 | ------------------------ | ----------------- | ----------------------------------------------------------------------- |
-| Node.js                  | `>=22.22.2`       | CI runs Node 22.22.2, 24.x, and 26.x.                                   |
+| Node.js                  | `>=26.0.0`        | Release checks run on Node 26.x.                                        |
 | Vite                     | `^8.0.16`         | The repository and consumer check currently use Vite 8.2.2.             |
 | Octane                   | `0.1.40`          | Flamefront declares this as an exact peer.                              |
 | `@octanejs/vite-plugin`  | `0.1.40`          | Use the matching TSRX compiler plugin.                                  |
@@ -874,7 +874,7 @@ Promote the alpha only when every item below is complete and recorded.
 - [ ] Confirm the package is still named `flamefront`, has the intended
       pre-1.0 version, exposes `ff`, and contains only intentional packed files.
 - [ ] Run `pnpm install --frozen-lockfile` with pnpm 11.21.0.
-- [ ] Run the release checks on Node 22.22.2, 24.x, and 26.x.
+- [ ] Run the release checks on Node 26.x.
 - [ ] Confirm `pnpm lint`, `pnpm format:check`, `pnpm typecheck`,
       `pnpm test`, `pnpm test:e2e`, and the production build all pass.
 - [ ] Confirm `pnpm check` passes as the single aggregate gate.
