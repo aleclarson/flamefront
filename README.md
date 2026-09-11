@@ -7,6 +7,11 @@ same manifest drives local development, the build, and the browser router.
 It is for early adopters who want a hybrid Octane app without maintaining
 separate route lists or a custom server and rendering pipeline.
 
+Start with [the documentation](./docs/index.md) to decide whether Flamefront
+fits, or [build and inspect the included app](./docs/getting-started.md) for a
+complete first trial. To create a project, follow
+[Create a one-page app](./docs/create-app.md).
+
 ## Why try it?
 
 | What you need                                        | What Flamefront gives you                                                                           |
@@ -37,136 +42,13 @@ experimentation. Pin the package and its peers while evaluating it.
 
 ## Quickstart
 
-Install the current alpha and the matching Octane packages:
+Follow [Create a one-page app](./docs/create-app.md) for the complete setup,
+including prerequisites, all application files, and expected output.
 
-```sh
-pnpm add \
-  flamefront@0.1.0-alpha.0 \
-  @octanejs/remix-router@0.1.48 \
-  @octanejs/vite-plugin@0.1.54 \
-  octane@0.2.7 \
-  vite@8.3.0
-```
-
-Use ESM (`"type": "module"`) and start with this layout:
-
-```
-.
-├── index.html
-├── vite.config.ts
-└── src
-    ├── app.ts
-    ├── AppShell.tsrx
-    ├── HomePage.tsrx
-    ├── entry-server.ts
-    └── main.ts
-```
-
-Configure Vite with Flamefront before the Octane plugin:
-
-```ts
-// vite.config.ts
-import { defineConfig } from "vite"
-import { octane } from "@octanejs/vite-plugin"
-import { flamefront } from "flamefront/vite"
-
-export default defineConfig({
-  plugins: [flamefront({ target: "node" }), octane()],
-})
-```
-
-Define the shell and a server-rendered route:
-
-```ts
-// src/app.ts
-import { defineApp, serverRoute } from "flamefront"
-
-export const app = defineApp({
-  shell: "/src/AppShell.tsrx",
-  routes: [serverRoute("/", "/src/HomePage.tsrx")],
-})
-```
-
-The shell owns persistent UI. Its `<Outlet />` is where the current route
-appears:
-
-```tsx
-// src/AppShell.tsrx
-import { Outlet } from "@octanejs/remix-router"
-
-export default function AppShell() @{
-  <div>
-    <header>My app</header>
-    <Outlet />
-  </div>
-}
-```
-
-A route can load data on the server and read it through the router:
-
-```tsx
-// src/HomePage.tsrx
-import { useLoaderData } from "@octanejs/remix-router"
-import type { LoaderArgs } from "flamefront/server"
-
-export async function loader({ request }: LoaderArgs<"/">) {
-  return { pathname: new URL(request.url).pathname }
-}
-
-export default function HomePage() @{
-  const data = useLoaderData<typeof loader>()
-
-  <main>Loaded at {data.pathname}</main>
-}
-```
-
-Connect the generated route importer to the server entry:
-
-```ts
-// src/entry-server.ts
-import { importRoute } from "virtual:flamefront/server-routes"
-import { createOctaneDocuments } from "flamefront/octane"
-import { createRouteRuntime } from "flamefront/server"
-import { createServerEntry } from "flamefront/entry"
-import { app } from "./app.ts"
-
-const runtime = createRouteRuntime({ app, importRoute })
-const documents = createOctaneDocuments({ app, runtime })
-
-export default createServerEntry({
-  app,
-  documents,
-  assets: {
-    clientDirectory: new URL("../client/", import.meta.url),
-  },
-})
-```
-
-Start the browser entry:
-
-```ts
-// src/main.ts
-import { startOctaneClient } from "flamefront/octane/client"
-import { app } from "./app.ts"
-
-await startOctaneClient({ app })
-```
-
-Your `index.html` needs a `#root` element and the browser module:
-
-```html
-<div id="root"></div>
-<script type="module" src="/src/main.ts"></script>
-```
-
-Run it in development, inspect the manifest, or try the production output:
-
-```sh
-pnpm exec ff dev
-pnpm exec ff routes
-pnpm exec ff build
-PORT=4173 pnpm exec ff preview
-```
+These docs describe the current checkout. The published `0.1.0-alpha.0`
+package has an older API despite sharing this checkout's version number; for
+example, it lacks `serverRoute`. The setup guide packs the checkout into a
+local archive so its examples use the matching implementation.
 
 ## Route modes
 

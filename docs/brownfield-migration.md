@@ -1,4 +1,11 @@
-# Brownfield migration
+# Migrate an existing app to Octane and Flamefront
+
+> Inventory a full application cutover and define the checks that must pass
+> before replacing its existing runtime.
+
+This guide assumes you own the existing application's routing and deployment
+and have completed [a Flamefront trial](getting-started.md). If you are still
+deciding whether to adopt Flamefront, start with [the introduction](index.md).
 
 This guide describes a full migration of an existing web application to
 Flamefront. It is for teams replacing the application's routing, rendering,
@@ -51,7 +58,8 @@ runtime migration is part of this full cutover even when the files remain
 
 ## Before starting
 
-Read the [alpha support matrix and known limitations](../README.md#supported-versions)
+Read the [alpha support matrix](../README.md#status-and-support) and
+[known limitations](../README.md#before-you-try-it)
 before choosing the target runtime. Pin the Flamefront version and matching
 Octane, Remix Router, Vite, and Node versions for the migration branch.
 
@@ -168,7 +176,7 @@ The composition has four responsibilities:
    plugin for the built-in srvx asset host, or use Fetch asset callbacks for a
    Web host.
 
-The complete composition is shown in the [server entry quickstart](../README.md#composable-server-entry).
+The complete composition is shown in the [one-page setup](create-app.md#connect-server-and-browser-rendering).
 Use `requestContext` on `createRouteRuntime` for request-scoped values such
 as the authenticated user, database handle, locale, or feature flags. Route
 loaders receive that context together with the request and decoded params.
@@ -407,5 +415,7 @@ of routes.
 - Renaming `.tsx` files to `.tsrx` and treating that filename change as the
   React/Preact-to-Octane migration.
 
-For the exact package setup, server composition, browser entry, deployment
-shape, and current alpha limitations, use the main [Flamefront README](../README.md).
+For package setup, server composition, and the browser entry, use
+[Create a one-page app](create-app.md). For output files and host checks, use
+[Build and deploy](deployment.md). The [introduction](index.md) summarizes
+applicability and current alpha limits.
