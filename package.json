@@ -4,6 +4,7 @@
   "private": false,
   "description": "Typed centralized route manifests for Octane.",
   "license": "FSL-1.1-MIT",
+  "repository": "https://github.com/aleclarson/flamefront",
   "files": [
     "bin",
     "src"
