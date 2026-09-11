@@ -10,6 +10,9 @@ One route list connects your pages to the server, browser router, and build.
 - **React Router-style loaders.** Load data beside your page component and read
   it with `useLoaderData`.
 - **Shared layouts.** Keep navigation and shared UI in place as pages change.
+- **Persistent shell state.** Keep players running, uploads progressing, and
+  other shared UI state intact between pages without making the whole app
+  client-rendered.
 - **Control interactivity.** Activate a page immediately, when it becomes
   visible, or when someone interacts with it.
 - **Markdown routes.** Use Markdown and MDX files as pages.
