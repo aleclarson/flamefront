@@ -7,8 +7,8 @@ Define your routes in one place and choose how each page renders.
 
 - **Mix rendering modes.** Serve live pages from the server, build static pages
   ahead of time, and render browser-first screens on the client.
-- **Familiar route loaders.** Load data beside your page component and read it
-  with `useLoaderData`, following the Remix-style pattern.
+- **React Router-style loaders.** Load data beside your page component and read
+  it with `useLoaderData`.
 - **Shared layouts.** Keep navigation and other shared UI in place as pages change.
 - **Choose when pages become interactive.** Activate them immediately, when
   they become visible, or when someone interacts with them.
