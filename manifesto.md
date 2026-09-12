@@ -1,14 +1,18 @@
 # What Flamefront is for
 
-Web apps rarely need one rendering strategy. Marketing pages can be static.
-Account pages may need server rendering. Workspaces may be better in the
-browser. Those routes should still live in one app.
+Projects have different rendering needs. A documentation site may use only
+pre-rendered pages, a storefront may need server rendering, and a workspace
+may render in the browser. You should be able to use one framework across
+those projects, even when each needs only one rendering mode.
 
 Flamefront is a Vite-first meta-framework for Octane. Each route can render in
 the browser, on the server, or during the build. It can also decide when, or if,
 its JavaScript runs. One typed manifest drives the browser, server, and build.
 
-The point is simple: use one stack and choose delivery per route.
+Use the rendering your project needs today, with other modes available as
+requirements evolve. Mix them per route when useful. Flamefront's value is
+that flexibility and a familiar framework across projects; you do not need
+to use every mode to benefit.
 
 ## Octane renders everything
 

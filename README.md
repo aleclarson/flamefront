@@ -3,6 +3,11 @@
 Flamefront brings routing, server rendering, and static pages to Octane.
 One route list connects your pages to the server, browser router, and build.
 
+Use only the rendering your project needs. Pre-rendering, server-side rendering
+(SSR), and client-side rendering (CSR) are available as requirements evolve;
+you do not need to use all three to benefit. The same framework can serve
+many or all of your Octane projects, even when each uses a different mode.
+
 ## Why try it?
 
 - **Render each page where it makes sense.** On the server, at build time, or

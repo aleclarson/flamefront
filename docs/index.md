@@ -2,15 +2,19 @@
 
 > Typed centralized route manifests for Octane.
 
-Suppose your site has an About page that can be built ahead of time, product
-pages that need fresh server data, and a workspace rendered in the browser.
-Where do you describe those choices so that the server, browser router, and
-build agree about each URL?
+Flamefront gives Octane projects routing and a choice of pre-rendering,
+server-side rendering (SSR), or client-side rendering (CSR). Use the mode
+your project needs today, with the flexibility to choose another as its
+requirements evolve. A project can use just one mode throughout.
 
-If your framework already handles that, you may not need Flamefront. If you
-are building with **Octane**, a component renderer, Flamefront provides that
-connection. A **route manifest** is a TypeScript list of URL patterns, page
-files, and rendering choices. Flamefront uses it to build and serve the app.
+That flexibility also lets you use one framework across many or all of your
+Octane projects: a static documentation site, a server-rendered storefront,
+and a browser-rendered workspace can share the same framework conventions.
+Mix modes within a project when useful; using every mode is never a goal.
+
+A **route manifest** is a TypeScript list of URL patterns, page files, and
+rendering choices. Flamefront uses it to connect Octane, a component renderer,
+to the build, server, and browser router.
 
 ## What does that produce?
 
@@ -53,10 +57,10 @@ lets you check which content was generated at build time.
 
 | Your situation                                                               | What to consider                                                                                                 |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| You want an Octane app with different rendering choices per URL.             | Flamefront connects those choices to the build, server, and browser router.                                      |
+| You want rendering flexibility in an Octane app.                             | Use one mode throughout or choose per URL as requirements evolve.                                                |
 | Your existing framework already provides the routing and rendering you need. | Keeping it avoids a runtime migration and another dependency.                                                    |
-| You need only static content.                                                | An existing static-site generator or plain HTML may already cover the job.                                       |
-| You need only browser routing.                                               | A router may suffice; Flamefront also introduces build and server conventions.                                   |
+| You need only static content.                                                | Use static routes; keep the same framework if another project needs SSR or CSR.                                  |
+| You need only browser routing.                                               | Use client routes; the same framework supports projects that need pre-rendering or SSR.                          |
 | You want to keep your React or Preact runtime.                               | The documented Flamefront setup renders through Octane. This is not a drop-in router replacement for those apps. |
 | You need a stable production framework or built-in form actions.             | This is an alpha; there is no action or mutation API.                                                            |
 

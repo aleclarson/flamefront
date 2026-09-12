@@ -9,6 +9,10 @@ the exported TypeScript types when you need exact option shapes.
 
 ## Choose when the page is rendered
 
+Choose the mode each page needs. All routes can use the same mode; the mixed
+example below illustrates the available choices, not a required app structure.
+You can adopt another mode later if your requirements change.
+
 | Mode     | HTML for a direct visit                                      | Use when                                        | Boundary                                                                         |
 | -------- | ------------------------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------- |
 | `server` | Rendered for the request                                     | The page needs request-specific or current data | Requires a server at runtime.                                                    |
