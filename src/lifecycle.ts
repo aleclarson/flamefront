@@ -16,20 +16,33 @@ import type {
 import { joinBasename } from "./index.ts"
 import type { FlamefrontServerEntry } from "./srvx.ts"
 import type { RenderDocumentResult } from "./server.ts"
+import type {
+  PrerenderCache,
+  PrerenderOptions,
+  PrerenderPage,
+} from "./prerender.ts"
 import {
-  staticRouteFile,
-  staticRouteDataFile,
-  staticRouteFragmentFile,
-  staticRouteFragmentDataFile,
-} from "./static-fragment-artifacts.ts"
+  cacheKey as prerenderCacheKey,
+  cacheNamespace,
+  createFilesystemPrerenderCache,
+  deserializePrerenderArtifact,
+  hash,
+  isParameterizedRoute,
+  renderingFingerprint,
+  routeSourceFile,
+  serializePrerenderArtifact,
+} from "./prerender.ts"
+import { staticRouteFile } from "./static-fragment-artifacts.ts"
 import type { RouteFragmentArtifact } from "./fragment-client.ts"
 import {
+  assembleStaticRouteArtifact,
   documentParts,
   renderStaticRoute,
   staticRouteRequest,
   writeStaticRouteArtifact,
 } from "./prerender-artifacts.ts"
 import { setGlobRoot } from "./glob.ts"
+import { getFlamefrontOptions } from "./vite-options.ts"
 
 export {
   staticRouteFile,
@@ -37,6 +50,12 @@ export {
   staticRouteFragmentFile,
   staticRouteFragmentDataFile,
 } from "./static-fragment-artifacts.ts"
+
+export type {
+  PrerenderCache,
+  PrerenderOptions,
+  PrerenderPage,
+} from "./prerender.ts"
 
 interface AppModule {
   app?: AppDefinition
@@ -51,6 +70,38 @@ export interface ProjectContext {
   readonly app: AppDefinition
   readonly root: string
   readonly routesFile: string
+}
+
+export interface BuildProjectOptions {
+  readonly forcePrerender?: boolean
+}
+
+export interface PrerenderRouteEntry {
+  readonly path: string
+  readonly route: RouteDefinition
+  readonly key: string | null
+}
+
+interface CollectedPrerenderRoute {
+  readonly path: string
+  readonly route: RouteDefinition
+  readonly supplied?: PrerenderPage
+}
+
+export interface PrerenderStats {
+  readonly rendered: number
+  readonly reused: number
+}
+
+export interface PrerenderStaticRouteOptions {
+  readonly cache?: PrerenderCache | false
+  readonly force?: boolean
+  readonly revision?: string
+  readonly template?: string
+  readonly fingerprint?: (
+    route: RouteDefinition,
+    path: string,
+  ) => string | Promise<string>
 }
 
 export async function loadProject(
@@ -209,8 +260,268 @@ async function listen(
   })
 }
 
-export async function buildProject(root = process.cwd()): Promise<void> {
+async function loadBuildFlamefrontOptions(root: string) {
+  const { loadConfigFromFile } = await import("vite")
+
+  await loadConfigFromFile(
+    { command: "build", mode: "production" },
+    resolve(root, "vite.config.ts"),
+    root,
+  )
+
+  return getFlamefrontOptions(root)
+}
+
+function validatePrerenderPath(path: unknown): asserts path is string {
+  if (typeof path !== "string" || !path.startsWith("/")) {
+    throw new TypeError(
+      `flamefront prerender page path must start with '/'; received ${JSON.stringify(path)}.`,
+    )
+  }
+
+  if (path.includes("?") || path.includes("#")) {
+    throw new TypeError(
+      `flamefront prerender page path cannot contain a query or fragment: ${JSON.stringify(path)}.`,
+    )
+  }
+
+  if (isParameterizedRoute(path)) {
+    throw new TypeError(
+      `flamefront prerender page path must be concrete: ${JSON.stringify(path)}.`,
+    )
+  }
+}
+
+function normalizedPrerenderPath(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path
+}
+
+async function collectPrerenderRoutes(
+  root: string,
+  app: AppDefinition,
+  options: PrerenderOptions,
+): Promise<readonly CollectedPrerenderRoute[]> {
+  const pages = new Map<string, RouteDefinition>()
+  const suppliedPages = new Map<string, PrerenderPage>()
+  const callbackPaths = new Set<string>()
+  const staticRoutes = app.routes.filter((route) => route.render === "static")
+
+  for (const route of staticRoutes) {
+    if (!isParameterizedRoute(route.path)) {
+      pages.set(route.path, route)
+    }
+  }
+
+  if (options.pages) {
+    const supplied = await options.pages({ root, routes: app.routes })
+
+    for await (const page of supplied) {
+      if (!page || typeof page !== "object") {
+        throw new TypeError("flamefront prerender pages must contain objects.")
+      }
+
+      validatePrerenderPath(page.path)
+      const path = normalizedPrerenderPath(page.path)
+      const normalizedPage = path === page.path ? page : { ...page, path }
+
+      if (callbackPaths.has(path)) {
+        throw new TypeError(
+          `flamefront prerender page path is duplicated: ${path}`,
+        )
+      }
+
+      if (
+        page.key !== undefined &&
+        page.key !== null &&
+        typeof page.key !== "string"
+      ) {
+        throw new TypeError(
+          `flamefront prerender page key must be a string or null: ${path}`,
+        )
+      }
+
+      const match = app.match(
+        new URL(joinRoutePath(app.routing, path), "http://flamefront.build"),
+        { render: "static" },
+      )
+
+      if (!match) {
+        throw new Error(
+          `flamefront prerender page ${JSON.stringify(path)} does not match a static route.`,
+        )
+      }
+
+      callbackPaths.add(path)
+      pages.set(path, match.data)
+      suppliedPages.set(path, normalizedPage)
+    }
+  } else if (staticRoutes.some((route) => isParameterizedRoute(route.path))) {
+    const route = staticRoutes.find((item) => isParameterizedRoute(item.path))!
+
+    throw new Error(
+      `Cannot prerender parameterized static route ${JSON.stringify(route.path)} without concrete paths.`,
+    )
+  }
+
+  return [...pages].map(([path, route]) => ({
+    path,
+    route,
+    supplied: suppliedPages.get(path),
+  }))
+}
+
+async function resolvePrerenderKey(
+  root: string,
+  entry: Omit<PrerenderRouteEntry, "key">,
+  supplied: PrerenderPage | undefined,
+): Promise<string | null> {
+  if (supplied?.key !== undefined) {
+    return supplied.key
+  }
+
+  if (entry.route.content !== "markdown") {
+    return null
+  }
+
+  const source = routeSourceFile(root, entry.route)
+
+  try {
+    return hash(await readFile(source))
+  } catch (error) {
+    throw new Error(
+      `Cannot hash Markdown route source ${relative(root, source)}.`,
+      { cause: error },
+    )
+  }
+}
+
+async function resolvePrerenderEntries(
+  root: string,
+  app: AppDefinition,
+  options: PrerenderOptions,
+): Promise<readonly PrerenderRouteEntry[]> {
+  const routes = await collectPrerenderRoutes(root, app, options)
+
+  return Promise.all(
+    routes.map(async (entry) => ({
+      ...entry,
+      key: await resolvePrerenderKey(root, entry, entry.supplied),
+    })),
+  )
+}
+
+export async function prerenderStaticRouteEntries(
+  root: string,
+  clientDirectory: string,
+  entries: readonly PrerenderRouteEntry[],
+  render: (request: Request) => Promise<RenderDocumentResult>,
+  loadData?: (request: Request) => Promise<unknown>,
+  routing: Pick<NormalizedRoutingOptions, "basename"> = { basename: "/" },
+  renderFragment?: (request: Request) => Promise<RouteFragmentArtifact>,
+  options: PrerenderStaticRouteOptions = {},
+): Promise<PrerenderStats> {
+  const cache =
+    options.cache === undefined
+      ? createFilesystemPrerenderCache(root)
+      : options.cache
+  let rendered = 0
+  let reused = 0
+
+  for (const entry of entries) {
+    const outputRoute =
+      entry.route.path === entry.path
+        ? entry.route
+        : ({ ...entry.route, path: entry.path } satisfies RouteDefinition)
+    const request = staticRouteRequest(routing, entry.path)
+    const fingerprint = options.fingerprint
+      ? await options.fingerprint(entry.route, entry.path)
+      : hash({ route: entry.route, path: entry.path })
+    const key =
+      entry.key === null
+        ? undefined
+        : prerenderCacheKey(
+            entry.path,
+            entry.key,
+            options.revision,
+            fingerprint,
+            cacheNamespace(root),
+          )
+    let artifact = null as Awaited<ReturnType<typeof renderStaticRoute>> | null
+    let reusedEntry = false
+
+    if (cache && key && !options.force) {
+      try {
+        const cached = await cache.get(key)
+        const decoded = cached ? deserializePrerenderArtifact(cached) : null
+
+        if (decoded?.path === entry.path) {
+          artifact = options.template
+            ? assembleStaticRouteArtifact(decoded.artifact, options.template)
+            : decoded.artifact
+          reusedEntry = artifact !== null
+
+          if (artifact && options.template !== undefined && cache) {
+            try {
+              await cache.put(
+                key,
+                serializePrerenderArtifact(entry.path, artifact),
+              )
+            } catch (error) {
+              console.warn(
+                `Flamefront prerender cache write failed for ${entry.path}; continuing with the build.`,
+                error,
+              )
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(
+          `Flamefront prerender cache read failed for ${entry.path}; rendering it again.`,
+          error,
+        )
+      }
+    }
+
+    if (!artifact) {
+      artifact = await renderStaticRoute(
+        outputRoute,
+        request,
+        render,
+        loadData,
+        renderFragment,
+        options.template,
+      )
+      rendered += 1
+
+      if (cache && key) {
+        try {
+          await cache.put(key, serializePrerenderArtifact(entry.path, artifact))
+        } catch (error) {
+          console.warn(
+            `Flamefront prerender cache write failed for ${entry.path}; continuing with the build.`,
+            error,
+          )
+        }
+      }
+    } else if (reusedEntry) {
+      reused += 1
+    }
+
+    await writeStaticRouteArtifact(clientDirectory, outputRoute, artifact)
+    console.log(
+      `${reusedEntry ? "Reused" : "Generated"} ${relative(root, staticRouteFile(clientDirectory, outputRoute))}.`,
+    )
+  }
+
+  return { rendered, reused }
+}
+
+export async function buildProject(
+  root = process.cwd(),
+  buildOptions: BuildProjectOptions = {},
+): Promise<void> {
   const { app } = await loadProject(root)
+  const flamefrontOptions = await loadBuildFlamefrontOptions(root)
   const { build } = await import("vite")
   const dist = resolve(root, "dist")
   const clientDirectory = resolve(dist, "client")
@@ -269,33 +580,72 @@ export async function buildProject(root = process.cwd()): Promise<void> {
     return
   }
 
-  await prerenderStaticRoutes(
+  const render = (request: Request) =>
+    serverEntry.renderDocument(clientTemplate, request, { mode: "static" })
+  const loadData = async (request: Request) => {
+    const endpoint = new URL(app.routing.dataPath, request.url)
+
+    endpoint.searchParams.set("url", request.url)
+    const response = await serverEntry.loadRouteData(
+      new Request(endpoint, {
+        headers: request.headers,
+        signal: request.signal,
+      }),
+    )
+
+    if (!response.ok) {
+      throw response
+    }
+
+    return response.json()
+  }
+
+  const renderFragment = serverEntry.renderFragment
+    ? (request: Request) => serverEntry.renderFragment!(request)
+    : undefined
+
+  if (!flamefrontOptions?.prerender) {
+    await prerenderStaticRoutes(
+      root,
+      clientDirectory,
+      staticRoutes,
+      render,
+      loadData,
+      app.routing,
+      renderFragment,
+    )
+    return
+  }
+
+  const entries = await resolvePrerenderEntries(
+    root,
+    app,
+    flamefrontOptions.prerender,
+  )
+  const stats = await prerenderStaticRouteEntries(
     root,
     clientDirectory,
-    staticRoutes,
-    (request) =>
-      serverEntry.renderDocument(clientTemplate, request, { mode: "static" }),
-    async (request) => {
-      const endpoint = new URL(app.routing.dataPath, request.url)
-
-      endpoint.searchParams.set("url", request.url)
-      const response = await serverEntry.loadRouteData(
-        new Request(endpoint, {
-          headers: request.headers,
-          signal: request.signal,
-        }),
-      )
-
-      if (!response.ok) {
-        throw response
-      }
-
-      return response.json()
-    },
+    entries,
+    render,
+    loadData,
     app.routing,
-    serverEntry.renderFragment
-      ? (request) => serverEntry.renderFragment!(request)
-      : undefined,
+    renderFragment,
+    {
+      cache: flamefrontOptions.prerender.cache,
+      force: buildOptions.forcePrerender,
+      revision: flamefrontOptions.prerender.revision,
+      template: clientTemplate,
+      fingerprint: (route, path) =>
+        renderingFingerprint(root, app, route, path, {
+          markdown: flamefrontOptions.markdown,
+          target: flamefrontOptions.target,
+          template: clientTemplate,
+        }),
+    },
+  )
+
+  console.log(
+    `Prerendered ${stats.rendered} pages, reused ${stats.reused} cached pages.`,
   )
 }
 
@@ -317,6 +667,7 @@ export async function prerenderStaticRoutes(
       loadData,
       renderFragment,
     )
+
     await writeStaticRouteArtifact(clientDirectory, route, artifact)
     console.log(
       `Generated ${relative(root, staticRouteFile(clientDirectory, route))}.`,

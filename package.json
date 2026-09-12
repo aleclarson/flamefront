@@ -33,6 +33,7 @@
     "./server": "./src/server.ts",
     "./output": "./src/output.ts",
     "./srvx": "./src/srvx.ts",
+    "./prerender": "./src/prerender.ts",
     "./vite": "./src/vite.ts"
   },
   "scripts": {

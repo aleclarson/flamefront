@@ -64,8 +64,14 @@ const dev = command({
 const build = command({
   name: "build",
   description: "Build client and server bundles, then prerender static routes.",
-  args: {},
-  handler: () => buildProject(),
+  args: {
+    forcePrerender: flag({
+      long: "force-prerender",
+      description: "Ignore prerender cache entries and refresh them.",
+    }),
+  },
+  handler: ({ forcePrerender }) =>
+    buildProject(process.cwd(), { forcePrerender }),
 })
 
 const preview = command({

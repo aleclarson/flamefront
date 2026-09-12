@@ -21,6 +21,11 @@ export interface StaticRouteArtifact {
   readonly routeData: unknown
   readonly fragment: RouteFragmentArtifact
   readonly status: number
+  /** Template metadata used for safe asset-only assembly on a later build. */
+  readonly template?: {
+    readonly fingerprint: string
+    readonly assets: readonly string[]
+  }
 }
 
 /** The normalized fields needed by the build and cache layers. */
@@ -49,6 +54,7 @@ export async function renderStaticRoute(
   render: (request: Request) => Promise<RenderDocumentResult>,
   loadData?: (request: Request) => Promise<unknown>,
   renderFragment?: (request: Request) => Promise<RouteFragmentArtifact>,
+  template?: string,
 ): Promise<StaticRouteArtifact> {
   const rendered = documentParts(await render(request))
   const routeData = rendered.hasRouteData
@@ -73,7 +79,72 @@ export async function renderStaticRoute(
     routeData,
     fragment,
     status: rendered.status,
+    ...(template === undefined ? {} : { template: templateMetadata(template) }),
   }
+}
+
+function assetReferences(template: string): readonly string[] {
+  return [...template.matchAll(/(?:src|href)=(['"])(\/assets\/[^'"]+)\1/g)].map(
+    (match) => match[2],
+  )
+}
+
+function normalizedTemplate(template: string): string {
+  let index = 0
+
+  return template.replace(
+    /(?:src|href)=(['"])(\/assets\/[^'"]+)\1/g,
+    (_match, quote: string) =>
+      `asset=${quote}__flamefront_asset_${index++}__${quote}`,
+  )
+}
+
+function templateMetadata(
+  template: string,
+): NonNullable<StaticRouteArtifact["template"]> {
+  return {
+    fingerprint: normalizedTemplate(template),
+    assets: assetReferences(template),
+  }
+}
+
+/** Fingerprint template structure while ignoring hashed asset names. */
+export function templateFingerprint(template: string): string {
+  return normalizedTemplate(template)
+}
+
+/**
+ * Reassemble a cached document when only Vite's hashed asset names changed.
+ * Returns `null` when the surrounding template changed and a fresh render is
+ * required.
+ */
+export function assembleStaticRouteArtifact(
+  artifact: StaticRouteArtifact,
+  template: string,
+): StaticRouteArtifact | null {
+  if (artifact.template === undefined) {
+    return null
+  }
+
+  const current = templateMetadata(template)
+
+  if (artifact.template.fingerprint !== current.fingerprint) {
+    return null
+  }
+
+  const previous = artifact.template.assets
+
+  if (previous.length !== current.assets.length) {
+    return null
+  }
+
+  let html = artifact.html
+
+  for (let index = 0; index < previous.length; index += 1) {
+    html = html.replaceAll(previous[index], current.assets[index])
+  }
+
+  return { ...artifact, html, template: current }
 }
 
 /** Publish one complete route artifact into the current client output. */

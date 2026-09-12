@@ -2,3 +2,4 @@ octane
 node_modules
 dist
 **/.flamefront/types
+**/.flamefront/cache

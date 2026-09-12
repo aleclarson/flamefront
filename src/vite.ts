@@ -26,6 +26,11 @@ import {
   type FlamefrontOutputOptions,
   type ResolvedFlamefrontOutput,
 } from "./output.ts"
+import type { PrerenderOptions } from "./prerender.ts"
+import {
+  registerFlamefrontOptions,
+  registerFlamefrontRoot,
+} from "./vite-options.ts"
 
 export type {
   FlamefrontAdapter,
@@ -57,6 +62,8 @@ export interface FlamefrontOptions extends FlamefrontOutputOptions {
   readonly routes?: string
   /** Built-in Markdown and MDX compiler configuration. */
   readonly markdown?: false | MarkdownOptions
+  /** Configure incremental static rendering and its persistent cache. */
+  readonly prerender?: PrerenderOptions
 }
 
 export interface MarkdownOptions {
@@ -704,6 +711,12 @@ export function removeServerRouteExports(source: string, id = "route.js") {
 
 export function flamefront(options: FlamefrontOptions = {}) {
   const output = resolveFlamefrontOutput(options)
+
+  registerFlamefrontOptions({
+    prerender: options.prerender,
+    markdown: options.markdown,
+    target: options.target,
+  })
   let root = process.cwd()
   let serverBuild = false
   let appPromise: Promise<AppDefinition> | undefined
@@ -743,6 +756,11 @@ export function flamefront(options: FlamefrontOptions = {}) {
     writeRouteImportMap(await loadApp(), { root })
   const configureRoot = (config: { readonly root: string }) => {
     root = config.root
+    registerFlamefrontRoot(root, {
+      prerender: options.prerender,
+      markdown: options.markdown,
+      target: options.target,
+    })
   }
 
   const frameworkModulesPlugin = {

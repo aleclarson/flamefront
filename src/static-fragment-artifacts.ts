@@ -12,17 +12,17 @@ function isWithin(directory: string, filePath: string): boolean {
   )
 }
 
-function staticRoutePath(
+export function staticRoutePathForPath(
   clientDirectory: string,
-  route: RouteDefinition,
+  routePath: string,
 ): string {
-  if (/[:*]/.test(route.path)) {
+  if (/[:*]/.test(routePath)) {
     throw new Error(
-      `Cannot prerender parameterized static route ${JSON.stringify(route.path)} without concrete paths.`,
+      `Cannot prerender parameterized static route ${JSON.stringify(routePath)} without concrete paths.`,
     )
   }
 
-  const segments = route.path
+  const segments = routePath
     .split("/")
     .filter(Boolean)
     .map((segment) => decodeURIComponent(segment))
@@ -33,7 +33,7 @@ function staticRoutePath(
     )
   ) {
     throw new Error(
-      `Cannot write unsafe static route path ${JSON.stringify(route.path)}.`,
+      `Cannot write unsafe static route path ${JSON.stringify(routePath)}.`,
     )
   }
 
@@ -41,11 +41,18 @@ function staticRoutePath(
 
   if (!isWithin(clientDirectory, filePath)) {
     throw new Error(
-      `Cannot write static route outside the client build: ${JSON.stringify(route.path)}.`,
+      `Cannot write static route outside the client build: ${JSON.stringify(routePath)}.`,
     )
   }
 
   return filePath
+}
+
+function staticRoutePath(
+  clientDirectory: string,
+  route: RouteDefinition,
+): string {
+  return staticRoutePathForPath(clientDirectory, route.path)
 }
 
 export function staticRouteFile(
