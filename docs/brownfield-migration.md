@@ -74,12 +74,13 @@ Confirm that the application can meet these alpha requirements:
 - React or Preact roots, provider implementations, router bindings, hooks,
   refs, portals, and error boundaries have an Octane target;
 - read-side route data can be expressed as a loader;
-- write operations can remain in application-owned endpoints or services;
+- write operations can use page actions, callable `*.server.ts` actions, or
+  application-owned endpoints and services;
 - a Node process can serve server and client routes, unless the entire
   deployed application is covered by concrete static routes.
 
-Flamefront does not currently define an action or mutation API. Do not make a
-loader responsible for form submissions, commands, or other writes.
+Flamefront actions are available for server-backed routes. Static-only hosting
+still needs an application-owned write endpoint, and loaders remain read-only.
 
 ## Inventory the whole application
 
@@ -262,11 +263,11 @@ export async function loader({
 Keep the service implementation and database code where it is. The loader is
 the route-facing adapter, not a replacement for the service layer.
 
-Keep writes in the existing application-owned API, command handler, or form
-endpoint. A route component can call that API and then revalidate or navigate
-through the application's existing policy. Do not hide a write inside a
-loader, and do not describe the migration as complete until every write path
-has been tested.
+Keep the write implementation in the existing service or command handler, and
+expose it through a page action or a callable `*.server.ts` action when that
+fits the route. A route component can call an action and then revalidate or
+navigate through the application's existing policy. Do not hide a write inside
+a loader, and test every native, enhanced, and direct-call path.
 
 Review server-only dependencies after every route conversion. Flamefront
 removes `loader` and its server-only dependency graph from client route

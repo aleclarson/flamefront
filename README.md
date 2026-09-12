@@ -52,8 +52,9 @@ Flamefront is an early alpha and requires Node.js 26+. Octane, Vite, and
 `@octanejs/remix-router` are required peer dependencies. Follow the
 [setup guide](./docs/create-app.md) for matching packages. Expect changes before 1.0.
 
-There is no built-in form action or mutation API yet. If your current framework
-already covers your needs, there's no need to switch.
+Flamefront supports [server actions and forms](./docs/forms-and-mutations.md).
+Static-only hosting still needs a server-backed route or an application-owned
+endpoint for writes.
 
 Licensed under [MIT](./LICENSE.md).
 
@@ -61,5 +62,6 @@ Licensed under [MIT](./LICENSE.md).
 
 - [How Flamefront fits](./docs/index.md)
 - [Route rendering and data](./docs/routes.md)
+- [Forms and mutations](./docs/forms-and-mutations.md)
 - [Build and deployment](./docs/deployment.md)
 - [Migrating an existing app](./docs/brownfield-migration.md)

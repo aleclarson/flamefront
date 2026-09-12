@@ -75,8 +75,11 @@ client route builds. A `.server` module still reachable from browser code is
 a build error. Keep authentication and authorization checks in your server
 code; removing code from a bundle does not establish an access policy.
 
-There is no action or mutation API. Keep form submissions and other writes in
-application-owned endpoints or services. A loader should not perform them.
+For server-backed writes, add a page `action` and a callable action in a
+`*.server.ts` module. The page action reads `request.formData()` and explicitly
+maps fields to the callable action. Read the [forms and mutations guide](forms-and-mutations.md)
+for native forms, enhanced `<Form>` submissions, and direct calls. A loader
+should remain read-only.
 
 ## Choose browser interactivity separately
 

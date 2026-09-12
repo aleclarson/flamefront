@@ -55,14 +55,14 @@ lets you check which content was generated at build time.
 
 ## Is it relevant to your app?
 
-| Your situation                                                               | What to consider                                                                                                 |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| You want rendering flexibility in an Octane app.                             | Use one mode throughout or choose per URL as requirements evolve.                                                |
-| Your existing framework already provides the routing and rendering you need. | Keeping it avoids a runtime migration and another dependency.                                                    |
-| You need only static content.                                                | Use static routes; keep the same framework if another project needs SSR or CSR.                                  |
-| You need only browser routing.                                               | Use client routes; the same framework supports projects that need pre-rendering or SSR.                          |
-| You want to keep your React or Preact runtime.                               | The documented Flamefront setup renders through Octane. This is not a drop-in router replacement for those apps. |
-| You need a stable production framework or built-in form actions.             | This is an alpha; there is no action or mutation API.                                                            |
+| Your situation                                                               | What to consider                                                                                                     |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| You want rendering flexibility in an Octane app.                             | Use one mode throughout or choose per URL as requirements evolve.                                                    |
+| Your existing framework already provides the routing and rendering you need. | Keeping it avoids a runtime migration and another dependency.                                                        |
+| You need only static content.                                                | Use static routes; keep the same framework if another project needs SSR or CSR.                                      |
+| You need only browser routing.                                               | Use client routes; the same framework supports projects that need pre-rendering or SSR.                              |
+| You want to keep your React or Preact runtime.                               | The documented Flamefront setup renders through Octane. This is not a drop-in router replacement for those apps.     |
+| You need server-backed form actions and mutations.                           | Use the [forms and mutations guide](forms-and-mutations.md); static-only hosting still needs a write-capable server. |
 
 Flamefront does not supply your authentication policy, database layer, write
 endpoints, or deployment infrastructure. A route loader reads data; your
@@ -87,5 +87,6 @@ After that, choose the page that answers your next question:
 | [Build and inspect the included app](getting-started.md)                    | What does a build actually produce?                              | Basic terminal use                                       | Inspect generated HTML and run it locally.                          |
 | [Create a one-page app](create-app.md)                                      | How do I wire up my own app?                                     | Basic TypeScript and terminal use                        | Run one page with server-loaded data.                               |
 | [Choose route rendering and data behavior](routes.md)                       | Which parts run at build time, on the server, or in the browser? | A working app and its manifest                           | Choose a route mode and understand its limits.                      |
+| [Forms and mutations](forms-and-mutations.md)                               | How do forms and direct action calls reach the server?           | A working server-backed route                            | Add typed writes, native forms, and enhanced submissions.           |
 | [Build and deploy](deployment.md)                                           | What commands and artifacts does my host need?                   | A working app; basic hosting knowledge                   | Check a production build and select the files and runtime to serve. |
 | [Migrate an existing app to Octane and Flamefront](brownfield-migration.md) | What must change for a full cutover?                             | Existing app ownership and a successful Flamefront trial | Inventory migration work and define acceptance checks.              |
