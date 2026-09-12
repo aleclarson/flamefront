@@ -13,8 +13,8 @@ One route list connects your pages to the server, browser router, and build.
 - **Persistent shell state.** Keep players running, uploads progressing, and
   other shared UI state intact between pages without making the whole app
   client-rendered.
-- **Control interactivity.** Activate a page immediately, when it becomes
-  visible, or when someone interacts with it.
+- **Choose when parts of a page become interactive.** Defer hydration until
+  needed—for example, when content becomes visible or someone interacts with it.
 - **Markdown routes.** Use Markdown and MDX files as pages.
 
 ## One route list
