@@ -209,6 +209,43 @@ export default function Route() {}`
   }
 })
 
+test("skips Markdown sources in framework and route-module transforms", async () => {
+  const testPlugins = await createTestPlugins()
+  const { clientContext, frameworkPlugin, routePlugin } = testPlugins
+  const markdownSource = [
+    "# Guide",
+    "",
+    "```ts",
+    'import { action } from "flamefront/server"',
+    "```",
+  ].join("\n")
+
+  try {
+    for (const extension of ["md", "mdx"]) {
+      const id = path.join(testPlugins.root, `src/Guide.${extension}`)
+
+      assert.equal(
+        frameworkPlugin.transform.call(
+          clientContext,
+          markdownSource,
+          `${id}?import`,
+        ),
+        null,
+      )
+      assert.equal(
+        await routePlugin.transform.call(
+          clientContext,
+          markdownSource,
+          `${id}?import`,
+        ),
+        null,
+      )
+    }
+  } finally {
+    await testPlugins.cleanup()
+  }
+})
+
 test("rejects server modules that remain in the client graph", async () => {
   const testPlugins = await createTestPlugins()
   const { clientContext, frameworkPlugin, routeId } = testPlugins
