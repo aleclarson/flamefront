@@ -4,6 +4,7 @@ packages:
   - ./
   - ./packages/*
   - ./playground
+  - ./website
   - ./scripts/browser-fixture
 
 allowBuilds:

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Flamefront is the app framework for Octane."
+    />
+    <script>
+      try {
+        const t = localStorage.getItem("flamefront-theme")
+        if (t) document.documentElement.dataset.theme = t
+      } catch {}
+    </script>
+    <title>Flamefront</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+styled-system/
+src/docs/
+.generated/
+.wrangler/
+.data/
+.dev.vars
+.env
+.env.*
+!.env.example

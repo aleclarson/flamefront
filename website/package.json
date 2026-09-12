@@ -1,0 +1,32 @@
+{
+  "name": "flamefront-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:site": "node scripts/docs.ts && panda codegen",
+    "dev": "pnpm prepare:site && ff dev",
+    "build": "pnpm prepare:site && node scripts/build.ts",
+    "preview": "ff preview",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node test/browser.ts"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.0",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/state": "^6.7.4",
+    "@codemirror/view": "^6.43.11",
+    "@libsql/client": "^0.18.0",
+    "@octanejs/remix-router": "0.1.48",
+    "@octanejs/vite-plugin": "0.1.54",
+    "flamefront": "workspace:*",
+    "octane": "0.2.7"
+  },
+  "devDependencies": {
+    "@pandacss/dev": "^1.12.1",
+    "@types/node": "26.5.1",
+    "playwright": "1.63.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vitest": "5.0.0"
+  }
+}
