@@ -46,6 +46,7 @@ export function shouldHydrateRouteFragment(
 const staticFragmentRequests = new Map<string, Promise<RouteFragmentArtifact>>()
 const serverFragmentRequests = new Map<string, Promise<RouteFragmentArtifact>>()
 const latestRouteFragments = new Map<string, RouteFragmentArtifact>()
+let fragmentGeneration = 0
 
 function resolveRouteUrl(input: string | URL): URL {
   const browserOrigin =
@@ -156,6 +157,13 @@ export function getRouteFragment(
   )
 }
 
+/** Drop browser fragment state after a successful mutation. */
+export function invalidateRouteFragments(): void {
+  fragmentGeneration += 1
+  serverFragmentRequests.clear()
+  latestRouteFragments.clear()
+}
+
 function fetchRouteFragment(
   routeUrl: URL,
   basename: string,
@@ -212,6 +220,7 @@ export function loadRouteFragment(
   options: RouteFragmentLoadOptions,
 ): Promise<RouteFragmentArtifact> {
   const routeUrl = resolveRouteUrl(url)
+  const generation = fragmentGeneration
   const handoffKey = routeFragmentKey(routeUrl, routing.basename ?? "/")
   const requests =
     options.policy === "static"
@@ -250,7 +259,10 @@ export function loadRouteFragment(
   }
 
   return abortable(pending, options.signal).then((artifact) => {
-    latestRouteFragments.set(handoffKey, artifact)
+    if (generation === fragmentGeneration) {
+      latestRouteFragments.set(handoffKey, artifact)
+    }
+
     return artifact
   })
 }

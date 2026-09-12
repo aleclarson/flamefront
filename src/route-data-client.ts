@@ -33,6 +33,8 @@ export interface RouteDataClient {
       options?: RouteDataLoadOptions,
     ): Promise<void>
   }
+  /** Drop cached live results so the next read observes a completed write. */
+  readonly invalidate: () => void
 }
 
 const defaultRouting = Object.freeze({
@@ -150,6 +152,14 @@ function createIsolatedRouteDataClient(routing: {
 }): RouteDataClient {
   const cache = new Map<string, Promise<unknown>>()
 
+  const invalidate = () => {
+    for (const key of cache.keys()) {
+      if (key.startsWith("live:")) {
+        cache.delete(key)
+      }
+    }
+  }
+
   const load = (<Data = unknown>(
     url: string | URL,
     source: RouteDataSource,
@@ -208,6 +218,7 @@ function createIsolatedRouteDataClient(routing: {
     prefetch: async (url, source, options) => {
       await load(url, source, options)
     },
+    invalidate,
   }
 }
 
@@ -231,4 +242,19 @@ export function createRouteDataClient(
 
   browserClients.set(key, client)
   return client
+}
+
+/** Invalidate live route-data caches for one routing configuration or all apps. */
+export function invalidateRouteDataCache(
+  options?: RouteDataRoutingOptions,
+): void {
+  if (!options) {
+    for (const client of browserClients.values()) {
+      client.invalidate()
+    }
+
+    return
+  }
+
+  createRouteDataClient(options).invalidate()
 }

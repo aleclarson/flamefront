@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { onTestFinished, test } from "vitest"
 import {
   getRouteFragment,
+  invalidateRouteFragments,
   loadRouteFragment,
   prefetchRouteFragment,
   shouldHydrateRouteFragment,
@@ -159,6 +160,40 @@ test("evicts failed and aborted server fragment requests", async () => {
 
   assert.equal(recovered.html, "<main>recovered</main>")
   assert.equal(requests, 3)
+})
+
+test("does not publish a fragment that was in flight during invalidation", async () => {
+  const originalFetch = globalThis.fetch
+  let resolveResponse: ((response: Response) => void) | undefined
+
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async () =>
+    new Promise<Response>((resolve) => {
+      resolveResponse = resolve
+    })
+
+  const pending = loadRouteFragment(
+    "https://example.test/live",
+    {},
+    { policy: "server" },
+  )
+
+  invalidateRouteFragments()
+  resolveResponse?.(
+    Response.json({
+      protocol: "flamefront-route-fragment-v1",
+      route: "/live",
+      boundary: "live",
+      html: "<main>old</main>",
+      routeData: null,
+      boundaries: [],
+    }),
+  )
+
+  await pending
+  assert.equal(getRouteFragment("https://example.test/live"), undefined)
 })
 
 test("only hydration policies other than none activate post-insertion hydration", () => {

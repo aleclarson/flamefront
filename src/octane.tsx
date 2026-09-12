@@ -125,6 +125,7 @@ export interface OctaneDocuments {
     options?: RenderDocumentOptions,
   ) => Promise<RenderedDocument>
   readonly loadRouteData: (request: Request) => Promise<Response>
+  readonly loadAction: (request: Request) => Promise<Response>
   readonly renderFragment: (request: Request) => Promise<RouteFragmentArtifact>
 }
 
@@ -139,6 +140,7 @@ interface StaticDocumentContext {
     readonly pathnameBase?: string
     readonly route?: { readonly id?: string }
   }[]
+  readonly actionHeaders?: Record<string, Headers>
 }
 
 function isRouteErrorResponse(
@@ -322,6 +324,26 @@ function routeData(context: StaticDocumentContext): unknown {
   const routeId = leaf?.route?.id
 
   return routeId ? (context.loaderData?.[routeId] ?? null) : null
+}
+
+function actionResponseHeaders(
+  context: StaticDocumentContext,
+): Headers | undefined {
+  if (!context.actionHeaders) {
+    return undefined
+  }
+
+  const headers = new Headers()
+  let hasHeaders = false
+
+  for (const value of Object.values(context.actionHeaders)) {
+    for (const [name, header] of value) {
+      headers.append(name, header)
+      hasHeaders = true
+    }
+  }
+
+  return hasHeaders ? headers : undefined
 }
 
 function remapShellRouteError(
@@ -520,7 +542,7 @@ export function createOctaneDocuments<
     readonly rendered: OctaneRenderResult
   }> => {
     const contextOptions: RouteRuntimeContextOptions = {
-      purpose: "document",
+      purpose: ["GET", "HEAD"].includes(request.method) ? "document" : "action",
       mode,
     }
     const requestContext = await options.runtime.createRequestContext(
@@ -624,9 +646,16 @@ export function createOctaneDocuments<
           parts.hydrationScript,
         ))
 
+    const headers = actionResponseHeaders(staticContext)
+
     return mode === "static"
-      ? { html, routeData: routeData(staticContext), status }
-      : { html, status }
+      ? {
+          html,
+          routeData: routeData(staticContext),
+          status,
+          ...(headers ? { headers } : {}),
+        }
+      : { html, status, ...(headers ? { headers } : {}) }
   }
 
   const renderFragment = async (
@@ -656,6 +685,7 @@ export function createOctaneDocuments<
   return {
     renderDocument,
     loadRouteData: options.runtime.loadRouteData,
+    loadAction: options.runtime.loadAction,
     renderFragment,
   }
 }

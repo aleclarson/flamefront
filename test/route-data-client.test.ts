@@ -1,7 +1,11 @@
 import assert from "node:assert/strict"
 import { onTestFinished, test } from "vitest"
 import { defineApp, route } from "../src/index.ts"
-import { loadRouteData, loadStaticRouteData } from "../src/remix-route-data.ts"
+import {
+  createRouteDataClient,
+  loadRouteData,
+  loadStaticRouteData,
+} from "../src/remix-route-data.ts"
 
 const shell = "/src/AppShell.tsrx"
 
@@ -98,4 +102,34 @@ test("prefetches static route data from the build artifact", async () => {
     { source: "static-artifact" },
   )
   assert.equal(requests, 1)
+})
+
+test("invalidates live data while retaining static artifacts", async () => {
+  useBrowserClient()
+  const originalFetch = globalThis.fetch
+  let requests = 0
+
+  globalThis.fetch = async (input) => {
+    requests += 1
+    const endpoint = new URL(String(input))
+
+    return Response.json({
+      pathname: endpoint.pathname,
+      requests,
+    })
+  }
+
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  const client = createRouteDataClient({ dataPath: "/__invalidate" })
+
+  await client.load("https://example.test/live", "live")
+  await client.load("https://example.test/static/index", "static")
+  client.invalidate()
+  await client.load("https://example.test/live", "live")
+  await client.load("https://example.test/static/index", "static")
+
+  assert.equal(requests, 3)
 })

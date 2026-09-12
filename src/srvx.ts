@@ -133,6 +133,10 @@ export function createSrvxServerEntry<
       return next()
     }
 
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      return next()
+    }
+
     return serveClientFile(
       staticRequest(request, options.app.routing.basename),
       next,
@@ -169,6 +173,7 @@ export function createSrvxServerEntry<
     middleware: [...(options.middleware ?? []), frameworkMiddleware],
     renderDocument: fetchEntry.renderDocument,
     loadRouteData: fetchEntry.loadRouteData,
+    ...(fetchEntry.loadAction ? { loadAction: fetchEntry.loadAction } : {}),
     renderFragment: fetchEntry.renderFragment,
   }
 }

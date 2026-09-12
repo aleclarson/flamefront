@@ -12,7 +12,13 @@ import {
 } from "./fragment-client.ts"
 
 export {
+  submitRouteAction,
+  type ActionRequestOptions,
+} from "./action-client.ts"
+
+export {
   createRouteDataClient,
+  invalidateRouteDataCache,
   type RouteDataClient,
   type RouteDataLoadOptions,
   type RouteDataRoutingOptions,

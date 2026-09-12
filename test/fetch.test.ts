@@ -84,3 +84,75 @@ test("serves a transport-neutral Fetch entry without srvx", async () => {
     "after",
   ])
 })
+
+test("keeps native form posts on the document path and enhances marked posts", async () => {
+  const app = defineApp({
+    shell: "/src/AppShell.tsrx",
+    routes: [route("/edit", "/src/Edit.tsrx", { render: "server" })],
+  })
+  const calls: string[] = []
+  const entry = createFetchServerEntry({
+    app,
+    assets: {
+      loadTemplate: () => '<html><div id="root"></div></html>',
+    },
+    documents: {
+      loadRouteData: async () => Response.json(null),
+      loadAction: async () => {
+        calls.push("action")
+        return Response.json({ enhanced: true })
+      },
+      renderDocument: async (_template, request) => {
+        calls.push(`document:${request.method}`)
+        return { html: "<html>native</html>", status: 200 }
+      },
+    },
+  })
+
+  const native = await entry.fetch(
+    new Request("https://flamefront.test/edit", {
+      method: "POST",
+      body: new URLSearchParams({ title: "Updated" }),
+    }),
+  )
+  const enhanced = await entry.fetch(
+    new Request("https://flamefront.test/edit?__flamefront_action=1", {
+      method: "POST",
+      body: new URLSearchParams({ title: "Updated" }),
+    }),
+  )
+
+  assert.equal(await native.text(), "<html>native</html>")
+  assert.deepEqual(await enhanced.json(), { enhanced: true })
+  assert.deepEqual(calls, ["document:POST", "action"])
+})
+
+test("rejects cross-origin mutation requests before dispatch", async () => {
+  const app = defineApp({
+    shell: "/src/AppShell.tsrx",
+    routes: [route("/edit", "/src/Edit.tsrx")],
+  })
+  let dispatched = false
+  const entry = createFetchServerEntry({
+    app,
+    assets: { loadTemplate: () => '<html><div id="root"></div></html>' },
+    documents: {
+      loadRouteData: async () => Response.json(null),
+      loadAction: async () => {
+        dispatched = true
+        return Response.json(null)
+      },
+      renderDocument: async () => ({ html: "", status: 200 }),
+    },
+  })
+
+  const response = await entry.fetch(
+    new Request("https://flamefront.test/edit?__flamefront_action=1", {
+      method: "POST",
+      headers: { Origin: "https://evil.test" },
+    }),
+  )
+
+  assert.equal(response.status, 403)
+  assert.equal(dispatched, false)
+})

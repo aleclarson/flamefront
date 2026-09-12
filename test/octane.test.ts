@@ -112,6 +112,65 @@ test("passes one document context to the server router and composer", async () =
   assert.match(rendered.html, /<html>/)
 })
 
+test("renders native action responses with action data headers", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/edit", "/src/Edit.tsrx", { render: "server" })],
+  })
+  const contexts: unknown[] = []
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({ default: null }),
+    requestContext: ({ purpose }) => {
+      contexts.push(purpose)
+      return { purpose }
+    },
+  })
+  const context = {
+    loaderData: {},
+    actionData: { "flamefront:route:0": { saved: true } },
+    actionHeaders: {
+      "flamefront:route:0": new Headers({ "Set-Cookie": "saved=1" }),
+    },
+    errors: null,
+    statusCode: 303,
+    matches: [{ route: { id: "flamefront:route:0" } }],
+  }
+  const router: DocumentRouter = {
+    routes: [{ id: "root" }],
+    async createServerRouter() {
+      return {
+        context,
+        hydrationData: {
+          loaderData: context.loaderData,
+          actionData: context.actionData,
+          errors: context.errors,
+        },
+        router: { kind: "server" },
+      }
+    },
+  }
+  const documents = createOctaneDocuments({
+    app,
+    runtime,
+    router,
+    renderer: createTestRenderer(),
+  })
+
+  const rendered = await documents.renderDocument(
+    '<html><head></head><body><div id="root"></div></body></html>',
+    new Request("https://example.test/edit", { method: "POST" }),
+  )
+
+  assert.deepEqual(contexts, ["action"])
+  assert.equal(rendered.status, 303)
+  assert.equal(rendered.headers instanceof Headers, true)
+  assert.equal(
+    rendered.headers && new Headers(rendered.headers).get("set-cookie"),
+    "saved=1",
+  )
+})
+
 test("supports explicit shell mode and preserves static route data extraction", async () => {
   const app = defineApp({
     shell,

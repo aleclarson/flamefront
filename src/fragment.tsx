@@ -39,6 +39,7 @@ import {
 export {
   assertRouteFragmentArtifact,
   getRouteFragment,
+  invalidateRouteFragments,
   isRouteFragmentArtifact,
   loadRouteFragment,
   prefetchRouteFragment,
