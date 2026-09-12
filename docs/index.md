@@ -16,6 +16,11 @@ A **route manifest** is a TypeScript list of URL patterns, page files, and
 rendering choices. Flamefront uses it to connect Octane, a component renderer,
 to the build, server, and browser router.
 
+For writes, [typed server actions and forms](forms-and-mutations.md) connect
+server validation to native or enhanced submissions. For static sites,
+[incremental prerendering](incremental-prerendering.md) reuses cached page
+content while assembling a complete deployment on every build.
+
 ## What does that produce?
 
 The included app has this entry in `playground/src/app.ts` (excerpt):
@@ -64,13 +69,13 @@ lets you check which content was generated at build time.
 | You want to keep your React or Preact runtime.                               | The documented Flamefront setup renders through Octane. This is not a drop-in router replacement for those apps.     |
 | You need server-backed form actions and mutations.                           | Use the [forms and mutations guide](forms-and-mutations.md); static-only hosting still needs a write-capable server. |
 
-Flamefront does not supply your authentication policy, database layer, write
-endpoints, or deployment infrastructure. A route loader reads data; your
-application still owns what it can access and how writes work.
+Flamefront supplies action dispatch, while your application owns authentication,
+authorization, persistence, and deployment infrastructure. A route loader reads
+data; your application still owns what it can access and how writes work.
 
 These docs describe the current repository checkout, whose package version
-is `0.1.0-alpha.0`, and require Node.js 26 or newer. The published package with
-that version has an older API; the setup guide uses a local package archive.
+is `0.1.1`, and require Node.js 26 or newer. The setup guide uses a local
+package archive to keep the examples and installed source together.
 APIs and output can change before 1.0. The package is licensed under [MIT](../LICENSE.md).
 
 ## Try it, then choose a next step
@@ -90,3 +95,6 @@ After that, choose the page that answers your next question:
 | [Forms and mutations](forms-and-mutations.md)                               | How do forms and direct action calls reach the server?           | A working server-backed route                            | Add typed writes, native forms, and enhanced submissions.           |
 | [Build and deploy](deployment.md)                                           | What commands and artifacts does my host need?                   | A working app; basic hosting knowledge                   | Check a production build and select the files and runtime to serve. |
 | [Migrate an existing app to Octane and Flamefront](brownfield-migration.md) | What must change for a full cutover?                             | Existing app ownership and a successful Flamefront trial | Inventory migration work and define acceptance checks.              |
+
+For repeated static builds, [Reuse static pages between builds](incremental-prerendering.md)
+shows how to enumerate content routes and verify cache reuse.

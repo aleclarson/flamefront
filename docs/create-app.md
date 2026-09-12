@@ -24,10 +24,10 @@ pnpm pack --pack-destination ../flamefront-example
 cd ../flamefront-example
 ```
 
-The archive is named `flamefront-0.1.0-alpha.0.tgz`. The checkout and the
-published npm package currently share that version number but differ in API:
-the published package lacks `serverRoute`. Use this local archive for the
-examples on this page.
+The current checkout produces `flamefront-0.1.1.tgz`. Use this local archive
+for the examples on this page so the installed API matches the reviewed source.
+If the checkout's version changes, use the filename reported by `pnpm pack`
+in the install command below.
 
 Create `package.json`:
 
@@ -51,7 +51,7 @@ Install the matching packages:
 
 ```sh
 pnpm add \
-  ./flamefront-0.1.0-alpha.0.tgz \
+  ./flamefront-0.1.1.tgz \
   @octanejs/remix-router@0.1.48 \
   @octanejs/vite-plugin@0.1.54 \
   octane@0.2.7 \

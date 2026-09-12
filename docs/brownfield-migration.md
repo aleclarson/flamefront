@@ -157,7 +157,8 @@ framework's terminology:
 | `static`    | The route has a known concrete path and can be generated at build time                    |
 
 Static routes cannot use an unresolved `:` or `*` segment during prerendering.
-Generate concrete entries or keep that route server-rendered.
+Generate concrete entries, enumerate paths with
+[`prerender.pages`](incremental-prerendering.md), or keep that route server-rendered.
 
 ## Replace the server boundary
 
@@ -270,9 +271,9 @@ navigate through the application's existing policy. Do not hide a write inside
 a loader, and test every native, enhanced, and direct-call path.
 
 Review server-only dependencies after every route conversion. Flamefront
-removes `loader` and its server-only dependency graph from client route
-modules, but a `.server` module that remains reachable from client code is a
-build error.
+removes page `loader` and `action` exports and their server-only dependencies
+from client route modules. Callable actions become browser proxies; other
+server-only code that remains reachable from client code is a build error.
 
 ## Move shared UI and layouts
 

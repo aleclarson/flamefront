@@ -87,41 +87,11 @@ the [migration guide](brownfield-migration.md) provides a fuller cutover list.
 
 ## Incremental static rendering
 
-Add `prerender` to the Flamefront Vite plugin when a site has many static pages:
+Enable `prerender` in the Flamefront Vite plugin to reuse cached page content
+between builds. Each build still assembles a complete `dist/client` directory
+with current browser assets. Updating deployed content requires another build.
 
-```ts
-import { defineConfig } from "vite"
-import { flamefront } from "flamefront/vite"
-import { hash } from "flamefront/prerender"
-
-export default defineConfig({
-  plugins: [
-    flamefront({
-      prerender: {
-        async pages({ root }) {
-          const posts = await loadPosts(root)
-
-          return posts.map((post) => ({
-            path: `/posts/${post.slug}`,
-            key: hash(post.source),
-          }))
-        },
-        revision: "content-rules-v1",
-      },
-    }),
-  ],
-})
-```
-
-The callback supplies concrete paths and app-owned content keys. Flamefront
-also includes concrete `render: "static"` routes automatically. Markdown routes
-use their source bytes as the default key; component and MDX routes render on
-each build unless they receive an explicit key. `key: null` disables caching
-for one page. The callback may return an array, iterable, or async iterable.
-
-The cache is persistent at `.flamefront/cache` and is safe to restore in CI.
-Provide `cache: false` to turn it off, or supply an object implementing
-`get(key)` and `put(key, value)` from `flamefront/prerender` for another store.
-Use `pnpm exec ff build --force-prerender` to refresh cache entries. A build
-always assembles a complete `dist/client` directory; the cache only avoids
-rendering pages whose app key and Flamefront rendering inputs are unchanged.
+Follow [Reuse static pages between builds](incremental-prerendering.md) for a
+complete parameterized route example, content keys, cache verification, and CI
+restoration. Use `pnpm exec ff build --force-prerender` to bypass cache reads
+and refresh entries.

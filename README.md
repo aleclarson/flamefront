@@ -14,6 +14,11 @@ many or all of your Octane projects, even when each uses a different mode.
   in the browser.
 - **React Router-style loaders.** Load data beside your page component and read
   it with `useLoaderData`.
+- **Typed server actions and forms.** Call validated server functions from
+  browser code, or use forms that work without JavaScript and gain pending
+  states and loader refreshes when enhanced. [Add a mutation](./docs/forms-and-mutations.md).
+- **Reuse unchanged static pages between builds.** Cache prerendered content and regenerate the deployment output on each build.
+  [Enable incremental prerendering](./docs/incremental-prerendering.md).
 - **Shared layouts.** Keep navigation and shared UI in place as pages change.
 - **Persistent shell state.** Keep players running, uploads progressing, and
   other shared UI state intact between pages without making the whole app

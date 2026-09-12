@@ -1,5 +1,8 @@
 # Forms and mutations
 
+> Add a validated write, submit it with or without browser JavaScript, and
+> verify that the page displays the saved value.
+
 Flamefront has two ways to run a write on the server:
 
 - A callable action lives in a `*.server.ts` module and can be imported by
@@ -11,6 +14,49 @@ Flamefront has two ways to run a write on the server:
 The page action and the callable action have different jobs. Flamefront does
 not guess how a form field maps to positional action arguments.
 
+## Prepare the example
+
+Start with the [one-page setup](create-app.md), keeping its server and browser
+entries. Install the validator used below:
+
+```sh
+pnpm add zod
+```
+
+Create `src/product-store.server.ts`:
+
+```ts
+const products = new Map([["42", "Original name"]])
+
+export const productStore = {
+  get(productId: string) {
+    const name = products.get(productId)
+    if (name === undefined)
+      throw new Response("Product not found", { status: 404 })
+    return { id: productId, name }
+  },
+  async rename(productId: string, name: string) {
+    this.get(productId)
+    products.set(productId, name)
+  },
+}
+```
+
+This local demonstration stores data in one server process and resets it on
+restart. Replace it with your application's persistence and authorization
+before using it for real data.
+
+Replace `src/app.ts` with:
+
+```ts
+import { defineApp, serverRoute } from "flamefront"
+
+export const app = defineApp({
+  shell: "/src/AppShell.tsrx",
+  routes: [serverRoute("/products/:id", "/src/ProductPage.tsrx")],
+})
+```
+
 ## Declare a callable action
 
 Put the write and its server-only dependencies in a `*.server.ts` file:
@@ -19,12 +65,13 @@ Put the write and its server-only dependencies in a `*.server.ts` file:
 // src/products.server.ts
 import { action } from "flamefront/server"
 import { z } from "zod"
+import { productStore } from "./product-store.server.ts"
 
 export const renameProduct = action(
   [z.string(), z.string().min(1)],
   async (productId, newName) => {
     await productStore.rename(productId, newName)
-    return { saved: true }
+    return { saved: true, error: null }
   },
 )
 ```
@@ -44,8 +91,8 @@ export const logCommand = action(async (...args) => {
 ```
 
 Arguments and results use `devalue`, so values such as dates, maps, and nested
-objects can cross the action boundary. Validation and authorization still run
-on the server for every call.
+objects can cross the action boundary. Validation runs on the server for every
+call. Your action must also enforce the application's authorization policy.
 
 ## Add a page action for forms
 
@@ -58,9 +105,11 @@ the callable action without another HTTP hop on the server:
 import { data } from "flamefront/server"
 import type { ActionArgs, LoaderArgs } from "flamefront/server"
 import { renameProduct } from "./products.server.ts"
+import { productStore } from "./product-store.server.ts"
+import { useActionData, useLoaderData } from "flamefront/remix-router"
 
 export async function loader({ params }: LoaderArgs<"/products/:id">) {
-  return { productId: params.id }
+  return productStore.get(params.id)
 }
 
 export async function action({ request, params }: ActionArgs<"/products/:id">) {
@@ -83,14 +132,29 @@ Fetch `Response`.
 ## Use a native form
 
 The ordinary HTML form posts to the current page URL and works when JavaScript
-is disabled:
+is disabled.
 
-```html
-<form method="post">
-  <label>New name <input name="name" /></label>
-  <button type="submit">Save</button>
-</form>
+Append this component to `src/ProductPage.tsrx`:
+
+```tsx
+export default function ProductPage() @{
+  const product = useLoaderData<typeof loader>()
+  const actionData = useActionData<typeof action>()
+
+  <main>
+    <h1>{product.name}</h1>
+    <form method="post">
+      <label>New name <input name="name" /></label>
+      {actionData?.error ? <p>{actionData.error}</p> : null}
+      <button type="submit">Save</button>
+    </form>
+  </main>
+}
 ```
+
+Run `pnpm exec ff dev` and visit `/products/42`. Disable JavaScript and reload
+before submitting a new name. The returned document should show the saved
+name in its heading. Submit an empty name to see the validation message.
 
 For a server route, the server runs the page action and renders the document
 again. A successful redirect is returned as an HTTP redirect, and `data()`
@@ -100,26 +164,32 @@ application-owned endpoint. Static routes do not own page actions.
 
 ## Enhance it with the router
 
-Use the router's `<Form>` when the page has browser JavaScript:
+Replace the native component with the version below and add `Form` and
+`useNavigation` to the existing `flamefront/remix-router` import:
 
-```ts
-import { Form, useActionData, useNavigation } from "flamefront/remix-router"
-
-export default function ProductPage() {
+```tsx
+export default function ProductPage() @{
+  const product = useLoaderData<typeof loader>()
   const actionData = useActionData<typeof action>()
   const navigation = useNavigation()
 
-  return (
+  <main>
+    <h1>{product.name}</h1>
     <Form method="post">
-      <input name="name" />
+      <label>New name <input name="name" /></label>
       {actionData?.error ? <p>{actionData.error}</p> : null}
       <button disabled={navigation.state === "submitting"}>
         {navigation.state === "submitting" ? "Saving…" : "Save"}
       </button>
     </Form>
-  )
+  </main>
 }
 ```
+
+Re-enable JavaScript and reload. Submit another name: the heading updates
+through loader revalidation. The button shows submitting state while the
+request is pending; network throttling makes that brief state easier to check.
+An empty submission still displays the validation message.
 
 The generated route action sends the same encoded form request to the server.
 The router exposes submitting state, action data, redirects, and errors, then

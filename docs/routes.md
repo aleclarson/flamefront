@@ -70,10 +70,11 @@ loader for live requests; a static route saves its build-time result. Client
 routes can request loader data from the server. A `client` rendering choice
 does not make a data-backed app suitable for static hosting.
 
-Flamefront removes `loader` exports and dependencies used only by them from
-client route builds. A `.server` module still reachable from browser code is
-a build error. Keep authentication and authorization checks in your server
-code; removing code from a bundle does not establish an access policy.
+Flamefront removes page `loader` and `action` exports and their server-only
+dependencies from client route builds. Callable actions imported from
+`*.server.ts` become browser proxies; other server-only code that remains
+reachable from browser code is a build error. Keep authentication and
+authorization checks in your server code; removing code from a bundle does not establish an access policy.
 
 For server-backed writes, add a page `action` and a callable action in a
 `*.server.ts` module. The page action reads `request.formData()` and explicitly
@@ -128,7 +129,8 @@ export const app = defineApp({
 
 Create the shell and Markdown files before using this example. `index.md`
 maps to its containing directory. Static routes cannot contain unresolved
-`:` or `*` segments: provide concrete entries or use server rendering.
+`:` or `*` segments at build time: provide concrete entries, enumerate paths
+with [`prerender.pages`](incremental-prerendering.md), or use server rendering.
 
 For apps mounted under a URL prefix, `routing.basename` and `routing.dataPath`
 on `defineApp` configure the shared route prefix and data endpoint. Their
