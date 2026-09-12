@@ -8,6 +8,7 @@ const shellHydration = (configuredShellHydration ?? "full") as
   "full" | "deferred" | "none"
 
 export const app = defineApp({
+  document: "/src/Document.tsrx",
   shell: "/src/BrowserShell.tsrx",
   shellHydration,
   routing: {

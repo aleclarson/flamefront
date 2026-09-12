@@ -3,7 +3,7 @@ import type { RouterDocument, RouterDocumentProps } from "./octane.tsx"
 import { shellIdentifierPrefix } from "./identifier-prefix.ts"
 
 export type OctaneClientApp<Route extends RouteDefinition = RouteDefinition> =
-  Pick<AppDefinition<Route>, "match" | "prefetch">
+  Pick<AppDefinition<Route>, "match" | "prefetch" | "document">
 
 export interface OctaneClientRouter {
   readonly state: { readonly initialized: boolean }
@@ -14,10 +14,10 @@ export interface OctaneClientRouter {
 
 export interface StartOctaneClientOptions<
   Route extends RouteDefinition = RouteDefinition,
-  Container = Element,
+  Container = Element | Document,
 > {
   readonly app: OctaneClientApp<Route>
-  /** Defaults to the current document's `#root` element. */
+  /** Defaults to `document` for app documents, otherwise the `#root` element. */
   readonly root?: Container | null
   /** Use the same override in `createOctaneDocuments` on the server. */
   readonly routerDocument?: RouterDocument
@@ -39,6 +39,7 @@ export interface OctaneClientRuntime<
   readonly pathname: string
   readonly defaultRoot: Container | null
   readonly routerDocument: RouterDocument
+  readonly documentAssets?: RouterDocumentProps["documentAssets"]
   consumeHydrationData(): HydrationData
   createRoutePrefetcher(app: OctaneClientApp<Route>): Prefetch
   createClientRouter(options: {
@@ -121,14 +122,21 @@ export async function startOctaneClientWithRuntime<
     hydrationData,
     prefetch: runtime.createRoutePrefetcher(options.app),
   })
-  const shouldHydrate = routeMatch.data.render !== "client"
+  const shouldHydrate =
+    Boolean(options.app.document) || routeMatch.data.render !== "client"
 
   if (shouldHydrate) {
     await waitForRouterInitialization(router)
   }
 
   const routerDocument = options.routerDocument ?? runtime.routerDocument
-  const props: RouterDocumentProps = { router, context: undefined }
+  const props: RouterDocumentProps = {
+    router,
+    context: undefined,
+    ...(runtime.documentAssets
+      ? { documentAssets: runtime.documentAssets }
+      : {}),
+  }
   const clientRoot = shouldHydrate
     ? runtime.hydrateRoot(root, routerDocument, props, {
         identifierPrefix: shellIdentifierPrefix,

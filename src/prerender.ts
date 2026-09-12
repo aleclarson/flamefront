@@ -296,6 +296,7 @@ export async function renderingFingerprint(
 ): Promise<string> {
   const entries = [
     app.shell,
+    ...(app.document ? [app.document] : []),
     ...(layoutEntries(app.routeTree, route) ?? []),
     route.entry,
     "/src/entry-server.ts",
@@ -335,6 +336,7 @@ export async function renderingFingerprint(
       hydration: route.hydration,
     },
     shell: app.shell,
+    document: app.document,
     shellHydration: app.shellHydration,
     routing: app.routing,
     compiler: stableValue(options),

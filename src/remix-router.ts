@@ -40,15 +40,20 @@ export type {
 export const staticRouterHydrationScriptId =
   "flamefront-static-router-hydration"
 
-/** Read and remove the hydration payload emitted by the server document adapter. */
-export function consumeStaticRouterHydrationData(): HydrationState | undefined {
+/** Read hydration data; preserve its script when the document owns that node. */
+export function consumeStaticRouterHydrationData(
+  preserveScript = false,
+): HydrationState | undefined {
   const data = (
     window as typeof window & {
       __staticRouterHydrationData?: unknown
     }
   ).__staticRouterHydrationData
 
-  document.getElementById(staticRouterHydrationScriptId)?.remove()
+  if (!preserveScript) {
+    document.getElementById(staticRouterHydrationScriptId)?.remove()
+  }
+
   return data as HydrationState | undefined
 }
 

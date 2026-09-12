@@ -76,6 +76,7 @@ Licensed under [MIT](./LICENSE.md).
 
 - [How Flamefront fits](./docs/index.md)
 - [Route rendering and data](./docs/routes.md)
+- [Render the whole document](./docs/document.md)
 - [Forms and mutations](./docs/forms-and-mutations.md)
 - [Build and deployment](./docs/deployment.md)
 - [Migrating an existing app](./docs/brownfield-migration.md)

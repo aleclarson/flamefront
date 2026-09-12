@@ -463,6 +463,8 @@ export type RouteDestination<Path extends string = RoutePath> =
     }
 
 export interface AppDefinition<T extends RouteDefinition = RouteDefinition> {
+  /** Optional project-root module ID for the component owning html, head, and body. */
+  readonly document?: string
   /** Octane/Vite project-root module ID for the persistent app shell. */
   readonly shell: string
   /** Hydration policy for the persistent shell region. */
@@ -1130,6 +1132,7 @@ function matchRoutes<T extends RouteDefinition>(
 /** Normalize and validate the application's explicit route graph. */
 export function defineApp<
   const T extends {
+    readonly document?: string
     readonly shell: string
     readonly routes: readonly RouteConfig[]
     readonly shellHydration?: HydrationMode
@@ -1149,6 +1152,9 @@ export function defineApp<
   }
 
   assertString(options.shell, "app shell entry")
+  if (options.document !== undefined) {
+    assertString(options.document, "app document entry")
+  }
 
   const hydrationDefaults = normalizeHydrationDefaults(
     options.hydrationDefaults,

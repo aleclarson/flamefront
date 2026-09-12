@@ -10,6 +10,73 @@ import { createRouteRuntime } from "../src/server.ts"
 
 const shell = "/src/AppShell.tsrx"
 
+test("composes a full document with request hydration data and collected styles", async () => {
+  const app = defineApp({
+    document: "/src/Document.tsrx",
+    shell,
+    routes: [route("/docs", "/src/Docs.tsrx", { render: "server" })],
+  })
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({ default: null }),
+  })
+  let documentBody =
+    '<html><head></head><body><script id="flamefront-static-router-hydration"></script></body></html>'
+  const documents = createOctaneDocuments({
+    app,
+    runtime,
+    router: {
+      routes: [],
+      async createServerRouter() {
+        return {
+          router: {},
+          context: { loaderData: { docs: "loaded" }, statusCode: 201 },
+          hydrationData: {
+            loaderData: { docs: "loaded" },
+            actionData: null,
+            errors: null,
+          },
+        }
+      },
+    },
+    renderer: {
+      ...createTestRenderer(),
+      renderToString(_component, props) {
+        assert.equal(
+          props.documentAssets?.scripts[0].attributes.src,
+          "/assets/main.js",
+        )
+        assert.match(props.documentAssets?.scripts[1].content ?? "", /loaded/)
+        return {
+          html: documentBody,
+          css: '<style data-octane="test">html{color:red}</style>',
+        }
+      },
+    },
+  })
+  const template = '<script type="module" src="/assets/main.js"></script>'
+  const request = new Request("https://example.test/docs")
+  const result = await documents.renderDocument(template, request)
+
+  assert.equal(result.status, 201)
+  assert.match(result.html, /^<!doctype html><html>/)
+  assert.match(
+    result.html,
+    /<style data-octane="test">html\{color:red\}<\/style><\/head>/,
+  )
+  assert.doesNotMatch(result.html, /id="root"/)
+  documentBody = "<main>missing document tags</main>"
+  await assert.rejects(
+    documents.renderDocument(template, request),
+    /html, head, and body/,
+  )
+  documentBody = "<html><head></head><body></body></html>"
+  await assert.rejects(
+    documents.renderDocument(template, request),
+    /Scripts exactly once/,
+  )
+})
+
 function createTestRenderer(): OctaneRenderer {
   return {
     createStaticRouter: (routes, context) => ({

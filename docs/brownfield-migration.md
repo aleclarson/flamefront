@@ -205,12 +205,16 @@ server and browser need a provider-wrapped router document, export that
 component from one shared module and pass the same component to
 `createOctaneDocuments` and `startOctaneClient`.
 
-Keep one `#root` element in the HTML template. Remove duplicate router roots,
+For the default template setup, keep one `#root` element in the HTML template. Remove duplicate router roots,
 manual hydration payload parsing, and client-side route-data fetchers that
 duplicate Flamefront's generated loaders.
 
-The browser entry may live outside the conventional example path, but the
-application still needs a module entry in its HTML template. The matching
+To own `<html>`, `<head>`, and `<body>` in a component, configure an
+[app document](document.md). That setup hydrates `document` and can omit
+`index.html` when using the conventional `/src/main.ts` client entry.
+
+With an HTML template, the browser entry may live outside the conventional
+example path; point the template's module script at that entry. The matching
 Vite plugins must be installed in the documented order:
 
 ```ts

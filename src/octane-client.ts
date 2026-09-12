@@ -2,6 +2,7 @@ import type { DataRouter } from "@octanejs/remix-router"
 import { createRoot, hydrateRoot, type ComponentBody, type Root } from "octane"
 import type { RouteDefinition } from "./index.ts"
 import type { RouterDocumentProps } from "./octane.tsx"
+import { readDocumentAssets } from "./document-assets.ts"
 import {
   startOctaneClientWithRuntime,
   type StartOctaneClientOptions,
@@ -26,9 +27,15 @@ export function startOctaneClient<Route extends RouteDefinition>(
 ): Promise<StartedOctaneClient<DataRouter, Root>> {
   return startOctaneClientWithRuntime(options, {
     pathname: window.location.pathname,
-    defaultRoot: document.getElementById("root"),
+    defaultRoot: options.app.document
+      ? document
+      : document.getElementById("root"),
+    ...(options.app.document
+      ? { documentAssets: readDocumentAssets(document) }
+      : {}),
     routerDocument: RouterDocument,
-    consumeHydrationData: consumeStaticRouterHydrationData,
+    consumeHydrationData: () =>
+      consumeStaticRouterHydrationData(Boolean(options.app.document)),
     createRoutePrefetcher,
     createClientRouter,
     renderRoot(root, component, props, options) {

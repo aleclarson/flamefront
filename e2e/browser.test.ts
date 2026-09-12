@@ -41,8 +41,8 @@ async function findPort() {
   return port
 }
 
-function startPreview(port, cwd, token) {
-  const child = spawn(ff, ["preview"], {
+function startPreview(port, cwd, token, command = "preview") {
+  const child = spawn(ff, [command], {
     cwd,
     env: {
       ...process.env,
@@ -80,7 +80,8 @@ async function waitForPreview(server, url, token) {
       const response = await fetch(url)
 
       if (
-        response.headers.get("x-flamefront-check-token") === token &&
+        (token === undefined ||
+          response.headers.get("x-flamefront-check-token") === token) &&
         response.status < 500
       ) {
         return
@@ -444,6 +445,76 @@ async function checkDormantShell(page, base, mode) {
   )
 }
 
+async function checkDocument(page, base) {
+  const errors = []
+  const onError = (error) => errors.push(String(error))
+
+  page.on("pageerror", onError)
+  for (const route of ["server", "static", "client"]) {
+    const response = await page.goto(`${base}/guide/${route}`)
+    const html = await response.text()
+
+    assert.match(html, /^<!doctype html>/i)
+    assert.equal((html.match(/<html\b/g) ?? []).length, 1)
+    assert.equal((html.match(/<head\b/g) ?? []).length, 1)
+    assert.equal((html.match(/<body\b/g) ?? []).length, 1)
+    assert.equal(
+      (html.match(/id="flamefront-static-router-hydration"/g) ?? []).length,
+      1,
+    )
+    await page.waitForFunction(() => document.documentElement.lang === "en")
+    await page
+      .waitForFunction(() => window.__fixtureHydrated === true)
+      .catch((error) => {
+        throw new Error(
+          `Client startup failed at ${page.url()}: ${errors.join("\n")}`,
+          { cause: error },
+        )
+      })
+    assert.equal(
+      await page.evaluate(() =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--document-fixture-ready")
+          .trim(),
+      ),
+      "1",
+    )
+    const scripts = await page
+      .locator('script[type="module"][data-flamefront-asset]')
+      .count()
+
+    assert.ok(scripts > 0)
+    await page.getByTestId("document-language").click()
+    await page.waitForFunction(() => document.documentElement.lang === "fr")
+    await page.evaluate(() => {
+      window.__documentElement = document.documentElement
+    })
+    await page
+      .getByRole("navigation", { name: "Fixture routes" })
+      .getByRole("link", { name: "Client", exact: true })
+      .click()
+    await page.waitForFunction(
+      () => document.documentElement.getAttribute("data-path") === "/client",
+    )
+    assert.equal(await page.locator("html").getAttribute("lang"), "fr")
+    assert.equal(
+      await page.evaluate(
+        () => window.__documentElement === document.documentElement,
+      ),
+      true,
+    )
+    assert.equal(
+      await page
+        .locator('script[type="module"][data-flamefront-asset]')
+        .count(),
+      scripts,
+    )
+  }
+
+  page.off("pageerror", onError)
+  assert.deepEqual(errors, [])
+}
+
 test("covers browser navigation, hydration, and history", async () => {
   await run(ff, ["build"], fixture)
 
@@ -472,9 +543,25 @@ test("covers browser navigation, hydration, and history", async () => {
 
     await checkMainApp(mainPage, `http://127.0.0.1:${rootPort}`)
     await checkBasenameFixture(fixturePage, `http://127.0.0.1:${fixturePort}`)
+    await checkDocument(fixturePage, `http://127.0.0.1:${fixturePort}`)
 
     await mainPage.close()
     await fixturePage.close()
+    await stopPreview(fixtureServer)
+
+    const devPort = await findPort()
+    const devToken = `browser-test-dev-${process.pid}-${Date.now()}`
+
+    fixtureServer = startPreview(devPort, fixture, devToken, "dev")
+    await waitForPreview(
+      fixtureServer,
+      `http://127.0.0.1:${devPort}/guide/server`,
+      undefined,
+    )
+    const devPage = await browser.newPage()
+
+    await checkDocument(devPage, `http://127.0.0.1:${devPort}`)
+    await devPage.close()
     await stopPreview(fixtureServer)
 
     for (const shellHydration of ["none", "deferred"]) {

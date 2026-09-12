@@ -23,6 +23,7 @@
     ".": "./src/index.ts",
     "./action-client": "./src/action-client.ts",
     "./entry": "./src/entry.ts",
+    "./document": "./src/document.tsx",
     "./fetch": "./src/fetch.ts",
     "./fragment": "./src/fragment.tsx",
     "./octane": "./src/octane.tsx",

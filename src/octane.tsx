@@ -4,6 +4,7 @@ import type {
   RouteDefinition,
   RouteParams,
 } from "./index.ts"
+import { documentAssets, type DocumentAssets } from "./document-assets.ts"
 import type {
   DocumentMode,
   RouteRuntime,
@@ -28,6 +29,7 @@ import {
 export type { DocumentMode, RenderedDocument } from "./server.ts"
 
 export interface RouterDocumentProps {
+  readonly documentAssets?: DocumentAssets
   readonly router: unknown
   readonly context: unknown
   /** Server-only markup for the independently-owned routed outlet. */
@@ -229,6 +231,28 @@ export function composeDefaultDocument(
     .replace(root, `<div id="root">${body}</div>`)
     .replace("</head>", `${css}</head>`)
     .replace("</body>", `${hydrationScript}</body>`)
+}
+
+function composeComponentDocument(body: string, css: string): string {
+  if (
+    !/<html\b/i.test(body) ||
+    !body.includes("</head>") ||
+    !body.includes("</body>")
+  ) {
+    throw new Error(
+      "The app document must render html, head, and body elements.",
+    )
+  }
+
+  const scripts = body.split(`id="${staticRouterHydrationScriptId}"`).length - 1
+
+  if (scripts !== 1) {
+    throw new Error(
+      "The app document must render Scripts exactly once inside body.",
+    )
+  }
+
+  return `<!doctype html>${body.replace(/^\s*<!doctype html>/i, "").replace("</head>", `${css}</head>`)}`
 }
 
 async function loadDefaultRouter(): Promise<DocumentRouter> {
@@ -534,6 +558,7 @@ export function createOctaneDocuments<
     mode: DocumentMode,
     route: RouteDefinition | null,
     renderOutlet = false,
+    template = "",
   ): Promise<{
     readonly router: DocumentRouter
     readonly dataRouter: unknown
@@ -586,6 +611,14 @@ export function createOctaneDocuments<
     const documentProps: RouterDocumentProps = {
       router: dataRouter,
       context,
+      ...(options.app.document
+        ? {
+            documentAssets: documentAssets(
+              template,
+              staticRouterHydrationScript(context),
+            ),
+          }
+        : {}),
       ...(outlet ? { outletHtml: outlet.html } : {}),
     }
     const rendered = renderer.renderToString(routerDocument, documentProps, {
@@ -620,6 +653,7 @@ export function createOctaneDocuments<
       mode,
       route,
       true,
+      template,
     )
     const status = staticContext.statusCode ?? 200
     const compositionContext: DocumentCompositionContext<Route> = {
@@ -639,12 +673,14 @@ export function createOctaneDocuments<
     }
     const html = await (options.composeDocument
       ? options.composeDocument(parts, compositionContext)
-      : composeDefaultDocument(
-          parts.template,
-          parts.body,
-          parts.css,
-          parts.hydrationScript,
-        ))
+      : options.app.document
+        ? composeComponentDocument(parts.body, parts.css)
+        : composeDefaultDocument(
+            parts.template,
+            parts.body,
+            parts.css,
+            parts.hydrationScript,
+          ))
 
     const headers = actionResponseHeaders(staticContext)
 

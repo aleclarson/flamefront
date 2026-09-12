@@ -1,6 +1,7 @@
 import { RouterProvider } from "@octanejs/remix-router/dom"
 import { createElement } from "octane"
 import { routeOutletHtmlContext } from "./fragment.tsx"
+import { documentAssetsContext } from "./document.tsx"
 import type {
   RouterDocument as RouterDocumentComponent,
   RouterDocumentProps,
@@ -14,9 +15,17 @@ export const RouterDocument: RouterDocumentComponent = (
     readonly router: unknown
   }) => unknown
 
-  return createElement(
+  const content = createElement(
     routeOutletHtmlContext.Provider,
     { value: props.outletHtml ?? null },
     createElement(Router, { router: props.router }),
   )
+
+  return props.documentAssets
+    ? createElement(
+        documentAssetsContext.Provider,
+        { value: props.documentAssets },
+        content,
+      )
+    : content
 }
