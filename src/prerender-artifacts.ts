@@ -138,10 +138,26 @@ export function assembleStaticRouteArtifact(
     return null
   }
 
-  let html = artifact.html
+  let index = 0
+  let valid = true
+  const html = artifact.html.replace(
+    /((?:src|href)=)(['"])(\/assets\/[^'"]+)\2/g,
+    (match, attribute: string, quote: string, asset: string) => {
+      if (index >= previous.length) {
+        return match
+      }
 
-  for (let index = 0; index < previous.length; index += 1) {
-    html = html.replaceAll(previous[index], current.assets[index])
+      if (asset !== previous[index]) {
+        valid = false
+        return match
+      }
+
+      return `${attribute}${quote}${current.assets[index++]}${quote}`
+    },
+  )
+
+  if (!valid || index !== previous.length) {
+    return null
   }
 
   return { ...artifact, html, template: current }

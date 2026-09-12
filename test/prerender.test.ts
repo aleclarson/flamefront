@@ -132,7 +132,7 @@ test("reassembles changed asset names without rerendering document content", () 
   const newTemplate =
     '<script src="/assets/app-new.js"></script><div id="root"></div>'
   const artifact = {
-    html: '<script src="/assets/app-old.js"></script><main>cached</main>',
+    html: '<script src="/assets/app-old.js"></script><main><code>/assets/app-old.js</code></main><script type="application/json">{"asset":"/assets/app-old.js"}</script>',
     routeData: null,
     fragment: {
       protocol: "flamefront-route-fragment-v1" as const,
@@ -151,12 +151,48 @@ test("reassembles changed asset names without rerendering document content", () 
 
   assert.equal(
     assembleStaticRouteArtifact(artifact, newTemplate)?.html,
-    '<script src="/assets/app-new.js"></script><main>cached</main>',
+    '<script src="/assets/app-new.js"></script><main><code>/assets/app-old.js</code></main><script type="application/json">{"asset":"/assets/app-old.js"}</script>',
   )
   assert.equal(
     assembleStaticRouteArtifact(
       artifact,
       newTemplate.replace("root", "outlet"),
+    ),
+    null,
+  )
+})
+
+test("reassembles duplicate template asset references positionally", () => {
+  const oldTemplate =
+    '<script src="/assets/shared-old.js"></script><link href="/assets/shared-old.js">'
+  const artifact = {
+    html: `${oldTemplate}<main><img src="/assets/shared-old.js"></main>`,
+    routeData: null,
+    fragment: {
+      protocol: "flamefront-route-fragment-v1" as const,
+      route: "/about",
+      boundary: "about",
+      html: '<main><img src="/assets/shared-old.js"></main>',
+      routeData: null,
+      boundaries: [],
+    },
+    status: 200,
+    template: {
+      fingerprint: templateFingerprint(oldTemplate),
+      assets: ["/assets/shared-old.js", "/assets/shared-old.js"],
+    },
+  }
+  const newTemplate =
+    '<script src="/assets/app-new.js"></script><link href="/assets/styles-new.css">'
+
+  assert.equal(
+    assembleStaticRouteArtifact(artifact, newTemplate)?.html,
+    `${newTemplate}<main><img src="/assets/shared-old.js"></main>`,
+  )
+  assert.equal(
+    assembleStaticRouteArtifact(
+      { ...artifact, html: '<script src="/assets/unexpected.js"></script>' },
+      newTemplate,
     ),
     null,
   )
