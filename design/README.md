@@ -14,6 +14,8 @@ on the corresponding part of the system:
 - [Invariants](./invariants.md) lists the properties that changes must preserve.
 - [NativeScript support proposal](./proposals/nativescript/README.md) explores
   a native route projection without changing the current browser contract.
+- [Website plan](./website.md) defines the public site's audience, experience,
+  design direction, and planned integrations.
 
 The package [README](../README.md) remains the user-facing API and setup guide.
 The [brownfield migration guide](../docs/brownfield-migration.md) remains an
