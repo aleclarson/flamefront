@@ -1,6 +1,7 @@
 import * as devalue from "devalue"
 import { data } from "@octanejs/remix-router"
 import {
+  actionRedirectStatusHeader,
   actionProtocolEnvelope,
   actionResponseInit,
   type ActionEnvelope,
@@ -45,6 +46,19 @@ function isRedirect(response: Response): boolean {
   return response.status >= 300 && response.status < 400
 }
 
+function transportedRedirect(response: Response): Response | undefined {
+  const status = Number(response.headers.get(actionRedirectStatusHeader))
+
+  if (!Number.isInteger(status) || status < 300 || status >= 400) {
+    return undefined
+  }
+
+  const headers = new Headers(response.headers)
+
+  headers.delete(actionRedirectStatusHeader)
+  return new Response(null, { status, headers })
+}
+
 function headersFromEnvelope(envelope: ActionEnvelope): Headers | undefined {
   return envelope.headers.length > 0
     ? new Headers(
@@ -83,6 +97,14 @@ async function decodeActionResponse(
   response: Response,
   options: ActionRequestOptions,
 ): Promise<unknown> {
+  const redirect = transportedRedirect(response)
+
+  if (redirect) {
+    invalidateRouteDataCache()
+    invalidateRouteFragments()
+    throw redirect
+  }
+
   if (isRedirect(response)) {
     invalidateRouteDataCache()
     invalidateRouteFragments()
@@ -157,7 +179,6 @@ export function createActionProxy<
     const response = await globalThis.fetch(endpoint, {
       method: "POST",
       credentials: "same-origin",
-      redirect: "manual",
       headers: {
         "Content-Type": "application/vnd.flamefront.action+devalue",
         Accept: "application/vnd.flamefront.action+devalue",
@@ -178,8 +199,13 @@ export async function submitRouteAction(
 
   url.searchParams.set("__flamefront_action", "1")
   const source = request.clone()
-  const response = await globalThis.fetch(new Request(url, source), {
-    redirect: "manual",
+  const actionRequest = new Request(url, {
+    method: source.method,
+    headers: source.headers,
+    body: await source.blob(),
+    signal: source.signal,
+  })
+  const response = await globalThis.fetch(actionRequest, {
     credentials: "same-origin",
   })
 

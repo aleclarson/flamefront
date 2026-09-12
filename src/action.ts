@@ -1,5 +1,7 @@
 import * as devalue from "devalue"
 
+export const actionRedirectStatusHeader = "X-Flamefront-Redirect-Status"
+
 /** The structural value returned by the router's `data()` helper. */
 export interface ActionDataWithResponseInit<Data = unknown> {
   readonly type: "DataWithResponseInit"
@@ -339,6 +341,13 @@ function envelopeResponse(envelope: ActionEnvelope): Response {
 /** Encode an action return value or error as a Fetch response. */
 export function actionResultResponse(value: unknown): Response {
   if (value instanceof Response) {
+    if (value.status >= 300 && value.status < 400) {
+      const headers = new Headers(value.headers)
+
+      headers.set(actionRedirectStatusHeader, String(value.status))
+      return new Response(null, { status: 204, headers })
+    }
+
     return value
   }
 

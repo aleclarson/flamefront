@@ -2,7 +2,10 @@ import assert from "node:assert/strict"
 import * as devalue from "devalue"
 import { test } from "vitest"
 import { redirect } from "@octanejs/remix-router"
-import { actionResultResponse } from "../src/action.ts"
+import {
+  actionRedirectStatusHeader,
+  actionResultResponse,
+} from "../src/action.ts"
 import { createActionProxy, submitRouteAction } from "../src/action-client.ts"
 
 test("calls a generated action proxy over the devalue endpoint", async () => {
@@ -68,6 +71,11 @@ test("submits enhanced page actions with the original form body", async () => {
       receivedRequest?.url,
       "https://example.test/products/p-1?__flamefront_action=1",
     )
+    assert.equal(receivedRequest?.method, "POST")
+    assert.equal(
+      receivedRequest?.headers.get("content-type"),
+      "application/x-www-form-urlencoded;charset=UTF-8",
+    )
     assert.equal(await receivedRequest?.text(), "name=New+name")
   } finally {
     globalThis.fetch = originalFetch
@@ -86,6 +94,36 @@ test("passes action redirects through to the router or caller", async () => {
 
     await assert.rejects(submitRouteAction({ request }), (error: unknown) => {
       return error instanceof Response && error.status === 302
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("reconstructs redirects transported as non-redirect fetch responses", async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = async () =>
+    new Response(null, {
+      status: 204,
+      headers: {
+        [actionRedirectStatusHeader]: "303",
+        Location: "/products",
+      },
+    })
+
+  try {
+    const request = new Request("https://example.test/products", {
+      method: "POST",
+    })
+
+    await assert.rejects(submitRouteAction({ request }), (error: unknown) => {
+      return (
+        error instanceof Response &&
+        error.status === 303 &&
+        error.headers.get("location") === "/products" &&
+        !error.headers.has(actionRedirectStatusHeader)
+      )
     })
   } finally {
     globalThis.fetch = originalFetch

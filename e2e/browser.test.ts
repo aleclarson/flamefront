@@ -358,6 +358,27 @@ async function checkBasenameFixture(page, base) {
     "Router location: /server?view=compact",
   )
 
+  const actionRequest = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+
+    return (
+      response.request().method() === "POST" &&
+      url.pathname === "/guide/server" &&
+      url.searchParams.get("__flamefront_action") === "1"
+    )
+  })
+
+  await page.getByTestId("fixture-action-redirect").click()
+  await page.waitForURL((url) => url.pathname === "/guide/destination")
+  assert.equal((await actionRequest).status(), 204)
+  await waitForText(
+    page,
+    '[data-testid="fixture-destination"]',
+    "Redirect destination",
+  )
+
+  await clickRoute(page, "Server", "/guide/server")
+
   const errorFragment = page.waitForResponse((response) => {
     const url = new URL(response.url())
 

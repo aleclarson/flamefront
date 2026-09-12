@@ -1,4 +1,10 @@
-import { Link, useLoaderData, useLocation } from "@octanejs/remix-router"
+import {
+  Form,
+  Link,
+  redirect,
+  useLoaderData,
+  useLocation,
+} from "@octanejs/remix-router"
 import { useState } from "octane"
 import type { LoaderArgs } from "flamefront/server"
 
@@ -13,6 +19,10 @@ export async function loader({ request }: LoaderArgs) {
     query: url.searchParams.get("view") ?? "default",
     requestCount,
   }
+}
+
+export async function action() {
+  return redirect("/destination")
 }
 
 export default function ServerPage() @{
@@ -46,5 +56,10 @@ export default function ServerPage() @{
       Server count:{" "}
       {count}
     </button>
+    <Form method="post">
+      <button data-testid="fixture-action-redirect" type="submit">
+        Submit and redirect
+      </button>
+    </Form>
   </main>
 }

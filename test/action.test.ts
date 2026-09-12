@@ -3,6 +3,7 @@ import { test } from "vitest"
 import { data } from "@octanejs/remix-router"
 import {
   action,
+  actionRedirectStatusHeader,
   actionResultResponse,
   executeRegisteredAction,
   isSameOriginActionRequest,
@@ -92,6 +93,20 @@ test("encodes registered actions with devalue and response metadata", async () =
 
   assert.equal(created.status, 201)
   assert.equal(created.headers.get("x-action"), "yes")
+})
+
+test("transports action redirects without a fetch-visible redirect status", () => {
+  const response = actionResultResponse(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "/products", "X-Action": "redirect" },
+    }),
+  )
+
+  assert.equal(response.status, 204)
+  assert.equal(response.headers.get(actionRedirectStatusHeader), "302")
+  assert.equal(response.headers.get("location"), "/products")
+  assert.equal(response.headers.get("x-action"), "redirect")
 })
 
 test("rejects cross-origin action metadata", () => {
