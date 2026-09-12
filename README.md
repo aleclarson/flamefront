@@ -42,8 +42,9 @@ its generated HTML, and serve it locally. Then [create your own app](./docs/crea
 
 ## Before you try it
 
-Flamefront is an early alpha and requires Node.js 26+. Expect changes before
-1.0. Follow the setup guide for matching packages.
+Flamefront is an early alpha and requires Node.js 26+. Octane, Vite, and
+`@octanejs/remix-router` are required peer dependencies. Follow the
+[setup guide](./docs/create-app.md) for matching packages. Expect changes before 1.0.
 
 There is no built-in form action or mutation API yet. If your current framework
 already covers your needs, there's no need to switch.
