@@ -132,6 +132,26 @@ maps to its containing directory. Static routes cannot contain unresolved
 `:` or `*` segments at build time: provide concrete entries, enumerate paths
 with [`prerender.pages`](incremental-prerendering.md), or use server rendering.
 
+Markdown and MDX routes expose their frontmatter as `match.handle.frontmatter`
+after the route loads. Pages, layouts, and the shell can read it with
+`useMatches()`:
+
+```ts
+import { useMatches } from "@octanejs/remix-router"
+import type { RouteHandle } from "flamefront"
+
+export function usePageTitle() {
+  const page = useMatches().at(-1)
+  const frontmatter = (page?.handle as RouteHandle | undefined)?.frontmatter
+  return typeof frontmatter?.title === "string" ? frontmatter.title : undefined
+}
+```
+
+Content without frontmatter exposes an empty object. Component routes and
+layouts omit this field. Frontmatter is available in the browser, so it should
+contain only public page metadata. It does not change route paths, rendering,
+or hydration policies, and is not automatically passed as component props.
+
 For apps mounted under a URL prefix, `routing.basename` and `routing.dataPath`
 on `defineApp` configure the shared route prefix and data endpoint. Their
 defaults are `/` and `/__flamefront/data`. Set these together with your host's

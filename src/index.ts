@@ -87,6 +87,13 @@ export type RouteNavigationStrategy = "router" | "fragment"
 
 export type RouteBoundaryKind = "shell" | "layout" | "route"
 
+/** Handle exposed by generated router matches, including content metadata. */
+export interface RouteHandle {
+  readonly flamefront: GeneratedRouteMetadata
+  /** Markdown/MDX frontmatter; absent on component routes and layouts. */
+  readonly frontmatter?: Readonly<Record<string, unknown>>
+}
+
 /** Metadata emitted on generated router nodes for route-aware navigation. */
 export interface GeneratedRouteMetadata {
   readonly id: string

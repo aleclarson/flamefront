@@ -305,6 +305,12 @@ function generateConfigs(
         return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}lazy: ${lazyLayout(config.entry, metadata)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${childIndent}children: [\n${generateConfigs(config.children, routing, depth + 2, metadata.id, location)}\n${childIndent}],\n${indent}}`
       }
 
+      if (/\.(md|mdx)$/.test(cleanModuleId(config.entry))) {
+        const lazy = lazyRoute(config, routing, metadata)
+
+        return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: async () => { const [routeModule, resolved] = await Promise.all([import(${quote(config.entry)}), (${lazy})()]); return { ...resolved, handle: { flamefront: ${JSON.stringify(metadata)}, frontmatter: routeModule.frontmatter ?? {} } }; },\n${indent}}`
+      }
+
       return `${indent}{\n${childIndent}id: ${quote(metadata.id)},\n${childIndent}path: ${quote(config.path)},\n${childIndent}lazy: ${lazyRoute(config, routing, metadata)},\n${childIndent}handle: { flamefront: ${JSON.stringify(metadata)} },\n${indent}}`
     })
     .join(",\n")

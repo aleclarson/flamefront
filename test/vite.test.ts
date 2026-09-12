@@ -449,6 +449,63 @@ test("emits the normalized shell hydration policy in generated metadata", () => 
   assert.doesNotMatch(source, /shellHydration.*idle/)
 })
 
+test("exposes content frontmatter in lazy route handles", async () => {
+  for (const ssr of [true, false]) {
+    for (const render of ["static", "server", "client"] as const) {
+      for (const extension of ["md", "mdx"]) {
+        for (const frontmatter of [
+          undefined,
+          { title: "Guide", nested: { order: 2 } },
+        ]) {
+          const entry = `/src/Guide.${extension}`
+          const app = defineApp({
+            shell: "/src/Shell.tsrx",
+            routes: [
+              layout("/src/Layout.tsrx", [
+                extension === "md"
+                  ? markdownRoute("/guide", entry, { render })
+                  : route("/guide", entry, { render }),
+              ]),
+            ],
+          })
+          const source = generateRemixRoutes(app)
+            .replace(/^import .*;$/gm, "")
+            .replace(/^export \{.*\};$/gm, "")
+            .replace(/export /g, "")
+            .replace(/import\.meta\.env\.SSR/g, String(ssr))
+            .replace(/import\(/g, "importModule(")
+          const loader = () => ({ value: 42 })
+          const routes = new Function(
+            "Shell",
+            "createRouteBoundary",
+            "createRouteFragmentRoute",
+            "importModule",
+            `${source}; return routes`,
+          )(
+            () => null,
+            (component: unknown) => component,
+            (options: unknown) => options,
+            async () => ({ default: () => null, frontmatter, loader }),
+          )
+          const parent = routes[0].children[0]
+          const leaf = parent.children[0]
+
+          assert.equal(parent.handle.frontmatter, undefined)
+          assert.equal(leaf.handle, undefined)
+          const resolved = await leaf.lazy()
+
+          assert.deepEqual(resolved.handle.frontmatter, frontmatter ?? {})
+          assert.equal(resolved.handle.flamefront.path, "/guide")
+          assert.equal(resolved.handle.flamefront.render, render)
+          if (ssr && render !== "client") {
+            assert.equal(resolved.loader, loader)
+          }
+        }
+      }
+    }
+  }
+})
+
 test("adapts Markdown route entries to components", () => {
   const app = defineApp({
     shell: "/src/AppShell.tsrx",
