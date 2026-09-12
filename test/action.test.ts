@@ -33,13 +33,29 @@ const uppercase: StandardSchemaV1<string, string> = {
   },
 }
 
+const numberToString: StandardSchemaV1<number, string> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate(value) {
+      return typeof value === "number"
+        ? { value: String(value) }
+        : { issues: [{ message: "Expected a number." }] }
+    },
+  },
+}
+
 test("validates action arguments and preserves transformed outputs", async () => {
   const multiply = action(
     [positiveNumber, positiveNumber],
     (left, right) => left * right,
   )
+  const lengthOfNumber = action([numberToString], (value) => value.length)
 
   assert.equal(await multiply(2, 3), 6)
+  const length: Promise<number> = lengthOfNumber(42)
+
+  assert.equal(await length, 2)
   await assert.rejects(multiply(-1, 3), (error: unknown) => {
     return (
       error instanceof Error &&

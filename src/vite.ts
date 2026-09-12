@@ -321,10 +321,22 @@ export function generateRemixRoutes(
 
 /** Generate the server-only route-module importer used by loader endpoints. */
 export function generateServerRoutes(
-  app: Pick<AppDefinition, "routes">,
+  app: Pick<AppDefinition, "routes" | "shell" | "routeTree">,
 ): string {
-  const entries = [...new Set(app.routes.map((route) => route.entry))]
-  const imports = entries
+  const entries = new Set<string>([app.shell])
+  const collect = (configs: readonly RouteConfig[]) => {
+    for (const config of configs) {
+      entries.add(config.entry)
+
+      if ("children" in config) {
+        collect(config.children)
+      }
+    }
+  }
+
+  collect(app.routeTree)
+
+  const imports = [...entries]
     .map((entry) => `\t${quote(entry)}: () => import(${quote(entry)})`)
     .join(",\n")
 

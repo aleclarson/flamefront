@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "vitest"
 import * as devalue from "devalue"
 import { defineApp, route } from "../src/index.ts"
+import { action } from "../src/action.ts"
 import { createRouteRuntime } from "../src/server.ts"
 
 const shell = "/src/AppShell.tsrx"
@@ -184,4 +185,28 @@ test("does not dispatch actions owned by static routes", async () => {
   assert.equal(response.status, 405)
   assert.match(await response.text(), /static routes cannot define actions/i)
   assert.equal(imported, false)
+})
+
+test("loads generated action modules before the first direct call", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/", "/src/Index.tsrx")],
+  })
+  const importRoute = Object.assign(async () => ({ default: null }), {
+    loadActions: async () => {
+      action("lazy-action", (value) => Number(value) + 1)
+    },
+  })
+  const runtime = createRouteRuntime({ app, importRoute })
+  const response = await runtime.loadAction(
+    new Request("https://example.test/__flamefront/data?action=lazy-action", {
+      method: "POST",
+      body: devalue.stringify([41]),
+    }),
+  )
+  const envelope = devalue.parse(await response.text()) as {
+    readonly value: unknown
+  }
+
+  assert.equal(envelope.value, 42)
 })

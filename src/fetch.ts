@@ -135,10 +135,12 @@ export function createFetchServerEntry<
     const match = options.app.match(url)
 
     try {
-      if (
-        !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
-        !isSameOriginActionRequest(request)
-      ) {
+      const actionRequest =
+        url.searchParams.has("action") ||
+        url.searchParams.has("__flamefront_action") ||
+        (match !== null && !["GET", "HEAD", "OPTIONS"].includes(request.method))
+
+      if (actionRequest && !isSameOriginActionRequest(request)) {
         return new Response("Forbidden.", { status: 403 })
       }
 

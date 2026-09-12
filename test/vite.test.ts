@@ -575,6 +575,9 @@ test("generates a server-only importer for every unique leaf route module", () =
 
   assert.equal(source.match(/import\("\/src\/One\.tsrx"\)/g)?.length, 1)
   assert.equal(source.match(/import\("\/src\/Two\.tsrx"\)/g)?.length, 1)
+  assert.match(source, /import\("\/src\/AppShell\.tsrx"\)/)
+  assert.match(source, /export function loadActions\(\)/)
+  assert.match(source, /importRoute\.loadActions = loadActions/)
   assert.match(source, /export async function importRoute\(entry\)/)
   assert.match(source, /No Vite route module was generated for \$\{entry\}/)
 })
