@@ -3,8 +3,8 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http"
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname, relative, resolve } from "node:path"
+import { access, readFile, rm, writeFile } from "node:fs/promises"
+import { relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { serve } from "srvx"
 import type { ServerMiddleware } from "srvx"
@@ -22,10 +22,13 @@ import {
   staticRouteFragmentFile,
   staticRouteFragmentDataFile,
 } from "./static-fragment-artifacts.ts"
+import type { RouteFragmentArtifact } from "./fragment-client.ts"
 import {
-  routeFragmentProtocol,
-  type RouteFragmentArtifact,
-} from "./fragment-client.ts"
+  documentParts,
+  renderStaticRoute,
+  staticRouteRequest,
+  writeStaticRouteArtifact,
+} from "./prerender-artifacts.ts"
 import { setGlobRoot } from "./glob.ts"
 
 export {
@@ -163,24 +166,6 @@ function requestUrl(request: IncomingMessage): URL {
     request.url ?? "/",
     `http://${request.headers.host ?? "localhost"}`,
   )
-}
-
-function documentParts(document: RenderDocumentResult): {
-  readonly html: string
-  readonly status: number
-  readonly hasRouteData: boolean
-  readonly routeData: unknown
-} {
-  if (typeof document === "string") {
-    return { html: document, status: 200, hasRouteData: false, routeData: null }
-  }
-
-  return {
-    html: document.html,
-    status: document.status ?? 200,
-    hasRouteData: "routeData" in document,
-    routeData: document.routeData,
-  }
 }
 
 function concreteRoutePath(path: string): string {
@@ -324,40 +309,18 @@ export async function prerenderStaticRoutes(
   renderFragment?: (request: Request) => Promise<RouteFragmentArtifact>,
 ): Promise<void> {
   for (const route of routes) {
-    const outputFile = staticRouteFile(clientDirectory, route)
-    const outputDataFile = staticRouteDataFile(clientDirectory, route)
-    const outputFragmentFile = staticRouteFragmentFile(clientDirectory, route)
-    const outputFragmentDataFile = staticRouteFragmentDataFile(
-      clientDirectory,
+    const request = staticRouteRequest(routing, route.path)
+    const artifact = await renderStaticRoute(
       route,
+      request,
+      render,
+      loadData,
+      renderFragment,
     )
-    const request = new Request(
-      new URL(joinRoutePath(routing, route.path), "http://flamefront.build"),
+    await writeStaticRouteArtifact(clientDirectory, route, artifact)
+    console.log(
+      `Generated ${relative(root, staticRouteFile(clientDirectory, route))}.`,
     )
-    const rendered = documentParts(await render(request))
-    const data = rendered.hasRouteData
-      ? rendered.routeData
-      : loadData
-        ? await loadData(request)
-        : null
-    const fragment = renderFragment
-      ? await renderFragment(request)
-      : ({
-          protocol: routeFragmentProtocol,
-          route: route.path,
-          boundary: route.entry,
-          html: rendered.html,
-          routeData: data,
-          boundaries: [],
-          status: rendered.status,
-        } satisfies RouteFragmentArtifact)
-
-    await mkdir(dirname(outputFile), { recursive: true })
-    await writeFile(outputFile, rendered.html)
-    await writeFile(outputDataFile, JSON.stringify(data ?? null))
-    await writeFile(outputFragmentFile, fragment.html)
-    await writeFile(outputFragmentDataFile, JSON.stringify(fragment))
-    console.log(`Generated ${relative(root, outputFile)}.`)
   }
 }
 
