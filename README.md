@@ -15,7 +15,8 @@ One route list connects your pages to the server, browser router, and build.
   client-rendered.
 - **Choose when parts of a page become interactive.** Defer hydration until
   needed—for example, when content becomes visible or someone interacts with it.
-- **Markdown routes.** Use Markdown and MDX files as pages.
+- **Write pages in Markdown or MDX.** Include them alongside your Octane
+  components in the route list.
 
 ## One route list
 
