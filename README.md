@@ -23,6 +23,10 @@ many or all of your Octane projects, even when each uses a different mode.
 - **Persistent shell state.** Keep players running, uploads progressing, and
   other shared UI state intact between pages without making the whole app
   client-rendered.
+- **Dynamic control of the whole document.** Render `<html>`, `<head>`, and
+  `<body>` in a component, with reactive language, theme, and metadata across
+  navigation. Keep Vite's `index.html` for simpler apps.
+  [Define an app document](./docs/document.md).
 - **Choose when parts of a page become interactive.** Defer hydration until
   needed—for example, when content becomes visible or someone interacts with it.
 - **Write pages in Markdown or MDX.** Include them alongside your Octane
