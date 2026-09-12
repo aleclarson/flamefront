@@ -820,10 +820,15 @@ export function flamefront(options: FlamefrontOptions = {}) {
       transformOptions?: TransformOptions,
     ) {
       const context = this as Pick<PluginContext, "environment">
+      const moduleId = cleanModuleId(id)
+
+      if (moduleId.endsWith(".md") || moduleId.endsWith(".mdx")) {
+        return null
+      }
 
       if (
         isServerEnvironment(context, transformOptions) &&
-        !cleanModuleId(id).endsWith(".tsrx") &&
+        !moduleId.endsWith(".tsrx") &&
         source.includes("action") &&
         /flamefront(?:\/server)?["']/.test(source)
       ) {
@@ -838,7 +843,7 @@ export function flamefront(options: FlamefrontOptions = {}) {
       }
 
       if (
-        !cleanModuleId(id).endsWith(".tsrx") &&
+        !moduleId.endsWith(".tsrx") &&
         source.includes("action") &&
         /flamefront(?:\/server)?["']/.test(source)
       ) {
@@ -1134,7 +1139,12 @@ export function flamefront(options: FlamefrontOptions = {}) {
         return null
       }
 
-      if (!(await loadRouteModuleIds()).has(cleanModuleId(id))) {
+      const moduleId = cleanModuleId(id)
+      if (moduleId.endsWith(".md") || moduleId.endsWith(".mdx")) {
+        return null
+      }
+
+      if (!(await loadRouteModuleIds()).has(moduleId)) {
         return null
       }
 
