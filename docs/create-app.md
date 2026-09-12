@@ -7,84 +7,47 @@ This guide assumes basic TypeScript and terminal use. If you are still deciding
 whether Flamefront fits, start with [the included-app trial](getting-started.md).
 You do not need prior TSRX experience to copy this example.
 
-## Create an empty project
+## Create the project
 
-Use Node.js 26 or newer, pnpm 11, and an empty directory. These commands assume
-a POSIX shell (for example, macOS Terminal or a Linux terminal). This example
-uses a package built from the current Flamefront checkout; APIs and generated
-output may change before 1.0. It uses Octane, a component renderer, rather than React or Preact.
-
-Start at the root of the checkout used in [the trial](getting-started.md),
-with its dependencies installed. Create a sibling directory and pack the
-current source into it:
+Use Node.js 26 or newer. Create a project with pnpm:
 
 ```sh
-mkdir ../flamefront-example
-pnpm pack --pack-destination ../flamefront-example
-cd ../flamefront-example
+pnpm create flamefront@latest my-app
+cd my-app
 ```
 
-The current checkout produces `flamefront-0.1.1.tgz`. Use this local archive
-for the examples on this page so the installed API matches the reviewed source.
-If the checkout's version changes, use the filename reported by `pnpm pack`
-in the install command below.
+The creator selects compatible Flamefront, Octane, TypeScript, and Vite
+versions and installs them. `npm create flamefront@latest my-app`,
+`yarn create flamefront my-app`, and `bun create flamefront my-app` are also
+supported. Pass `--no-install` after the directory to create the files without
+installing dependencies.
 
-Create `package.json`:
+The target directory must be empty and its name must be a valid lowercase npm
+package name. The creator will not merge with or overwrite an existing app.
 
-```json
-{
-  "name": "flamefront-example",
-  "private": true,
-  "type": "module"
-}
-```
+## Inspect the application files
 
-Create `pnpm-workspace.yaml` to allow the build tool's esbuild installation
-script. pnpm 11 requires this explicit setting:
-
-```yaml
-allowBuilds:
-  esbuild: true
-```
-
-Install the matching packages:
-
-```sh
-pnpm add \
-  ./flamefront-0.1.1.tgz \
-  @octanejs/remix-router@0.1.48 \
-  @octanejs/vite-plugin@0.1.54 \
-  octane@0.2.7 \
-  vite@8.3.0
-```
-
-## Add the application files
-
-The `"type": "module"` setting enables JavaScript's `import`/`export` module
-format. Create the `src` directory and the files below; no scaffolding command
-creates them for you.
-
-```sh
-mkdir src
-```
-
-The complete layout is:
+The creator writes this layout:
 
 ```
 .
+├── .gitignore
+├── index.html
 ├── package.json
 ├── pnpm-workspace.yaml
-├── index.html
+├── tsconfig.json
 ├── vite.config.ts
 └── src
-    ├── app.ts
     ├── AppShell.tsrx
     ├── HomePage.tsrx
+    ├── app.ts
     ├── entry-server.ts
-    └── main.ts
+    ├── env.d.ts
+    ├── main.ts
+    └── styles.css
 ```
 
-Configure Vite with Flamefront before the Octane plugin:
+`vite.config.ts` configures Flamefront before the Octane plugin:
 
 ```ts
 // vite.config.ts
@@ -97,7 +60,7 @@ export default defineConfig({
 })
 ```
 
-Define the shell and a server-rendered route:
+`src/app.ts` defines the shell and one server-rendered route:
 
 ```ts
 // src/app.ts
@@ -122,8 +85,8 @@ ordinary TypeScript does not parse the `@{` syntax.
 import { Outlet } from "@octanejs/remix-router"
 
 export default function AppShell() @{
-  <div>
-    <header>My app</header>
+  <div className="app-shell">
+    <header>Flamefront</header>
     <Outlet />
   </div>
 }
@@ -145,7 +108,11 @@ export async function loader({ request }: LoaderArgs<"/">) {
 export default function HomePage() @{
   const data = useLoaderData<typeof loader>()
 
-  <main>Loaded at {data.pathname}</main>
+  <main>
+    <p className="eyebrow">Server-rendered with Flamefront</p>
+    <h1>Your app is ready.</h1>
+    <p>The loader handled {data.pathname}</p>
+  </main>
 }
 ```
 
@@ -182,11 +149,12 @@ Start the browser entry:
 // src/main.ts
 import { startOctaneClient } from "flamefront/octane/client"
 import { app } from "./app.ts"
+import "./styles.css"
 
 await startOctaneClient({ app })
 ```
 
-Create `index.html` at the project root:
+`index.html` provides the document template and browser entry:
 
 ```html
 <!doctype html>
@@ -205,14 +173,15 @@ Create `index.html` at the project root:
 
 ## Run and verify
 
-From `flamefront-example`, run:
+From `my-app`, run:
 
 ```sh
-pnpm exec ff dev
+pnpm dev
 ```
 
 Leave the process running and open <http://localhost:5173/>. The page should
-show `My app` and `Loaded at /`. The second line comes from the route loader.
+show `Your app is ready.` and `The loader handled /`. The second line comes
+from the route loader.
 You have completed the example when both lines appear without a server error.
 Stop the process with Ctrl+C.
 
@@ -220,16 +189,16 @@ To check the production build, run these commands one at a time. The build
 replaces `dist/`; do not keep authored files there.
 
 ```sh
-pnpm exec ff build
-pnpm exec ff preview
+pnpm build
+pnpm preview
 ```
 
 Open <http://localhost:4173/> and check for the same text. Stop preview with
 Ctrl+C. Build and preview do not run a TypeScript type check.
 
 If the server cannot find `src/app.ts`, check that the terminal is in
-`flamefront-example`. For a busy development port, use
-`pnpm exec ff dev --port 5174` and open that port instead.
+`my-app`. For a busy development port, use `pnpm dev -- --port 5174` and open
+that port instead.
 
 Next, [choose how another route renders](routes.md), or read
 [build and deployment](deployment.md) before hosting the app.

@@ -1,0 +1,27 @@
+{
+  "name": "__PACKAGE_NAME__",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26.0.0"
+  },
+  "scripts": {
+    "dev": "ff dev",
+    "build": "ff build",
+    "preview": "ff preview",
+    "routes": "ff routes",
+    "typegen": "ff typegen",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@octanejs/remix-router": "0.1.48",
+    "@octanejs/vite-plugin": "0.1.54",
+    "flamefront": "^__FLAMEFRONT_VERSION__",
+    "octane": "0.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
+  }
+}

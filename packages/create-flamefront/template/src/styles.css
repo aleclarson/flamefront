@@ -1,0 +1,31 @@
+:root {
+  color: #231a14;
+  background: #fff8ed;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  width: min(42rem, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 3rem 0;
+}
+
+header,
+.eyebrow {
+  color: #b33a16;
+  font-weight: 700;
+}
+
+main {
+  padding-top: 6rem;
+}
+
+h1 {
+  margin: 0.25rem 0;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  line-height: 0.95;
+}

@@ -1,0 +1,27 @@
+{
+  "name": "create-flamefront",
+  "version": "0.1.2",
+  "private": false,
+  "description": "Create a Flamefront app.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/flamefront.git",
+    "directory": "packages/create-flamefront"
+  },
+  "type": "module",
+  "bin": {
+    "create-flamefront": "./bin/create-flamefront.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "template"
+  ],
+  "engines": {
+    "node": ">=26.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -48,8 +48,17 @@ and chooses how it renders.
 
 ## Quickstart
 
-[Try the included app](./docs/getting-started.md): build a static page, inspect
-its generated HTML, and serve it locally. Then [create your own app](./docs/create-app.md).
+Create and start an app with Node.js 26 or newer:
+
+```sh
+pnpm create flamefront@latest my-app
+cd my-app
+pnpm dev
+```
+
+See [Create a one-page app](./docs/create-app.md) for the generated files and
+how the server-rendered route works. To evaluate Flamefront without creating a
+project, [try the included app](./docs/getting-started.md).
 
 ## Before you try it
 

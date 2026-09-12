@@ -91,8 +91,17 @@ jobs:
           fi
 
           if git rev-parse --verify --quiet "v$next_version" >/dev/null; then
-            echo "Release tag v$next_version already exists" >&2
-            exit 1
+            if [ -n "$VERSION_OVERRIDE" ] &&
+              [ "$next_version" = "$current_version" ] &&
+              [ "$(git rev-parse "v$next_version^{commit}")" = "$(git rev-parse HEAD)" ]; then
+              echo "Resuming release v$next_version from its existing tag."
+              echo "resume_release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Release tag v$next_version already exists" >&2
+              exit 1
+            fi
+          else
+            echo "resume_release=false" >> "$GITHUB_OUTPUT"
           fi
 
           {
@@ -106,20 +115,28 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Bump package version
-        if: steps.version.outputs.should_release == 'true'
-        run: npm pkg set version="${{ steps.version.outputs.version }}"
+        if: >-
+          steps.version.outputs.should_release == 'true' &&
+          steps.version.outputs.resume_release != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npm pkg set version="$RELEASE_VERSION"
+          npm pkg set version="$RELEASE_VERSION" --prefix packages/create-flamefront
 
       - name: Build
         if: steps.version.outputs.should_release == 'true'
         run: pnpm run --if-present build
 
       - name: Commit release updates
-        if: steps.version.outputs.should_release == 'true'
+        if: >-
+          steps.version.outputs.should_release == 'true' &&
+          steps.version.outputs.resume_release != 'true'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json
+          git add package.json packages/create-flamefront/package.json
           if git diff --cached --quiet; then
             git commit --allow-empty -m "chore(release): ${{ steps.version.outputs.tag }}"
           else
@@ -129,6 +146,25 @@ jobs:
           git push origin HEAD:main
           git push origin "${{ steps.version.outputs.tag }}"
 
-      - name: Publish to npm with provenance
+      - name: Publish Flamefront to npm with provenance
         if: steps.version.outputs.should_release == 'true'
-        run: npm publish --provenance --access public
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$(npm view "flamefront@$RELEASE_VERSION" version 2>/dev/null || true)" = "$RELEASE_VERSION" ]; then
+            echo "flamefront@$RELEASE_VERSION is already published."
+          else
+            npm publish --provenance --access public
+          fi
+
+      - name: Publish create-flamefront to npm with provenance
+        if: steps.version.outputs.should_release == 'true'
+        working-directory: packages/create-flamefront
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$(npm view "create-flamefront@$RELEASE_VERSION" version 2>/dev/null || true)" = "$RELEASE_VERSION" ]; then
+            echo "create-flamefront@$RELEASE_VERSION is already published."
+          else
+            npm publish --provenance --access public
+          fi

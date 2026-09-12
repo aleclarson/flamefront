@@ -2,6 +2,7 @@ ignoreWorkspaceRootCheck: true
 
 packages:
   - ./
+  - ./packages/*
   - ./playground
   - ./scripts/browser-fixture
 
