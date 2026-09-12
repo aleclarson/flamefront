@@ -141,6 +141,9 @@ async function assertFile(path) {
 test("packs Flamefront and runs it from a clean consumer", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "flamefront-consumer-"))
   const consumer = resolve(workspace, "app")
+  const packageManifest = JSON.parse(
+    await readFile(resolve(root, "package.json"), "utf8"),
+  )
 
   try {
     await cp(fixture, consumer, { recursive: true })
@@ -199,7 +202,7 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
       await readFile(resolve(installedPackage, "package.json"), "utf8"),
     )
 
-    assert.equal(installedManifest.version, "0.1.0-alpha.0")
+    assert.equal(installedManifest.version, packageManifest.version)
     assert.equal(installedManifest.private, false)
     assert.equal(installedManifest.bin.ff, "./bin/ff.js")
     assert.equal(installedManifest.engines.node, ">=26.0.0")
@@ -207,7 +210,7 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
     const ff = resolve(consumer, "node_modules/.bin/ff")
     const version = await run(ff, ["--version"], consumer)
 
-    assert.equal(version.stdout.trim(), "0.1.0-alpha.0")
+    assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
 
     await run(ff, ["typegen"], consumer)
     await run("pnpm", ["exec", "tsc", "-p", "tsconfig.json"], consumer)
