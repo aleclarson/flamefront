@@ -12,6 +12,18 @@ import type { HydrationInteractionEvents } from "octane/hydration"
 import { createRouteDataClient } from "./route-data-client.ts"
 import { stripFlamefrontProtocolParams } from "./fragment-protocol.ts"
 
+export { action } from "./action.ts"
+export type {
+  ActionDataWithResponseInit,
+  ActionFunction,
+  ActionInput,
+  ActionOutput,
+  ActionValidationError,
+  StandardSchema,
+  StandardSchemaIssue,
+  StandardSchemaV1,
+} from "./action.ts"
+
 export { glob, joinRoutePath } from "./glob.ts"
 export type { GlobFile } from "./glob.ts"
 
@@ -202,6 +214,25 @@ export type RouteLoaderFor<Path extends string = string> = RouteLoaderFunction<
 /** The awaited result of a generated route's loader, or `unknown` as fallback. */
 export type RouteLoaderData<Path extends string = string> =
   RouteLoaderFor<Path> extends (...args: infer _Args) => infer Result
+    ? Awaited<Result>
+    : unknown
+
+type RouteActionFunction<Module> = Module extends {
+  readonly action?: infer Action
+}
+  ? Action extends (...args: infer _Args) => infer Result
+    ? (...args: _Args) => Result
+    : never
+  : never
+
+/** The authored page action function associated with a generated route. */
+export type RouteActionFor<Path extends string = string> = RouteActionFunction<
+  RouteModuleFor<Path>
+>
+
+/** The awaited result of a generated route's page action. */
+export type RouteActionData<Path extends string = string> =
+  RouteActionFor<Path> extends (...args: infer _Args) => infer Result
     ? Awaited<Result>
     : unknown
 

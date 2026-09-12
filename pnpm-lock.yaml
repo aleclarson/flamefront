@@ -32,6 +32,9 @@ importers:
       babel-dead-code-elimination:
         specifier: ^2.0.0
         version: 2.0.0
+      devalue:
+        specifier: ^5.8.2
+        version: 5.9.2
       satteri:
         specifier: ^0.10.5
         version: 0.10.5

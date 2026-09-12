@@ -21,6 +21,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./action-client": "./src/action-client.ts",
     "./entry": "./src/entry.ts",
     "./fetch": "./src/fetch.ts",
     "./fragment": "./src/fragment.tsx",
@@ -54,6 +55,7 @@
     "@babel/types": "^8.0.5",
     "@remix-run/route-pattern": "^0.24.0",
     "babel-dead-code-elimination": "^2.0.0",
+    "devalue": "^5.8.2",
     "satteri": "^0.10.5",
     "srvx": "^1.0.4",
     "vite-plugin-satteri": "^0.3.5"

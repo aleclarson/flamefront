@@ -1,6 +1,7 @@
 export const flamefrontFragmentQueryParam = "__flamefront_fragment"
 export const flamefrontShellQueryParam = "__flamefront_shell"
 export const flamefrontFragmentQueryValue = "1"
+export const flamefrontActionQueryParam = "__flamefront_action"
 
 /** Remove framework-only query parameters before a URL reaches app code. */
 export function stripFlamefrontProtocolParams(input: string | URL): URL {
@@ -8,6 +9,7 @@ export function stripFlamefrontProtocolParams(input: string | URL): URL {
 
   url.searchParams.delete(flamefrontFragmentQueryParam)
   url.searchParams.delete(flamefrontShellQueryParam)
+  url.searchParams.delete(flamefrontActionQueryParam)
   return url
 }
 

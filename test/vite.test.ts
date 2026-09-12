@@ -5,6 +5,10 @@ import path from "node:path"
 import { test } from "vitest"
 import { defineApp, layout, markdownRoute, route } from "../src/index.ts"
 import {
+  generateActionProxyModule,
+  transformServerActions,
+} from "../src/action-transform.ts"
+import {
   flamefront,
   generateHydrationRoute,
   generateMarkdownRoute,
@@ -114,6 +118,49 @@ export default function Route() {}
   assert.doesNotMatch(reexportedLoader.code, /fetchData|data\.server|loader/)
 })
 
+test("attaches stable IDs to exported server actions", () => {
+  const source = `import { action as serverAction } from 'flamefront/server';
+const privateAction = serverAction((value) => value);
+export { privateAction as renameProduct };
+`
+  const transformed = transformServerActions(
+    source,
+    "/project/src/actions.server.ts",
+  )
+
+  assert.ok(transformed)
+  assert.equal(transformed.actions.length, 1)
+  assert.match(
+    transformed.code,
+    /serverAction\(\s*"flamefront:action:[a-f0-9]{24}"/,
+  )
+  assert.match(
+    transformed.actions[0]?.id ?? "",
+    /^flamefront:action:[a-f0-9]{24}$/,
+  )
+})
+
+test("generates browser proxies for every named action export", () => {
+  const transformed = transformServerActions(
+    `import { action } from 'flamefront';
+export const renameProduct = action((id) => id);
+export const archiveProduct = action((id) => id);
+`,
+    "/project/src/actions.server.ts",
+  )
+
+  assert.ok(transformed)
+  const proxy = generateActionProxyModule(transformed.actions, {
+    basename: "/",
+    dataPath: "/__flamefront/data",
+  })
+
+  assert.match(proxy, /createActionProxy\("flamefront:action:[a-f0-9]{24}"/)
+  assert.match(proxy, /export const renameProduct/)
+  assert.match(proxy, /export const archiveProduct/)
+  assert.match(proxy, /dataPath":"\/__flamefront\/data/)
+})
+
 test("preserves unrelated destructured exports", () => {
   const transformed = removeServerRouteExports(
     `export const { title } = { title: 'client' };
@@ -183,6 +230,35 @@ test("rejects server modules that remain in the client graph", async () => {
       ),
       null,
     )
+  } finally {
+    await testPlugins.cleanup()
+  }
+})
+
+test("replaces imported server actions with a browser proxy module", async () => {
+  const testPlugins = await createTestPlugins()
+  const { clientContext, frameworkPlugin, routeId, root } = testPlugins
+  const actionFile = path.join(root, "src/actions.server.ts")
+
+  await writeFile(
+    actionFile,
+    `import { action } from 'flamefront/server';
+export const renameProduct = action((id) => id);
+`,
+  )
+
+  try {
+    const proxyId = await frameworkPlugin.resolveId.call(
+      clientContext,
+      "./actions.server.ts",
+      routeId,
+    )
+
+    assert.match(String(proxyId), /flamefront\/action-proxy\?module=/)
+    const proxy = await frameworkPlugin.load(proxyId as string)
+
+    assert.match(proxy ?? "", /export const renameProduct/)
+    assert.match(proxy ?? "", /createActionProxy\("flamefront:action:/)
   } finally {
     await testPlugins.cleanup()
   }
@@ -306,6 +382,8 @@ test("generates an eager shell root with lazy layouts and route metadata", () =>
     /export const routing = \{"basename":"\/","dataPath":"\/__flamefront\/data"\};/,
   )
   assert.match(source, /loader: routeModule\.loader/)
+  assert.match(source, /action: routeModule\.action/)
+  assert.match(source, /action: \(args\) => submitRouteAction\(args/)
   assert.match(
     source,
     /loader: \(args\) => loadRouteData\(args, \{"basename":"\/","dataPath":"\/__flamefront\/data"\}\)/,

@@ -10,6 +10,7 @@ import {
   stripFlamefrontProtocolRequest,
 } from "./fragment-protocol.ts"
 import type { RouteFragmentArtifact } from "./fragment-client.ts"
+import { isSameOriginActionRequest } from "./action.ts"
 
 export interface TemplateContext<
   Route extends RouteDefinition = RouteDefinition,
@@ -65,12 +66,13 @@ export type ServerDocuments = Pick<
   OctaneDocuments,
   "renderDocument" | "loadRouteData"
 > &
-  Partial<Pick<OctaneDocuments, "renderFragment">>
+  Partial<Pick<OctaneDocuments, "renderFragment" | "loadAction">>
 
 /** Lifecycle operations shared by all Flamefront server adapters. */
 export interface ServerEntryLifecycle {
   readonly renderDocument: OctaneDocuments["renderDocument"]
   readonly loadRouteData: OctaneDocuments["loadRouteData"]
+  readonly loadAction?: OctaneDocuments["loadAction"]
   readonly renderFragment?: OctaneDocuments["renderFragment"]
 }
 
@@ -134,6 +136,13 @@ export function createFetchServerEntry<
 
     try {
       if (
+        !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+        !isSameOriginActionRequest(request)
+      ) {
+        return new Response("Forbidden.", { status: 403 })
+      }
+
+      if (
         url.pathname === options.app.routing.basename &&
         !match &&
         defaultClientRoute
@@ -147,6 +156,29 @@ export function createFetchServerEntry<
             ),
           },
         })
+      }
+
+      if (
+        url.searchParams.has("action") ||
+        url.searchParams.has("__flamefront_action")
+      ) {
+        if (!options.documents.loadAction) {
+          return new Response("Actions are not configured.", { status: 404 })
+        }
+
+        return options.documents.loadAction(request)
+      }
+
+      if (
+        !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+        match?.data.render === "static"
+      ) {
+        return options.documents.loadAction
+          ? options.documents.loadAction(request)
+          : new Response(
+              "Static routes cannot define actions; submit to a server route instead.",
+              { status: 405 },
+            )
       }
 
       if (url.pathname === options.app.routing.dataPath) {
@@ -275,6 +307,9 @@ export function createFetchServerEntry<
     fetch,
     renderDocument: options.documents.renderDocument,
     loadRouteData: options.documents.loadRouteData,
+    ...(options.documents.loadAction
+      ? { loadAction: options.documents.loadAction }
+      : {}),
     renderFragment: options.documents.renderFragment,
   }
 }

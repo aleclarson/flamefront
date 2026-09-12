@@ -9,6 +9,27 @@ import {
   type RouteDefinition,
 } from "./index.ts"
 import { stripFlamefrontProtocolRequest } from "./fragment-protocol.ts"
+import {
+  actionErrorResponse,
+  actionResultResponse,
+  executeRegisteredAction,
+  getRegisteredAction,
+  isSameOriginActionRequest,
+  parseActionArguments,
+} from "./action.ts"
+
+export { action } from "./action.ts"
+export type {
+  ActionDataWithResponseInit,
+  ActionFunction,
+  ActionInput,
+  ActionOutput,
+  ActionValidationError,
+  StandardSchema,
+  StandardSchemaIssue,
+  StandardSchemaV1,
+} from "./action.ts"
+export { data, redirect } from "@octanejs/remix-router"
 
 type LoaderPath<ContextOrPath, PathOrContext> =
   ContextOrPath extends `/${string}`
@@ -32,11 +53,23 @@ export interface LoaderArgs<ContextOrPath = unknown, PathOrContext = unknown> {
   readonly context: LoaderContext<ContextOrPath, PathOrContext>
 }
 
+/** Arguments passed to a page module's HTTP action. */
+export interface ActionArgs<
+  ContextOrPath = unknown,
+  PathOrContext = unknown,
+> extends LoaderArgs<ContextOrPath, PathOrContext> {}
+
 export type Loader<
   Data = unknown,
   Context = unknown,
   Path extends string = string,
 > = (args: LoaderArgs<Context, Path>) => Data | Promise<Data>
+
+export type RouteAction<
+  Data = unknown,
+  Context = unknown,
+  Path extends string = string,
+> = (args: ActionArgs<Context, Path>) => Data | Promise<Data>
 
 export interface RouteModule<
   Data = unknown,
@@ -45,10 +78,11 @@ export interface RouteModule<
 > {
   readonly default: unknown
   readonly loader?: Loader<Data, Context, Path>
+  readonly action?: RouteAction<unknown, Context, Path>
 }
 
 export type DocumentMode = "shell" | RenderMode
-export type RequestPurpose = "data" | "document"
+export type RequestPurpose = "data" | "document" | "action"
 
 /** Inputs for constructing one request-scoped value for route work. */
 export interface RequestContextArgs<
@@ -71,7 +105,10 @@ export type RouteImporter<
   Data = unknown,
   Context = unknown,
   Path extends string = string,
-> = (entry: string) => Promise<RouteModule<Data, Context, Path>>
+> = ((entry: string) => Promise<RouteModule<Data, Context, Path>>) & {
+  /** Optional eager import hook used by generated server action registries. */
+  readonly loadActions?: () => void | Promise<void>
+}
 
 export interface RenderedDocument {
   readonly html: string
@@ -156,6 +193,7 @@ export interface RouteRuntime<
     options?: RouteLoadOptions<Context>,
   ) => Promise<LoadedRouteFor<Route, Context> | null>
   readonly loadRouteData: (request: Request) => Promise<Response>
+  readonly loadAction: (request: Request) => Promise<Response>
 }
 
 export interface RouteRuntimeOptions<
@@ -164,6 +202,8 @@ export interface RouteRuntimeOptions<
 > {
   readonly app: AppDefinition<Route>
   readonly importRoute: RouteImporter<unknown, Context>
+  /** Eagerly load generated action modules before direct dispatch. */
+  readonly loadActions?: () => void | Promise<void>
   /** Build request context for data requests and document router queries. */
   readonly requestContext?: RequestContextFactory<Context, Route>
 }
@@ -279,6 +319,71 @@ export function createRouteRuntime<
     return Response.json(loaded.loaderData ?? null)
   }
 
+  const loadAction = async (request: Request): Promise<Response> => {
+    const sanitizedRequest = stripFlamefrontProtocolRequest(request)
+    const url = new URL(sanitizedRequest.url)
+
+    if (["GET", "HEAD", "OPTIONS"].includes(sanitizedRequest.method)) {
+      return new Response("Method not allowed.", { status: 405 })
+    }
+
+    if (!isSameOriginActionRequest(sanitizedRequest)) {
+      return new Response("Forbidden.", { status: 403 })
+    }
+
+    const actionId = url.searchParams.get("action")
+
+    if (actionId) {
+      try {
+        const args = await parseActionArguments(sanitizedRequest)
+
+        if (!getRegisteredAction(actionId)) {
+          await (options.loadActions ?? options.importRoute.loadActions)?.()
+        }
+
+        return await executeRegisteredAction(actionId, args)
+      } catch (error) {
+        return actionErrorResponse(error)
+      }
+    }
+
+    const match = options.app.match(sanitizedRequest.url)
+
+    if (!match) {
+      return new Response("Not found.", { status: 404 })
+    }
+
+    if (match.data.render === "static") {
+      return new Response(
+        "Static routes cannot define actions; submit to a server route instead.",
+        { status: 405 },
+      )
+    }
+
+    const routeModule = await options.importRoute(match.data.entry)
+
+    if (!routeModule.action) {
+      return new Response("Method not allowed.", { status: 405 })
+    }
+
+    try {
+      const context = await createRequestContext(
+        sanitizedRequest,
+        { purpose: "action", mode: match.data.render },
+        match,
+      )
+      const value = await routeModule.action({
+        request: sanitizedRequest,
+        params: match.params as ActionArgs<Context, string>["params"],
+        context: context as LoaderContext<Context, string>,
+      })
+
+      return actionResultResponse(value)
+    } catch (error) {
+      return actionErrorResponse(error)
+    }
+  }
+
   return {
     app: options.app,
     importRoute: options.importRoute,
@@ -287,6 +392,7 @@ export function createRouteRuntime<
       createRequestContext(request, contextOptions),
     loadRoute: loadRouteForRequest,
     loadRouteData,
+    loadAction,
   }
 }
 

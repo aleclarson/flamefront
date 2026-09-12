@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "vitest"
+import * as devalue from "devalue"
 import { defineApp, route } from "../src/index.ts"
 import { createRouteRuntime } from "../src/server.ts"
 
@@ -97,4 +98,90 @@ test("does not import an unmatched route", async () => {
     ).status,
     404,
   )
+})
+
+test("runs page actions through the action request boundary", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/products/:id", "/src/Product.tsrx")],
+  })
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({
+      default: "Product",
+      action: async ({ request, params }) => ({
+        id: params.id,
+        method: request.method,
+        url: request.url,
+        form: Object.fromEntries(await request.formData()),
+      }),
+    }),
+  })
+
+  const response = await runtime.loadAction(
+    new Request("https://example.test/products/42?__flamefront_action=1", {
+      method: "POST",
+      body: new URLSearchParams({ name: "New name" }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    }),
+  )
+  const envelope = devalue.parse(await response.text()) as {
+    readonly type: string
+    readonly value: unknown
+  }
+
+  assert.equal(response.status, 200)
+  assert.equal(envelope.type, "data")
+  assert.deepEqual(envelope.value, {
+    id: "42",
+    method: "POST",
+    url: "https://example.test/products/42",
+    form: { name: "New name" },
+  })
+})
+
+test("blocks cross-origin page actions", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/products", "/src/Product.tsrx")],
+  })
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => ({
+      default: "Product",
+      action: () => ({ saved: true }),
+    }),
+  })
+
+  const response = await runtime.loadAction(
+    new Request("https://example.test/products", {
+      method: "POST",
+      headers: { Origin: "https://evil.test" },
+    }),
+  )
+
+  assert.equal(response.status, 403)
+})
+
+test("does not dispatch actions owned by static routes", async () => {
+  const app = defineApp({
+    shell,
+    routes: [route("/built", "/src/Built.tsrx", { render: "static" })],
+  })
+  let imported = false
+  const runtime = createRouteRuntime({
+    app,
+    importRoute: async () => {
+      imported = true
+      return { default: null, action: () => ({ saved: true }) }
+    },
+  })
+
+  const response = await runtime.loadAction(
+    new Request("https://example.test/built", { method: "POST" }),
+  )
+
+  assert.equal(response.status, 405)
+  assert.match(await response.text(), /static routes cannot define actions/i)
+  assert.equal(imported, false)
 })

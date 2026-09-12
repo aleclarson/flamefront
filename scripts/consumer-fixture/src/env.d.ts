@@ -23,4 +23,5 @@ declare module "virtual:flamefront/server-routes" {
   import type { RouteModule } from "flamefront/server"
 
   export function importRoute(entry: string): Promise<RouteModule>
+  export function loadActions(): Promise<void>
 }

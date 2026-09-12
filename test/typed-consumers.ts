@@ -9,6 +9,8 @@ import {
   serverRoute,
   staticRoute,
   type BroadRouteParams,
+  type RouteActionData,
+  type RouteActionFor,
   type RouteLoaderData,
   type RouteParams,
 } from "../src/index.ts"
@@ -156,11 +158,21 @@ if (nestedProductMatch) {
 
 type ProductParams = RouteParams<"/products/:productId">
 type ProductData = RouteLoaderData<"/products/:productId">
+type ProductAction = RouteActionFor<"/products/:productId">
+type ProductActionData = RouteActionData<"/products/:productId">
 const params: ProductParams = { productId: "octane" }
 const data: ProductData = { productId: "octane" }
 
+declare const productAction: ProductAction
+const actionData: Promise<ProductActionData> = productAction({
+  request: routeRequest,
+  params: { productId: "octane" },
+  context: undefined,
+})
+
 void params
 void data
+void actionData
 
 declare const contextualLoaderArgs: LoaderArgs<
   "/products/:productId",
