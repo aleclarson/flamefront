@@ -11,8 +11,10 @@ await Promise.all(
   (await readdir(destination)).map((file) => rm(resolve(destination, file))),
 )
 const files = (await readdir(source)).filter((file) => file.endsWith(".md"))
+
 for (const file of files) {
   const markdown = await readFile(resolve(source, file), "utf8")
+
   await writeFile(
     resolve(destination, file),
     markdown.replace(/\(([^)]+)\.md(#[^)]+)?\)/g, "($1$2)"),
@@ -21,6 +23,7 @@ for (const file of files) {
 
 const indexPath = resolve(destination, "index.md")
 const index = await readFile(indexPath, "utf8")
+
 await writeFile(
   indexPath,
   index

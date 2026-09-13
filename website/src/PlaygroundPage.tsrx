@@ -62,10 +62,10 @@ export default function PlaygroundPage() @{
       <CodeEditor value={source} onChange={setSource} />
       <div class="preview" aria-label="Preview">
         <div class="toy-card">
-          <button
-            type="button"
-            onClick={() => setRotation(rotation + 12)}
-          >Turn the shape {rotation}°</button>
+          <button type="button" onClick={() => setRotation(rotation + 12)}>
+            Turn the shape
+            {rotation}°
+          </button>
           <div
             class="toy-shape"
             style={{ "--rotation": `${rotation}deg` }}

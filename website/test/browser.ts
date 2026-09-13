@@ -15,6 +15,7 @@ try {
       () => reject(new Error("Preview did not start")),
       15_000,
     )
+
     preview.stdout.on("data", (chunk) => {
       if (String(chunk).includes(`localhost:${port}`)) {
         clearTimeout(timeout)
@@ -28,11 +29,13 @@ try {
 
   const base = `http://localhost:${port}`
   const docs = await fetch(`${base}/docs/create-app`)
+
   assert.equal(docs.status, 200)
   assert.match(await docs.text(), /Create a one-page app/)
 
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage()
+
   await page.goto(base)
   await page.getByRole("link", { name: "Play" }).click()
   await page.getByText("Octane compiled this source successfully.").waitFor()
@@ -43,8 +46,10 @@ try {
 
   const noScript = await browser.newContext({ javaScriptEnabled: false })
   const forumPage = await noScript.newPage()
+
   await forumPage.goto(`${base}/forum`)
   const topic = `Browser test ${Date.now()}`
+
   await forumPage.getByLabel("Title").fill(topic)
   await forumPage
     .getByLabel("Message")
@@ -58,6 +63,7 @@ try {
       { cause: error },
     )
   }
+
   await noScript.close()
   await browser.close()
 } finally {

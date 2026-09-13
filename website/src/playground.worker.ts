@@ -11,6 +11,7 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
     const diagnostics = result.diagnostics.filter(
       (item) => item.severity === "error",
     )
+
     self.postMessage({
       revision: data.revision,
       ok: diagnostics.length === 0,

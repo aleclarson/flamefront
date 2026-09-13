@@ -4,6 +4,7 @@ export type ForumContext = { db: Client }
 
 export function createForumContext(): ForumContext {
   const url = process.env.TURSO_DATABASE_URL ?? "file:.data/forum.db"
+
   return {
     db: createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN }),
   }
@@ -46,6 +47,7 @@ export async function listTopics(db: Client) {
     from topics left join posts on posts.topic_id = topics.id and posts.hidden = 0
     group by topics.id order by topics.updated_at desc limit 50
   `)
+
   return result.rows.map((row) => ({
     id: text(row.id),
     title: text(row.title),
@@ -63,11 +65,15 @@ export async function getTopic(db: Client, topicId: string) {
     args: [topicId],
   })
   const topic = topicResult.rows[0]
-  if (!topic) throw new Response("Topic not found", { status: 404 })
+
+  if (!topic) {
+    throw new Response("Topic not found", { status: 404 })
+  }
   const posts = await db.execute({
     sql: "select * from posts where topic_id = ? and hidden = 0 order by created_at",
     args: [topicId],
   })
+
   return {
     id: text(topic.id),
     title: text(topic.title),
@@ -90,6 +96,7 @@ export async function createTopic(
   await prepareForum(db)
   const topicId = crypto.randomUUID()
   const now = new Date().toISOString()
+
   await db.batch(
     [
       {
@@ -111,8 +118,12 @@ export async function createReply(
   input: { topicId: string; body: string; author: string },
 ) {
   const topic = await getTopic(db, input.topicId)
-  if (topic.locked) throw new Response("Topic is locked", { status: 409 })
+
+  if (topic.locked) {
+    throw new Response("Topic is locked", { status: 409 })
+  }
   const now = new Date().toISOString()
+
   await db.batch(
     [
       {

@@ -1140,6 +1140,7 @@ export function flamefront(options: FlamefrontOptions = {}) {
       }
 
       const moduleId = cleanModuleId(id)
+
       if (moduleId.endsWith(".md") || moduleId.endsWith(".mdx")) {
         return null
       }
