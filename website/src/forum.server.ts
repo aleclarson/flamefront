@@ -69,6 +69,7 @@ export async function getTopic(db: Client, topicId: string) {
   if (!topic) {
     throw new Response("Topic not found", { status: 404 })
   }
+
   const posts = await db.execute({
     sql: "select * from posts where topic_id = ? and hidden = 0 order by created_at",
     args: [topicId],
@@ -122,6 +123,7 @@ export async function createReply(
   if (topic.locked) {
     throw new Response("Topic is locked", { status: 409 })
   }
+
   const now = new Date().toISOString()
 
   await db.batch(
