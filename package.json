@@ -1,6 +1,6 @@
 {
   "name": "flamefront",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": false,
   "description": "Typed centralized route manifests for Octane.",
   "license": "MIT",
