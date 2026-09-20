@@ -32,9 +32,8 @@ test("keeps static fragments cached by origin and pathname", async () => {
     requests += 1
     const endpoint = new URL(String(input))
 
-    assert.equal(endpoint.pathname, "/about")
-    assert.equal(endpoint.searchParams.get("view"), "full")
-    assert.equal(endpoint.searchParams.get("__flamefront_fragment"), "1")
+    assert.equal(endpoint.pathname, "/about/index.fragment.json")
+    assert.equal(endpoint.search, "")
     return Response.json({
       protocol: "flamefront-route-fragment-v1",
       route: "/about",
@@ -57,6 +56,74 @@ test("keeps static fragments cached by origin and pathname", async () => {
     { policy: "static" },
   )
   assert.equal(requests, 1)
+})
+
+test("reads the static fragment artifact at the basename-aware route path", async () => {
+  const originalFetch = globalThis.fetch
+
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async (input) => {
+    const endpoint = new URL(String(input))
+
+    assert.equal(endpoint.pathname, "/docs/guide/index.fragment.json")
+    return Response.json({
+      protocol: "flamefront-route-fragment-v1",
+      route: "/guide",
+      boundary: "flamefront:route:guide",
+      html: "<main>nested</main>",
+      routeData: null,
+      boundaries: [],
+    })
+  }
+
+  const artifact = await loadRouteFragment(
+    "https://example.test/docs/guide",
+    { basename: "/docs" },
+    { policy: "static" },
+  )
+
+  assert.equal(artifact.html, "<main>nested</main>")
+})
+
+test("falls back to the fragment endpoint when the static artifact is unavailable", async () => {
+  const originalFetch = globalThis.fetch
+  const requested: string[] = []
+
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async (input) => {
+    const endpoint = new URL(String(input))
+
+    requested.push(`${endpoint.pathname}${endpoint.search}`)
+
+    if (endpoint.pathname.endsWith("/index.fragment.json")) {
+      return new Response("Not found", { status: 404 })
+    }
+
+    return Response.json({
+      protocol: "flamefront-route-fragment-v1",
+      route: "/missing",
+      boundary: "flamefront:route:missing",
+      html: "<main>rendered live</main>",
+      routeData: { source: "endpoint" },
+      boundaries: [],
+    })
+  }
+
+  const artifact = await loadRouteFragment(
+    "https://example.test/missing?view=full",
+    {},
+    { policy: "static" },
+  )
+
+  assert.equal(artifact.html, "<main>rendered live</main>")
+  assert.deepEqual(requested, [
+    "/missing/index.fragment.json",
+    "/missing?view=full&__flamefront_fragment=1",
+  ])
 })
 
 test("coalesces server fragments by full URL and reloads after settlement", async () => {

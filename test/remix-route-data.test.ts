@@ -136,9 +136,8 @@ test("loads static navigation fragments while returning only route data", async 
   globalThis.fetch = async (input, init) => {
     const endpoint = new URL(String(input))
 
-    assert.equal(endpoint.pathname, "/about")
-    assert.equal(endpoint.searchParams.get("view"), "full")
-    assert.equal(endpoint.searchParams.get("__flamefront_fragment"), "1")
+    assert.equal(endpoint.pathname, "/about/index.fragment.json")
+    assert.equal(endpoint.search, "")
     assert.equal(
       new Headers(init?.headers).get("accept"),
       "application/vnd.flamefront.fragment+json",

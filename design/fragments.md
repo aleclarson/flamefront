@@ -60,9 +60,12 @@ rendering path. An srvx target supplies the host around that same entry.
 Static fragments are build output. The static build writes
 `.fragment.html` and `.fragment.json` beside the route document and data file.
 The HTML file is the selected fragment as markup. The JSON file is the browser
-protocol artifact with route data, hierarchy, hydration policy, and status. The
-selected host reads the JSON file for a static fragment request through the
-Fetch entry's `loadStaticFragment` asset callback. The srvx adapter wires that
+protocol artifact with route data, hierarchy, hydration policy, and status.
+The browser requests the JSON file at its emitted path — `/about` resolves to
+`/about/index.fragment.json` — so purely static hosts can serve it directly.
+When the file is absent or invalid, the browser falls back to the marked
+fragment request; the selected host then reads the JSON file through the Fetch
+entry's `loadStaticFragment` asset callback. The srvx adapter wires that
 callback to the filesystem and may use the document renderer if the artifact
 is absent.
 

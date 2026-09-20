@@ -77,6 +77,29 @@ function basenamePath(pathname: string, basename: string): string | null {
   return pathname.slice(basename.length) || "/"
 }
 
+function joinBasename(basename: string, pathname: string): string {
+  if (basename === "/") {
+    return pathname || "/"
+  }
+
+  if (pathname === "/") {
+    return basename
+  }
+
+  return `${basename}${pathname.startsWith("/") ? pathname : `/${pathname}`}`
+}
+
+/** The static build emits one fragment artifact beside each route document. */
+function staticRouteFragmentPath(routeUrl: URL, basename: string): string {
+  const appPathname =
+    basenamePath(routeUrl.pathname, basename) ?? routeUrl.pathname
+  const pathname = joinBasename(basename, appPathname).replace(/\/+$/, "")
+
+  return pathname === ""
+    ? "/index.fragment.json"
+    : `${pathname}/index.fragment.json`
+}
+
 function staticFragmentKey(url: URL, basename: string): string {
   const pathname = basenamePath(url.pathname, basename) ?? url.pathname
 
@@ -214,6 +237,49 @@ function fetchRouteFragment(
     })
 }
 
+/**
+ * Read the emitted artifact file for a static route. Hosts that cannot serve
+ * it — the dev server, or a deployment without generated files — fall back to
+ * the live fragment endpoint.
+ */
+async function readStaticRouteFragment(
+  routeUrl: URL,
+  basename: string,
+  signal: AbortSignal | undefined,
+): Promise<RouteFragmentArtifact | undefined> {
+  const endpoint = new URL(
+    staticRouteFragmentPath(routeUrl, basename),
+    routeUrl.origin,
+  )
+  const response = await globalThis.fetch(endpoint, {
+    headers: { Accept: "application/vnd.flamefront.fragment+json" },
+    ...(signal ? { signal } : {}),
+  })
+
+  if (!response.ok) {
+    return undefined
+  }
+
+  try {
+    return assertRouteFragmentArtifact(await response.json())
+  } catch {
+    return undefined
+  }
+}
+
+function fetchStaticRouteFragment(
+  routeUrl: URL,
+  basename: string,
+  signal: AbortSignal | undefined,
+): Promise<RouteFragmentArtifact> {
+  const fallback = () => fetchRouteFragment(routeUrl, basename, signal)
+
+  return readStaticRouteFragment(routeUrl, basename, signal).then(
+    (artifact) => artifact ?? fallback(),
+    fallback,
+  )
+}
+
 export function loadRouteFragment(
   url: string | URL,
   routing: RouteFragmentRoutingOptions = {},
@@ -238,11 +304,12 @@ export function loadRouteFragment(
   let pending = requests.get(requestKey)
 
   if (!pending) {
-    pending = fetchRouteFragment(
-      routeUrl,
-      routing.basename ?? "/",
-      options.signal,
-    )
+    const fetchFragment =
+      options.policy === "static"
+        ? fetchStaticRouteFragment
+        : fetchRouteFragment
+
+    pending = fetchFragment(routeUrl, routing.basename ?? "/", options.signal)
     requests.set(requestKey, pending)
 
     const evict = () => {

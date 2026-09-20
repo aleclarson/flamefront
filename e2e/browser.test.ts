@@ -160,7 +160,10 @@ async function checkMainApp(page, base) {
   const fragmentRequests = []
 
   page.on("request", (request) => {
-    if (request.url().includes("__flamefront_fragment=1")) {
+    if (
+      request.url().includes("__flamefront_fragment=1") ||
+      request.url().endsWith("/index.fragment.json")
+    ) {
       fragmentRequests.push(request.url())
     }
   })
@@ -203,7 +206,7 @@ async function checkMainApp(page, base) {
     "Static navigation performed a document navigation.",
   )
   assert.ok(
-    fragmentRequests.some((url) => url.startsWith(`${base}/about?`)),
+    fragmentRequests.some((url) => url === `${base}/about/index.fragment.json`),
     "Static navigation did not request a fragment artifact.",
   )
 
@@ -263,7 +266,10 @@ async function checkBasenameFixture(page, base) {
   const fragmentRequests = []
 
   page.on("request", (request) => {
-    if (request.url().includes("__flamefront_fragment=1")) {
+    if (
+      request.url().includes("__flamefront_fragment=1") ||
+      request.url().endsWith("/index.fragment.json")
+    ) {
       fragmentRequests.push(request.url())
     }
   })
@@ -334,7 +340,9 @@ async function checkBasenameFixture(page, base) {
     "Shell count: 1",
   )
   assert.ok(
-    fragmentRequests.some((url) => url.startsWith(`${base}/guide/static?`)),
+    fragmentRequests.some(
+      (url) => url === `${base}/guide/static/index.fragment.json`,
+    ),
     "Basename static navigation did not request its fragment artifact.",
   )
 
