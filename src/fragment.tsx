@@ -438,9 +438,9 @@ function createShellBoundary(
       ),
     }
     const shell = (
-      <UNSAFE_RouteContext.Provider value={shellRoute}>
+      <UNSAFE_RouteContext value={shellRoute}>
         <Component {...props} />
-      </UNSAFE_RouteContext.Provider>
+      </UNSAFE_RouteContext>
     )
     const body = shellHydrationBoundary(
       metadata.hydration ?? "full",
@@ -481,13 +481,13 @@ export function createRouteBoundary(
 function createContextBridge(stateRef: {
   readonly current: ContextBridgeState
 }): (props: Record<string, unknown>) => unknown {
-  const DataRouterProvider = UNSAFE_DataRouterContext.Provider
-  const DataRouterStateProvider = UNSAFE_DataRouterStateContext.Provider
-  const FetchersProvider = UNSAFE_FetchersContext.Provider
-  const LocationProvider = UNSAFE_LocationContext.Provider
-  const NavigationProvider = UNSAFE_NavigationContext.Provider
-  const RouteProvider = UNSAFE_RouteContext.Provider
-  const ViewTransitionProvider = UNSAFE_ViewTransitionContext.Provider
+  const DataRouterProvider = UNSAFE_DataRouterContext
+  const DataRouterStateProvider = UNSAFE_DataRouterStateContext
+  const FetchersProvider = UNSAFE_FetchersContext
+  const LocationProvider = UNSAFE_LocationContext
+  const NavigationProvider = UNSAFE_NavigationContext
+  const RouteProvider = UNSAFE_RouteContext
+  const ViewTransitionProvider = UNSAFE_ViewTransitionContext
 
   return () => {
     const { component, contexts } = stateRef.current

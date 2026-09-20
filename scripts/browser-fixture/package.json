@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@octanejs/remix-router": "^0.1.48",
-    "@octanejs/vite-plugin": "^0.1.54",
+    "@octanejs/remix-router": "^0.1.49",
+    "@octanejs/vite-plugin": "^0.1.57",
     "flamefront": "workspace:^",
-    "octane": "^0.2.7",
+    "octane": "^0.3.2",
     "vite": "^8.3.0"
   }
 }

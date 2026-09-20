@@ -16,14 +16,14 @@ export const RouterDocument: RouterDocumentComponent = (
   }) => unknown
 
   const content = createElement(
-    routeOutletHtmlContext.Provider,
+    routeOutletHtmlContext,
     { value: props.outletHtml ?? null },
     createElement(Router, { router: props.router }),
   )
 
   return props.documentAssets
     ? createElement(
-        documentAssetsContext.Provider,
+        documentAssetsContext,
         { value: props.documentAssets },
         content,
       )

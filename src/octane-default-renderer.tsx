@@ -97,7 +97,7 @@ export const defaultOctaneRenderer: OctaneRenderer = {
       errors: errorsForBoundary(staticContext, matches),
     }
     const outletRouter = createStaticRouter([outletRoute], outletContext)
-    const FragmentBoundaryProvider = routeFragmentBoundaryTarget.Provider
+    const FragmentBoundaryProvider = routeFragmentBoundaryTarget
     const FragmentRoot = () => (
       <FragmentBoundaryProvider
         value={options?.includeBoundary ? null : boundary}
