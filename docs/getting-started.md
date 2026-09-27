@@ -9,7 +9,7 @@ project. If you have not yet decided whether the problem applies to you, read
 
 ## 1. Get the example
 
-You need Git, Node.js 26 or newer, and pnpm 11. The commands below use a POSIX
+You need Git, Node.js 24.11 or newer, and pnpm 11. The commands below use a POSIX
 shell, such as macOS Terminal or a Linux terminal. Confirm your tools:
 
 ```sh

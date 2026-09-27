@@ -9,7 +9,7 @@ You do not need prior TSRX experience to copy this example.
 
 ## Create the project
 
-Use Node.js 26 or newer. Create a project with pnpm:
+Use Node.js 24.11 or newer. Create a project with pnpm:
 
 ```sh
 pnpm create flamefront@latest my-app

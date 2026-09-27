@@ -205,7 +205,7 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
     assert.equal(installedManifest.version, packageManifest.version)
     assert.equal(installedManifest.private, false)
     assert.equal(installedManifest.bin.ff, "./bin/ff.js")
-    assert.equal(installedManifest.engines.node, ">=26.0.0")
+    assert.equal(installedManifest.engines.node, ">=24.11.0")
 
     const ff = resolve(consumer, "node_modules/.bin/ff")
     const version = await run(ff, ["--version"], consumer)

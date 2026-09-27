@@ -52,7 +52,7 @@ and chooses how it renders.
 
 ## Quickstart
 
-Create and start an app with Node.js 26 or newer:
+Create and start an app with Node.js 24.11 or newer:
 
 ```sh
 pnpm create flamefront@latest my-app
@@ -66,7 +66,7 @@ project, [try the included app](./docs/getting-started.md).
 
 ## Before you try it
 
-Flamefront is an early alpha and requires Node.js 26+. Octane, Vite, and
+Flamefront is an early alpha and requires Node.js 24.11+. Octane, Vite, and
 `@octanejs/remix-router` are required peer dependencies. Follow the
 [setup guide](./docs/create-app.md) for matching packages. Expect changes before 1.0.
 

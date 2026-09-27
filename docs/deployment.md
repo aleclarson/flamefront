@@ -63,7 +63,7 @@ hosts HTTP requests and assets. `deno` and `bun` are also target values. When
 `target` is omitted, the plugin generates a Web Fetch entry: the host receives
 a `Request` and returns a `Response`, and you must supply the appropriate
 asset access. These are alternative host integrations, not a change to the
-Node 26+ prerequisite for the documented CLI workflow.
+Node 24.11+ prerequisite for the documented CLI workflow.
 
 Use the exported options in [`flamefront/entry`](../src/entry.ts),
 [`flamefront/fetch`](../src/fetch.ts), and

@@ -74,7 +74,7 @@ authorization, persistence, and deployment infrastructure. A route loader reads
 data; your application still owns what it can access and how writes work.
 
 These docs describe the current repository checkout, whose package version
-is `0.1.1`, and require Node.js 26 or newer. The setup guide uses a local
+is `0.1.1`, and require Node.js 24.11 or newer. The setup guide uses a local
 package archive to keep the examples and installed source together.
 APIs and output can change before 1.0. The package is licensed under [MIT](../LICENSE.md).
 
