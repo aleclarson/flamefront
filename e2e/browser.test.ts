@@ -480,8 +480,13 @@ async function checkDocument(page, base) {
 
   page.on("pageerror", onError)
   for (const route of ["server", "static", "client"]) {
-    const response = await page.goto(`${base}/guide/${route}`)
-    const html = await response.text()
+    const url = `${base}/guide/${route}`
+
+    await page.goto(url)
+    // The navigation response body is unreliable in dev mode: Vite reloads
+    // the page after optimizing newly discovered dependencies, which
+    // discards the body. Fetch the document separately instead.
+    const html = await (await fetch(url)).text()
 
     assert.match(html, /^<!doctype html>/i)
     assert.equal((html.match(/<html\b/g) ?? []).length, 1)

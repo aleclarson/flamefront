@@ -786,6 +786,20 @@ export function flamefront(options: FlamefrontOptions = {}) {
   const frameworkModulesPlugin = {
     name: "flamefront:framework-modules",
     enforce: "pre" as const,
+    config() {
+      return {
+        optimizeDeps: {
+          // Client dependencies imported lazily by the framework. Declaring
+          // them prevents Vite from reloading the page when it discovers
+          // them after the first request.
+          include: [
+            "@remix-run/route-pattern/href",
+            "@remix-run/route-pattern/match",
+            "devalue",
+          ],
+        },
+      }
+    },
     configResolved: configureRoot,
     configureServer(server: ViteDevServer) {
       devServer = server
