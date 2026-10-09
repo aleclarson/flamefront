@@ -11,16 +11,17 @@ allowBuilds:
   esbuild: true
 
 minimumReleaseAgeExclude:
-  - '@octanejs/remix-router@0.1.49'
-  - octane@0.3.2
-  - '@octanejs/app-core@0.0.53'
-  - '@octanejs/vite-plugin@0.1.57'
+  - '@octanejs/remix-router@0.1.59'
+  - octane@0.11.0
+  - '@octanejs/app-core@0.1.4'
+  - '@octanejs/vite-plugin@0.3.2'
   - '@babel/generator@8.0.6'
   - '@babel/parser@8.0.6'
   - '@babel/traverse@8.0.6'
   - '@babel/types@8.0.6'
+  - '@tsrx/oxc@0.20.0'
   - '@tsrx/prettier-plugin@0.4.6'
   - vite@8.3.0
 
 patchedDependencies:
-  "@octanejs/remix-router@0.1.49": patches/@octanejs__remix-router@0.1.49.patch
+  "@octanejs/remix-router@0.1.59": patches/@octanejs__remix-router@0.1.59.patch

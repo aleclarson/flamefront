@@ -1,5 +1,5 @@
 diff --git a/src/index.ts b/src/index.ts
-index 0816b3504e1c3583c31065d04316f65de595ebd0..eacfb1187b37695fb819a6ffcf610bf1f584e8ca 100644
+index 0816b35..eacfb11 100644
 --- a/src/index.ts
 +++ b/src/index.ts
 @@ -59,6 +59,8 @@ export type {
@@ -29,7 +29,7 @@ index 0816b3504e1c3583c31065d04316f65de595ebd0..eacfb1187b37695fb819a6ffcf610bf1
  	useNavigationType,
  	useOutlet,
 diff --git a/src/lib/components/utils.ts b/src/lib/components/utils.ts
-index 44d1e79131595f4364ec48155efdd98320bbb373..43a1d1fd0fa247564b13e3d233d29fbf68416383 100644
+index 44d1e79..43a1d1f 100644
 --- a/src/lib/components/utils.ts
 +++ b/src/lib/components/utils.ts
 @@ -5,7 +5,11 @@
@@ -62,7 +62,7 @@ index 44d1e79131595f4364ec48155efdd98320bbb373..43a1d1fd0fa247564b13e3d233d29fbf
  	}).initialize();
  }
 diff --git a/src/lib/dom/Link.tsrx b/src/lib/dom/Link.tsrx
-index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e002077e577af 100644
+index d9152ae..79d6bc9 100644
 --- a/src/lib/dom/Link.tsrx
 +++ b/src/lib/dom/Link.tsrx
 @@ -1,8 +1,5 @@
@@ -100,7 +100,7 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  	// A missing forwarded ref stays inert when composed with host-spread refs.
  	ref?: { current: HTMLAnchorElement | null } | ((node: HTMLAnchorElement | null) => void) | null;
  	[key: string]: unknown;
-@@ -39,6 +41,10 @@ type LinkProps = {
+@@ -36,6 +38,10 @@ type LinkProps = {
  export function Link(props: LinkProps) @{
  	const {
  		onClick,
@@ -111,7 +111,7 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  		discover = 'render',
  		prefetch = 'none',
  		relative,
-@@ -51,6 +57,7 @@ export function Link(props: LinkProps) @{
+@@ -48,6 +54,7 @@ export function Link(props: LinkProps) @{
  		preventScrollReset,
  		viewTransition,
  		defaultShouldRevalidate,
@@ -119,7 +119,7 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  		ref = null,
  		children,
  		...rest
-@@ -97,6 +104,17 @@ export function Link(props: LinkProps) @{
+@@ -93,6 +100,17 @@ export function Link(props: LinkProps) @{
  		defaultShouldRevalidate,
  		useTransitions,
  	});
@@ -137,15 +137,14 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  	function handleClick(event: MouseEvent) {
  		if (onClick) onClick(event);
  		if (!event.defaultPrevented) {
-@@ -105,14 +123,17 @@ export function Link(props: LinkProps) @{
+@@ -101,6 +119,4 @@ export function Link(props: LinkProps) @{
  		}
  	}
  
 -	const isSpaLink = !(parsed.isExternal || reloadDocument);
 -
  	<a
- 		{...rest}
- 		href={(isSpaLink ? maskedHref : undefined) || parsed.absoluteURL || href}
+@@ -109,4 +125,9 @@ export function Link(props: LinkProps) @{
  		onClick={isSpaLink ? handleClick : onClick}
 -		ref={ref}
 +		onFocus={prefetchBehavior.onFocus}
@@ -156,10 +155,8 @@ index 27fae59b20ce261bbeb65591968089884116c250..da099fe9434c3aaef7ee09bcff4e0020
  		target={target}
 +		download={download}
  		data-discover={!isAbsolute && discover === 'render' ? 'true' : undefined}
- 	>{children}</a>
- }
 diff --git a/src/lib/dom/NavLink.tsrx b/src/lib/dom/NavLink.tsrx
-index e431ce310329a363b8a1b2290c4ca431b9e3c10b..838c2130daa309b62a669ae3d05dd99652d52f84 100644
+index 20b615b..3b201d5 100644
 --- a/src/lib/dom/NavLink.tsrx
 +++ b/src/lib/dom/NavLink.tsrx
 @@ -29,6 +29,10 @@ type NavLinkProps = {
@@ -174,7 +171,7 @@ index e431ce310329a363b8a1b2290c4ca431b9e3c10b..838c2130daa309b62a669ae3d05dd996
  	prefetch?: 'none' | 'intent' | 'render' | 'viewport';
  	relative?: RelativeRoutingType;
 diff --git a/src/lib/dom/hooks.ts b/src/lib/dom/hooks.ts
-index abbca9b12ea43962b26221c760663e249aa383a5..23b3956885e37e34999b30ba5adc7f4ce8312081 100644
+index abbca9b..23b3956 100644
 --- a/src/lib/dom/hooks.ts
 +++ b/src/lib/dom/hooks.ts
 @@ -2,14 +2,173 @@
@@ -354,7 +351,7 @@ index abbca9b12ea43962b26221c760663e249aa383a5..23b3956885e37e34999b30ba5adc7f4c
   * Handles the click behavior for router `<Link>` components. This is useful if
   * you need to create custom `<Link>` components with the same click behavior we
 diff --git a/src/lib/dom/lib.ts b/src/lib/dom/lib.ts
-index a0c66fc6f3fb6c12362072e56f75a63e72181a48..2209b119056111518b09ecb2faa0be66b6ca4dc6 100644
+index 4135006..a71ff59 100644
 --- a/src/lib/dom/lib.ts
 +++ b/src/lib/dom/lib.ts
 @@ -31,7 +31,11 @@ import {
@@ -395,10 +392,10 @@ index a0c66fc6f3fb6c12362072e56f75a63e72181a48..2209b119056111518b09ecb2faa0be66
  		instrumentations: opts?.instrumentations,
  	}).initialize();
 diff --git a/src/lib/dom/server.tsrx b/src/lib/dom/server.tsrx
-index b8dba9ed1f6524b01b75d40bf722375ed4dc90b7..e53fd0d92daec84d7b795cb007c6608e116b0fc1 100644
+index 09e397d..a431446 100644
 --- a/src/lib/dom/server.tsrx
 +++ b/src/lib/dom/server.tsrx
-@@ -273,6 +273,9 @@ export function createStaticRouter(
+@@ -282,6 +282,9 @@ export function createStaticRouter(
  		navigate() {
  			throw msg('navigate');
  		},
@@ -409,7 +406,7 @@ index b8dba9ed1f6524b01b75d40bf722375ed4dc90b7..e53fd0d92daec84d7b795cb007c6608e
  			throw msg('fetch');
  		},
 diff --git a/src/lib/hooks.ts b/src/lib/hooks.ts
-index 672b850e87cb7dcd9aa2954acaf21fafcd196a96..9ea2dd780fc9bfcfc4c1a58295edbfbacc1e9708 100644
+index bd58534..007b3bc 100644
 --- a/src/lib/hooks.ts
 +++ b/src/lib/hooks.ts
 @@ -36,6 +36,7 @@ import type {
@@ -464,7 +461,7 @@ index 672b850e87cb7dcd9aa2954acaf21fafcd196a96..9ea2dd780fc9bfcfc4c1a58295edbfba
  	invariant(
  		useInRouterContext(),
 diff --git a/src/lib/router/router.ts b/src/lib/router/router.ts
-index 3bb6fe673a70abbcc1305807238a76d345bfed29..e7e45873e4fcb28ad3d367cf3ad73a751e5d4f83 100644
+index 4b888a7..7dbcfd6 100644
 --- a/src/lib/router/router.ts
 +++ b/src/lib/router/router.ts
 @@ -196,6 +196,12 @@ export interface Router {

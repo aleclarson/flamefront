@@ -158,10 +158,30 @@ function shellOutletHtml(boundary: string): string {
   return shellOutletHost(boundary)?.innerHTML ?? ""
 }
 
+function shellOutletContent(boundary: string): HTMLDivElement | null {
+  const host = shellOutletHost(boundary)
+
+  if (!host) {
+    return null
+  }
+
+  const outletRoot =
+    host.querySelector<HTMLDivElement>(
+      '[data-flamefront-outlet-root="true"]',
+    ) ?? host
+
+  return (
+    outletRoot.querySelector<HTMLDivElement>(
+      '[data-flamefront-outlet-content="true"]',
+    ) ?? outletRoot
+  )
+}
+
 function shellHydrationBoundary(
   hydration: HydrationMode,
   children: unknown,
   deferredActivation = false,
+  onActivated?: () => void,
 ): unknown {
   if (hydration === "full") {
     return children
@@ -170,7 +190,11 @@ function shellHydrationBoundary(
   if (hydration === "deferred") {
     // A deferred shell is router-aware but dormant until the first location
     // change; this is intentionally a condition trigger, not idle hydration.
-    return <Hydrate when={condition(deferredActivation)}>{children}</Hydrate>
+    return (
+      <Hydrate when={condition(deferredActivation)} onHydrated={onActivated}>
+        {children}
+      </Hydrate>
+    )
   }
 
   if (hydration === "none") {
@@ -180,7 +204,10 @@ function shellHydrationBoundary(
   switch (hydration.when) {
     case "idle":
       return (
-        <Hydrate when={idle({ timeout: hydration.timeout })}>
+        <Hydrate
+          when={idle({ timeout: hydration.timeout })}
+          onHydrated={onActivated}
+        >
           {children}
         </Hydrate>
       )
@@ -198,18 +225,26 @@ function shellHydrationBoundary(
                       : [hydration.threshold]),
                   ],
           })}
+          onHydrated={onActivated}
         >
           {children}
         </Hydrate>
       )
     case "interaction":
       return (
-        <Hydrate when={interaction({ events: hydration.events })}>
+        <Hydrate
+          when={interaction({ events: hydration.events })}
+          onHydrated={onActivated}
+        >
           {children}
         </Hydrate>
       )
     case "media":
-      return <Hydrate when={media(hydration.query)}>{children}</Hydrate>
+      return (
+        <Hydrate when={media(hydration.query)} onHydrated={onActivated}>
+          {children}
+        </Hydrate>
+      )
   }
 }
 
@@ -348,12 +383,6 @@ function createShellBoundary(
           return
         }
 
-        const host = shellOutletHost(metadata.boundary)
-
-        if (!host) {
-          return
-        }
-
         // The outer router can render the default error element without
         // Remix's private RouteErrorContext provider. Keep a server-rendered
         // initial error opaque until the router leaves the error location;
@@ -367,14 +396,11 @@ function createShellBoundary(
           return
         }
 
-        const outletRoot =
-          host.querySelector<HTMLDivElement>(
-            '[data-flamefront-outlet-root="true"]',
-          ) ?? host
-        const outletContent =
-          outletRoot.querySelector<HTMLDivElement>(
-            '[data-flamefront-outlet-content="true"]',
-          ) ?? outletRoot
+        const outletContent = shellOutletContent(metadata.boundary)
+
+        if (!outletContent) {
+          return
+        }
 
         hostRef.current = outletContent
         let active = true
@@ -442,10 +468,49 @@ function createShellBoundary(
         <Component {...props} />
       </UNSAFE_RouteContext>
     )
+    // Activating a dormant shell boundary can rebuild its DOM, which detaches
+    // the outlet node the nested root mounted into. Move the root onto the
+    // replacement node once hydration commits.
+    const reattachOutlet = () => {
+      if (import.meta.env.SSR) {
+        return
+      }
+
+      const outletContent = shellOutletContent(metadata.boundary)
+
+      if (!outletContent) {
+        return
+      }
+
+      if (hostRef.current === outletContent && rootRef.current !== null) {
+        rootRef.current.render?.(bridge, { revision: revisionRef.current })
+        return
+      }
+
+      rootRef.current?.unmount()
+      rootRef.current = null
+      hostRef.current = outletContent
+
+      void import("./fragment-hydration-client.tsx").then(
+        ({ renderRouteOutlet }) => {
+          if (hostRef.current !== outletContent) {
+            return
+          }
+
+          rootRef.current = renderRouteOutlet(
+            outletContent,
+            bridge,
+            outletContent.hasChildNodes() && routerErrors == null,
+          )
+        },
+      )
+    }
+
     const body = shellHydrationBoundary(
       metadata.hydration ?? "full",
       shell,
       locationIdentity !== initialLocationRef.current,
+      reattachOutlet,
     )
     const target = useContext(routeFragmentBoundaryTarget)
 
