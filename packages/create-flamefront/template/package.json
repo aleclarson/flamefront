@@ -11,7 +11,7 @@
     "preview": "ff preview",
     "routes": "ff routes",
     "typegen": "ff typegen",
-    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode"
+    "typecheck": "ff typegen && node node_modules/typescript-native/bin/tsc --runExternalCode"
   },
   "dependencies": {
     "@octanejs/remix-router": "0.1.65",

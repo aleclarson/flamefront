@@ -8,7 +8,7 @@
     "preview": "ff preview",
     "typegen": "NODE_OPTIONS=\"--no-warnings\" ff typegen",
     "routes": "ff routes",
-    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
+    "typecheck": "ff typegen && node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
   },
   "dependencies": {
     "@octanejs/remix-router": "^0.1.65",

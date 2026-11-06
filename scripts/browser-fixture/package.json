@@ -16,6 +16,6 @@
     "typescript-native": "npm:typescript@7.1.0-beta"
   },
   "scripts": {
-    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
+    "typecheck": "ff typegen && node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
   }
 }

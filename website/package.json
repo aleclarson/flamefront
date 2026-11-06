@@ -7,7 +7,7 @@
     "dev": "pnpm prepare:site && ff dev",
     "build": "pnpm prepare:site && node scripts/build.ts",
     "preview": "ff preview",
-    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode --noEmit",
+    "typecheck": "ff typegen && node node_modules/typescript-native/bin/tsc --runExternalCode --noEmit",
     "test:e2e": "node test/browser.ts"
   },
   "dependencies": {
