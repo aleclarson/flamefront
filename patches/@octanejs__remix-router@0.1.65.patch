@@ -62,10 +62,11 @@ index 44d1e79..43a1d1f 100644
  	}).initialize();
  }
 diff --git a/src/lib/dom/Link.tsrx b/src/lib/dom/Link.tsrx
-index d9152ae..79d6bc9 100644
+index f8367af..359dfb6 100644
 --- a/src/lib/dom/Link.tsrx
 +++ b/src/lib/dom/Link.tsrx
-@@ -1,8 +1,5 @@
+@@ -2,9 +2,6 @@
+ 
  // Link — transcribed from react-router@8.2.0 lib/dom/lib.tsx onto octane.
  // forwardRef → ref-as-prop (octane refs are props; documented divergence).
 -// Framework-mode prefetching (usePrefetchBehavior / PrefetchPageLinks) is
@@ -74,7 +75,7 @@ index d9152ae..79d6bc9 100644
  import { useContext } from 'octane';
  import type { OctaneNode } from 'octane';
  import { NavigationContext } from '../context.ts';
-@@ -11,12 +8,16 @@ import type { RelativeRoutingType } from '../router/router.ts';
+@@ -13,12 +10,16 @@ import type { RelativeRoutingType } from '../router/router.ts';
  import { ABSOLUTE_URL_REGEX } from '../router/url.ts';
  import { parseToInfo, resolveTo, joinPaths } from '../router/utils.ts';
  import { useHref, useLocation } from '../hooks.ts';
@@ -92,7 +93,7 @@ index d9152ae..79d6bc9 100644
  	discover?: 'render' | 'none';
  	prefetch?: 'none' | 'intent' | 'render' | 'viewport';
  	relative?: RelativeRoutingType;
-@@ -28,6 +29,7 @@ type LinkProps = {
+@@ -30,6 +31,7 @@ type LinkProps = {
  	preventScrollReset?: boolean;
  	viewTransition?: boolean;
  	defaultShouldRevalidate?: boolean;
@@ -100,7 +101,7 @@ index d9152ae..79d6bc9 100644
  	// A missing forwarded ref stays inert when composed with host-spread refs.
  	ref?: { current: HTMLAnchorElement | null } | ((node: HTMLAnchorElement | null) => void) | null;
  	[key: string]: unknown;
-@@ -36,6 +38,10 @@ type LinkProps = {
+@@ -38,6 +40,10 @@ type LinkProps = {
  export function Link(props: LinkProps) @{
  	const {
  		onClick,
@@ -111,7 +112,7 @@ index d9152ae..79d6bc9 100644
  		discover = 'render',
  		prefetch = 'none',
  		relative,
-@@ -48,6 +54,7 @@ export function Link(props: LinkProps) @{
+@@ -50,6 +56,7 @@ export function Link(props: LinkProps) @{
  		preventScrollReset,
  		viewTransition,
  		defaultShouldRevalidate,
@@ -119,7 +120,7 @@ index d9152ae..79d6bc9 100644
  		ref = null,
  		children,
  		...rest
-@@ -93,6 +100,17 @@ export function Link(props: LinkProps) @{
+@@ -95,6 +102,17 @@ export function Link(props: LinkProps) @{
  		defaultShouldRevalidate,
  		useTransitions,
  	});
@@ -137,14 +138,15 @@ index d9152ae..79d6bc9 100644
  	function handleClick(event: MouseEvent) {
  		if (onClick) onClick(event);
  		if (!event.defaultPrevented) {
-@@ -101,6 +119,4 @@ export function Link(props: LinkProps) @{
+@@ -103,14 +121,17 @@ export function Link(props: LinkProps) @{
  		}
  	}
  
 -	const isSpaLink = !(parsed.isExternal || reloadDocument);
 -
  	<a
-@@ -109,4 +125,9 @@ export function Link(props: LinkProps) @{
+ 		{...(rest as typeof rest & { ref?: undefined })}
+ 		href={(isSpaLink ? maskedHref : undefined) || parsed.absoluteURL || href}
  		onClick={isSpaLink ? handleClick : onClick}
 -		ref={ref}
 +		onFocus={prefetchBehavior.onFocus}
@@ -155,11 +157,13 @@ index d9152ae..79d6bc9 100644
  		target={target}
 +		download={download}
  		data-discover={!isAbsolute && discover === 'render' ? 'true' : undefined}
+ 	>
+ 		{children}
 diff --git a/src/lib/dom/NavLink.tsrx b/src/lib/dom/NavLink.tsrx
-index 20b615b..3b201d5 100644
+index 539ff3e..f8ca404 100644
 --- a/src/lib/dom/NavLink.tsrx
 +++ b/src/lib/dom/NavLink.tsrx
-@@ -29,6 +29,10 @@ type NavLinkProps = {
+@@ -31,6 +31,10 @@ type NavLinkProps = {
  	end?: boolean;
  	style?: object | ((props: NavLinkRenderProps) => object | undefined);
  	onClick?: (event: MouseEvent) => void;
@@ -392,10 +396,10 @@ index 4135006..a71ff59 100644
  		instrumentations: opts?.instrumentations,
  	}).initialize();
 diff --git a/src/lib/dom/server.tsrx b/src/lib/dom/server.tsrx
-index 09e397d..a431446 100644
+index 824fe76..801887e 100644
 --- a/src/lib/dom/server.tsrx
 +++ b/src/lib/dom/server.tsrx
-@@ -282,6 +282,9 @@ export function createStaticRouter(
+@@ -280,6 +280,9 @@ export function createStaticRouter(
  		navigate() {
  			throw msg('navigate');
  		},
