@@ -213,7 +213,25 @@ test("packs Flamefront and runs it from a clean consumer", async () => {
     assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
 
     await run(ff, ["typegen"], consumer)
-    await run("pnpm", ["exec", "tsc", "-p", "tsconfig.json"], consumer)
+    await run(
+      process.execPath,
+      [
+        resolve(consumer, "node_modules/typescript/bin/tsc"),
+        "-p",
+        "tsconfig.json",
+      ],
+      consumer,
+    )
+    await run(
+      process.execPath,
+      [
+        resolve(consumer, "node_modules/typescript-native/bin/tsc"),
+        "--runExternalCode",
+        "-p",
+        "tsconfig.json",
+      ],
+      consumer,
+    )
 
     const routes = JSON.parse(
       (await run(ff, ["routes", "--json"], consumer)).stdout,

@@ -549,6 +549,20 @@ async function checkDocument(page, base) {
   assert.deepEqual(errors, [])
 }
 
+test("typechecks .tsrx modules through the TS 7 content mapper", async () => {
+  await run(ff, ["typegen"], fixture)
+  await run(
+    process.execPath,
+    [
+      resolve(fixture, "node_modules/typescript-native/bin/tsc"),
+      "--runExternalCode",
+      "-p",
+      "tsconfig.json",
+    ],
+    fixture,
+  )
+})
+
 test("covers browser navigation, hydration, and history", async () => {
   await run(ff, ["build"], fixture)
 

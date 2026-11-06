@@ -8,5 +8,14 @@
     "flamefront": "workspace:^",
     "octane": "^0.16.7",
     "vite": "^8.3.0"
+  },
+  "devDependencies": {
+    "@tsrx/content-mapper": "0.1.2",
+    "@types/node": "^26.6.2",
+    "typescript": "^5.9.3",
+    "typescript-native": "npm:typescript@7.1.0-beta"
+  },
+  "scripts": {
+    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
   }
 }

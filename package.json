@@ -43,7 +43,7 @@
     "preview": "pnpm --filter flamefront-playground preview",
     "typegen": "pnpm --filter flamefront-playground typegen",
     "routes": "pnpm --filter flamefront-playground routes",
-    "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json && pnpm --filter flamefront-playground typecheck && pnpm --filter flamefront-website typecheck",
+    "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json && pnpm --filter flamefront-playground typecheck && pnpm --filter flamefront-website typecheck && pnpm --filter flamefront-browser-fixture typecheck",
     "test": "vitest run",
     "test:e2e": "pnpm --filter flamefront-playground build && vitest run --config vitest.e2e.config.ts",
     "check": "oxlint && prettier --check . && pnpm typecheck && pnpm test && pnpm test:e2e",
