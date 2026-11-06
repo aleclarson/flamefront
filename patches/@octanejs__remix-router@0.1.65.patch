@@ -410,7 +410,7 @@ index 824fe76..801887e 100644
  			throw msg('fetch');
  		},
 diff --git a/src/lib/hooks.ts b/src/lib/hooks.ts
-index bd58534..007b3bc 100644
+index bd58534..c3cc158 100644
 --- a/src/lib/hooks.ts
 +++ b/src/lib/hooks.ts
 @@ -36,6 +36,7 @@ import type {
@@ -421,7 +421,15 @@ index bd58534..007b3bc 100644
  } from './router/router';
  import { IDLE_BLOCKER } from './router/router';
  // OCTANE: dropped — upstream also imports hasInvalidProtocol here; it serves
-@@ -220,6 +221,11 @@ export interface NavigateFunction {
+@@ -51,6 +52,7 @@ import type {
+ 	RouteObject,
+ 	UIMatch,
+ } from './router/utils';
++import type { DataWithResponseInit } from './router/utils';
+ import {
+ 	convertRouteMatchToUiMatch,
+ 	decodePath,
+@@ -220,6 +222,11 @@ export interface NavigateFunction {
  	(delta: number): void | Promise<void>;
  }
  
@@ -433,7 +441,7 @@ index bd58534..007b3bc 100644
  const navigateEffectWarning =
  	`You should call navigate() in a useEffect(), not when ` + `your component is first rendered.`;
  
-@@ -378,6 +384,30 @@ export function useNavigate(...args: any[]): NavigateFunction {
+@@ -378,6 +385,30 @@ export function useNavigate(...args: any[]): NavigateFunction {
  		: useNavigateUnstable(subSlot(slot, 'nav:unstable'));
  }
  
@@ -464,6 +472,23 @@ index bd58534..007b3bc 100644
  function useNavigateUnstable(slot?: symbol): NavigateFunction {
  	invariant(
  		useInRouterContext(),
+@@ -1339,7 +1370,15 @@ export function useMatches(...args: any[]): UIMatch[] {
+ // ./types/route-data (framework-mode serialization typing, not vendored).
+ // Loose equivalent keeps the public hook generics shaped like upstream
+ // (tanstack-router precedent: loose public generics).
+-type SerializeFrom<T> = T extends (...args: any[]) => infer U ? Awaited<U> : Awaited<T>;
++type SerializedResult<R> = R extends DataWithResponseInit<infer D>
++	? SerializedResult<D>
++	: R extends Response
++		? never
++		: R;
++
++type SerializeFrom<T> = T extends (...args: any[]) => infer U
++	? SerializedResult<Awaited<U>>
++	: SerializedResult<Awaited<T>>;
+ 
+ /**
+  * Returns the data from the closest route
 diff --git a/src/lib/router/router.ts b/src/lib/router/router.ts
 index 4b888a7..7dbcfd6 100644
 --- a/src/lib/router/router.ts

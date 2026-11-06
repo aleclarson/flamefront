@@ -20,8 +20,24 @@ declare module "virtual:flamefront/remix-routes" {
 }
 
 declare module "virtual:flamefront/server-routes" {
-  import type { RouteModule } from "flamefront/server"
+  import type { RouteDefinition, RoutePath } from "flamefront"
+  import type { RouteModule, RouteModuleForRoute } from "flamefront/server"
 
-  export function importRoute(entry: string): Promise<RouteModule>
+  type AnyRouteModule<Context> = RouteModuleForRoute<
+    RoutePath extends infer Path
+      ? Path extends string
+        ? RouteDefinition<Path, string>
+        : never
+      : never,
+    Context
+  >
+
+  export function importRoute<Context = unknown>(
+    entry: string,
+  ): Promise<AnyRouteModule<Context>>
+  // Fallback for apps whose route union is not literal (e.g. glob routes).
+  export function importRoute<Context = unknown>(
+    entry: string,
+  ): Promise<RouteModule<unknown, Context>>
   export function loadActions(): Promise<void>
 }

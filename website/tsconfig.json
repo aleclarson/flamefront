@@ -11,5 +11,11 @@
     "target": "ESNext",
     "types": ["node", "vite/client"]
   },
-  "include": ["src", ".flamefront/types"]
+  "include": ["src", ".flamefront/types"],
+  "contentMappers": [
+    {
+      "package": "@tsrx/content-mapper",
+      "extensions": [".tsrx"]
+    }
+  ]
 }

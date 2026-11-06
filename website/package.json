@@ -7,7 +7,7 @@
     "dev": "pnpm prepare:site && ff dev",
     "build": "pnpm prepare:site && node scripts/build.ts",
     "preview": "ff preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode --noEmit",
     "test:e2e": "node test/browser.ts"
   },
   "dependencies": {
@@ -23,9 +23,11 @@
   },
   "devDependencies": {
     "@pandacss/dev": "^1.12.1",
+    "@tsrx/content-mapper": "0.1.2",
     "@types/node": "26.6.2",
     "playwright": "1.63.0",
     "typescript": "5.9.3",
+    "typescript-native": "npm:typescript@7.1.0-beta",
     "vite": "8.3.0",
     "vitest": "5.0.1"
   }

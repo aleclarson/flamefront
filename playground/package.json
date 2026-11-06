@@ -8,7 +8,7 @@
     "preview": "ff preview",
     "typegen": "NODE_OPTIONS=\"--no-warnings\" ff typegen",
     "routes": "ff routes",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "node node_modules/typescript-native/bin/tsc --runExternalCode -p tsconfig.json"
   },
   "dependencies": {
     "@octanejs/remix-router": "^0.1.65",
@@ -17,8 +17,10 @@
     "octane": "^0.16.7"
   },
   "devDependencies": {
+    "@tsrx/content-mapper": "0.1.2",
     "@types/node": "^26.6.2",
     "typescript": "^5.9.3",
+    "typescript-native": "npm:typescript@7.1.0-beta",
     "vite": "^8.3.0"
   }
 }
